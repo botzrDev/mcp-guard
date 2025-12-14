@@ -4,7 +4,10 @@
 [server]
 host = "127.0.0.1"
 port = 3000
+# TLS Configuration (optional)
 # tls = { cert_path = "cert.pem", key_path = "key.pem" }
+# mTLS: Add client_ca_path to require and validate client certificates
+# tls = { cert_path = "cert.pem", key_path = "key.pem", client_ca_path = "client-ca.pem" }
 
 [auth]
 # API Key Authentication
@@ -124,6 +127,40 @@ port = 3000
 # 3. Provider redirects to /oauth/callback with authorization code
 # 4. MCP Guard exchanges code for access token (with PKCE)
 # 5. User receives access token for API calls
+
+# =============================================================================
+# mTLS Client Certificate Authentication (optional)
+# Enterprise feature for service-to-service authentication
+# =============================================================================
+
+# mTLS can be used two ways:
+# 1. Native: Configure server.tls.client_ca_path (requires axum-server with rustls)
+# 2. Proxy: Use a reverse proxy (nginx, HAProxy) that validates certs and forwards
+#           certificate info in headers (X-Client-Cert-CN, X-Client-Cert-Verified)
+
+# -----------------------------------------------------------------------------
+# mTLS via Reverse Proxy (recommended for most deployments)
+# Configure your proxy to forward client cert info in headers
+# -----------------------------------------------------------------------------
+# [auth.mtls]
+# enabled = true
+# identity_source = "cn"                 # Extract identity from: cn, san_dns, san_email
+# allowed_tools = ["read_file", "write_file"]  # Optional: restrict tools (empty = all)
+# rate_limit = 1000                      # Optional: custom rate limit
+
+# -----------------------------------------------------------------------------
+# Example: nginx mTLS termination
+# -----------------------------------------------------------------------------
+# nginx config:
+#   ssl_client_certificate /etc/nginx/client-ca.pem;
+#   ssl_verify_client on;
+#   proxy_set_header X-Client-Cert-CN $ssl_client_s_dn_cn;
+#   proxy_set_header X-Client-Cert-Verified $ssl_client_verify;
+#
+# mcp-guard config:
+# [auth.mtls]
+# enabled = true
+# identity_source = "cn"
 
 [rate_limit]
 enabled = true

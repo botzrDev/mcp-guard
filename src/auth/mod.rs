@@ -1,9 +1,11 @@
 //! Authentication providers for mcp-guard
 
 mod jwt;
+mod mtls;
 mod oauth;
 
 pub use jwt::JwtProvider;
+pub use mtls::{ClientCertInfo, MtlsAuthProvider, HEADER_CLIENT_CERT_CN, HEADER_CLIENT_CERT_VERIFIED};
 pub use oauth::OAuthAuthProvider;
 
 use async_trait::async_trait;
@@ -26,6 +28,9 @@ pub enum AuthError {
 
     #[error("OAuth error: {0}")]
     OAuth(String),
+
+    #[error("Invalid client certificate: {0}")]
+    InvalidClientCert(String),
 
     #[error("Internal error: {0}")]
     Internal(String),

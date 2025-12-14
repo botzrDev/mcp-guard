@@ -34,12 +34,18 @@ Model Context Protocol (MCP) is powerful, but most servers are deployed with **z
 | JWT Authentication (HS256) | ✅ |
 | JWT Authentication (JWKS/RS256/ES256) | ✅ |
 | OAuth 2.1 with PKCE | ✅ |
+| mTLS Client Certificate Auth | ✅ |
 | Per-Identity Rate Limiting | ✅ |
 | Per-Tool Authorization | ✅ |
+| Tools/List Filtering | ✅ |
 | Prometheus Metrics | ✅ |
 | OpenTelemetry Tracing | ✅ |
 | W3C Trace Context Propagation | ✅ |
 | Audit Logging | ✅ |
+| Stdio Transport | ✅ |
+| HTTP Transport | ✅ |
+| SSE Transport | ✅ |
+| Health Check Endpoints (/health, /live, /ready) | ✅ |
 
 ## Quick Start
 
@@ -135,6 +141,43 @@ sample_rate = 1.0
 propagate_context = true
 ```
 
+### HTTP Transport
+
+Connect to an HTTP-based MCP server:
+
+```toml
+[upstream]
+transport = "http"
+url = "http://localhost:8080/mcp"
+```
+
+### SSE Transport
+
+Connect via Server-Sent Events for streaming responses:
+
+```toml
+[upstream]
+transport = "sse"
+url = "http://localhost:8080/mcp/stream"
+```
+
+### mTLS Client Certificate Authentication
+
+For enterprise service-to-service authentication via reverse proxy:
+
+```toml
+# Enable mTLS via reverse proxy headers
+[auth.mtls]
+enabled = true
+identity_source = "cn"  # Extract identity from: cn, san_dns, san_email
+allowed_tools = []      # Empty = all tools allowed
+rate_limit = 1000       # Optional custom rate limit
+
+# Configure your reverse proxy (nginx) to forward cert info:
+# proxy_set_header X-Client-Cert-CN $ssl_client_s_dn_cn;
+# proxy_set_header X-Client-Cert-Verified $ssl_client_verify;
+```
+
 ## Observability
 
 ### Prometheus Metrics
@@ -161,11 +204,30 @@ When enabled, mcp-guard exports traces via OTLP to collectors like Jaeger or Gra
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | Health check |
+| `/health` | GET | Health check with version and uptime |
+| `/live` | GET | Liveness probe (for Kubernetes) |
+| `/ready` | GET | Readiness probe (checks transport) |
 | `/metrics` | GET | Prometheus metrics |
 | `/mcp` | POST | MCP message handler (requires auth) |
 | `/oauth/authorize` | GET | Start OAuth flow |
 | `/oauth/callback` | GET | OAuth callback |
+
+### Health Check Responses
+
+**GET /health** - Detailed health status
+```json
+{"status": "healthy", "version": "0.1.0", "uptime_secs": 3600}
+```
+
+**GET /live** - Kubernetes liveness probe
+```json
+{"status": "alive"}
+```
+
+**GET /ready** - Kubernetes readiness probe (200 if ready, 503 if not)
+```json
+{"ready": true, "version": "0.1.0"}
+```
 
 ## CLI Reference
 

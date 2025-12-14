@@ -15,11 +15,12 @@ use opentelemetry::propagation::TextMapPropagator;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::audit::AuditLogger;
-use crate::auth::{AuthProvider, Identity, OAuthAuthProvider};
+use crate::auth::{AuthProvider, ClientCertInfo, Identity, MtlsAuthProvider, OAuthAuthProvider};
 use crate::authz::{filter_tools_list_response, is_tools_list_request};
 use crate::config::Config;
 use crate::observability::{record_auth, record_rate_limit, record_request, set_active_identities};
@@ -54,21 +55,77 @@ pub struct AppState {
     pub oauth_provider: Option<Arc<OAuthAuthProvider>>,
     /// OAuth state storage for PKCE
     pub oauth_state_store: OAuthStateStore,
+    /// Server startup time for uptime calculation
+    pub started_at: Instant,
+    /// Readiness state (set to true after successful transport initialization)
+    pub ready: Arc<RwLock<bool>>,
+    /// mTLS provider for header-based client certificate auth (optional)
+    pub mtls_provider: Option<Arc<MtlsAuthProvider>>,
 }
 
-/// Health check response
+/// Health check response (detailed)
 #[derive(serde::Serialize)]
 struct HealthResponse {
     status: &'static str,
     version: &'static str,
+    uptime_secs: u64,
 }
 
-/// Health check handler
-async fn health() -> Json<HealthResponse> {
+/// Liveness check response (minimal)
+#[derive(serde::Serialize)]
+struct LiveResponse {
+    status: &'static str,
+}
+
+/// Readiness check response
+#[derive(serde::Serialize)]
+struct ReadyResponse {
+    ready: bool,
+    version: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<String>,
+}
+
+/// Health check handler - returns detailed status
+async fn health(State(state): State<Arc<AppState>>) -> Json<HealthResponse> {
+    let uptime = state.started_at.elapsed();
     Json(HealthResponse {
         status: "healthy",
         version: env!("CARGO_PKG_VERSION"),
+        uptime_secs: uptime.as_secs(),
     })
+}
+
+/// Liveness check handler - minimal check for container orchestration
+/// Returns 200 if the server is running
+async fn live() -> Json<LiveResponse> {
+    Json(LiveResponse { status: "alive" })
+}
+
+/// Readiness check handler - checks if the server can handle requests
+/// Returns 200 if ready, 503 if not ready
+async fn ready(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let is_ready = *state.ready.read().await;
+
+    if is_ready {
+        (
+            StatusCode::OK,
+            Json(ReadyResponse {
+                ready: true,
+                version: env!("CARGO_PKG_VERSION"),
+                reason: None,
+            }),
+        )
+    } else {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ReadyResponse {
+                ready: false,
+                version: env!("CARGO_PKG_VERSION"),
+                reason: Some("Transport not initialized".to_string()),
+            }),
+        )
+    }
 }
 
 /// Metrics endpoint handler - returns Prometheus format metrics
@@ -347,12 +404,50 @@ async fn exchange_code_for_tokens(
 }
 
 /// Authentication middleware with metrics
+///
+/// Supports multiple authentication methods in order of preference:
+/// 1. mTLS: Client certificate info from headers (X-Client-Cert-CN, etc.)
+/// 2. Bearer token: Authorization header with Bearer token (API key, JWT, OAuth)
 pub async fn auth_middleware(
     State(state): State<Arc<AppState>>,
     mut request: Request<Body>,
     next: Next,
 ) -> Result<Response, AppError> {
-    // Extract token from Authorization header
+    // Try mTLS authentication first (if configured and headers present)
+    if let Some(ref mtls_provider) = state.mtls_provider {
+        if let Some(cert_info) = ClientCertInfo::from_headers(request.headers()) {
+            if cert_info.verified || cert_info.common_name.is_some() {
+                match mtls_provider.extract_identity(&cert_info) {
+                    Ok(identity) => {
+                        record_auth("mtls", true);
+                        state.audit_logger.log_auth_success(&identity.id);
+
+                        // Check rate limit
+                        let rate_limit_result =
+                            state.rate_limiter.check(&identity.id, identity.rate_limit);
+                        record_rate_limit(rate_limit_result.allowed);
+
+                        if !rate_limit_result.allowed {
+                            state.audit_logger.log_rate_limited(&identity.id);
+                            return Err(AppError::RateLimited {
+                                retry_after_secs: rate_limit_result.retry_after_secs,
+                            });
+                        }
+
+                        request.extensions_mut().insert(identity);
+                        return Ok(next.run(request).await);
+                    }
+                    Err(e) => {
+                        record_auth("mtls", false);
+                        tracing::debug!("mTLS auth failed, falling back to bearer: {}", e);
+                        // Fall through to bearer token auth
+                    }
+                }
+            }
+        }
+    }
+
+    // Fall back to Bearer token authentication
     let token = request
         .headers()
         .get("Authorization")
@@ -535,6 +630,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     // OAuth routes (only added if OAuth is configured)
     let mut router = Router::new()
         .route("/health", get(health))
+        .route("/live", get(live))
+        .route("/ready", get(ready))
         .route("/metrics", get(metrics_handler));
 
     if state.oauth_provider.is_some() {

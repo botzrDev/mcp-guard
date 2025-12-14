@@ -8,6 +8,9 @@ use mcp_guard::{
     transport::Message,
 };
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::RwLock;
 
 #[test]
 fn test_api_key_generation() {
@@ -494,4 +497,272 @@ async fn test_sse_transport_instantiation() {
     // Transport should implement the Transport trait
     fn _assert_transport<T: mcp_guard::transport::Transport>(_t: &T) {}
     _assert_transport(&transport);
+}
+
+// =============================================================================
+// Health Check Endpoint Tests (Sprint 6)
+// =============================================================================
+
+#[tokio::test]
+async fn test_health_endpoint_response_structure() {
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use mcp_guard::{
+        audit::AuditLogger,
+        auth::ApiKeyProvider,
+        config::{AuditConfig, Config},
+        observability::create_metrics_handle,
+        rate_limit::RateLimitService,
+        server::{build_router, new_oauth_state_store, AppState},
+        transport::StdioTransport,
+    };
+    use tower::ServiceExt;
+
+    // Create minimal config
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: RateLimitConfig::default(),
+        audit: AuditConfig::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+        },
+    };
+
+    // Create minimal app state
+    let state = Arc::new(AppState {
+        config: config.clone(),
+        auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
+        rate_limiter: RateLimitService::new(&config.rate_limit),
+        audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
+        transport: Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap()),
+        metrics_handle: create_metrics_handle(),
+        oauth_provider: None,
+        oauth_state_store: new_oauth_state_store(),
+        started_at: Instant::now(),
+        ready: Arc::new(RwLock::new(true)),
+        mtls_provider: None,
+    });
+
+    let app = build_router(state);
+
+    // Test /health endpoint
+    let request = Request::builder()
+        .uri("/health")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(json["status"], "healthy");
+    assert!(json["version"].is_string());
+    assert!(json["uptime_secs"].is_number());
+}
+
+#[tokio::test]
+async fn test_live_endpoint() {
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use mcp_guard::{
+        audit::AuditLogger,
+        auth::ApiKeyProvider,
+        config::{AuditConfig, Config},
+        observability::create_metrics_handle,
+        rate_limit::RateLimitService,
+        server::{build_router, new_oauth_state_store, AppState},
+        transport::StdioTransport,
+    };
+    use tower::ServiceExt;
+
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: RateLimitConfig::default(),
+        audit: AuditConfig::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+        },
+    };
+
+    let state = Arc::new(AppState {
+        config: config.clone(),
+        auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
+        rate_limiter: RateLimitService::new(&config.rate_limit),
+        audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
+        transport: Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap()),
+        metrics_handle: create_metrics_handle(),
+        oauth_provider: None,
+        oauth_state_store: new_oauth_state_store(),
+        started_at: Instant::now(),
+        ready: Arc::new(RwLock::new(true)),
+        mtls_provider: None,
+    });
+
+    let app = build_router(state);
+
+    // Test /live endpoint
+    let request = Request::builder()
+        .uri("/live")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(json["status"], "alive");
+}
+
+#[tokio::test]
+async fn test_ready_endpoint_when_ready() {
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use mcp_guard::{
+        audit::AuditLogger,
+        auth::ApiKeyProvider,
+        config::{AuditConfig, Config},
+        observability::create_metrics_handle,
+        rate_limit::RateLimitService,
+        server::{build_router, new_oauth_state_store, AppState},
+        transport::StdioTransport,
+    };
+    use tower::ServiceExt;
+
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: RateLimitConfig::default(),
+        audit: AuditConfig::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+        },
+    };
+
+    let state = Arc::new(AppState {
+        config: config.clone(),
+        auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
+        rate_limiter: RateLimitService::new(&config.rate_limit),
+        audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
+        transport: Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap()),
+        metrics_handle: create_metrics_handle(),
+        oauth_provider: None,
+        oauth_state_store: new_oauth_state_store(),
+        started_at: Instant::now(),
+        ready: Arc::new(RwLock::new(true)), // Ready = true
+        mtls_provider: None,
+    });
+
+    let app = build_router(state);
+
+    // Test /ready endpoint when server is ready
+    let request = Request::builder()
+        .uri("/ready")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(json["ready"], true);
+    assert!(json["version"].is_string());
+    assert!(json["reason"].is_null() || json.get("reason").is_none());
+}
+
+#[tokio::test]
+async fn test_ready_endpoint_when_not_ready() {
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use mcp_guard::{
+        audit::AuditLogger,
+        auth::ApiKeyProvider,
+        config::{AuditConfig, Config},
+        observability::create_metrics_handle,
+        rate_limit::RateLimitService,
+        server::{build_router, new_oauth_state_store, AppState},
+        transport::StdioTransport,
+    };
+    use tower::ServiceExt;
+
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: RateLimitConfig::default(),
+        audit: AuditConfig::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+        },
+    };
+
+    let state = Arc::new(AppState {
+        config: config.clone(),
+        auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
+        rate_limiter: RateLimitService::new(&config.rate_limit),
+        audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
+        transport: Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap()),
+        metrics_handle: create_metrics_handle(),
+        oauth_provider: None,
+        oauth_state_store: new_oauth_state_store(),
+        started_at: Instant::now(),
+        ready: Arc::new(RwLock::new(false)), // Ready = false
+        mtls_provider: None,
+    });
+
+    let app = build_router(state);
+
+    // Test /ready endpoint when server is NOT ready
+    let request = Request::builder()
+        .uri("/ready")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(json["ready"], false);
+    assert!(json["version"].is_string());
+    assert!(json["reason"].is_string());
 }

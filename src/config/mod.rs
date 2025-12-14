@@ -81,8 +81,58 @@ fn default_port() -> u16 {
 /// TLS configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TlsConfig {
+    /// Path to server certificate (PEM format)
     pub cert_path: PathBuf,
+    /// Path to server private key (PEM format)
     pub key_path: PathBuf,
+    /// Path to CA certificate for client certificate validation (mTLS)
+    /// If set, client certificates will be required and validated against this CA
+    pub client_ca_path: Option<PathBuf>,
+}
+
+/// mTLS authentication configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MtlsConfig {
+    /// Whether to enable mTLS authentication
+    #[serde(default)]
+    pub enabled: bool,
+    /// Claim to extract user ID from (CN or SAN)
+    /// Default: "cn" (Common Name)
+    #[serde(default = "default_mtls_identity_source")]
+    pub identity_source: MtlsIdentitySource,
+    /// Allowed tools for mTLS-authenticated identities (empty means all)
+    #[serde(default)]
+    pub allowed_tools: Vec<String>,
+    /// Custom rate limit for mTLS-authenticated identities
+    #[serde(default)]
+    pub rate_limit: Option<u32>,
+}
+
+impl Default for MtlsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            identity_source: default_mtls_identity_source(),
+            allowed_tools: vec![],
+            rate_limit: None,
+        }
+    }
+}
+
+/// Source for extracting identity from client certificate
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MtlsIdentitySource {
+    /// Extract from Common Name (CN)
+    Cn,
+    /// Extract from Subject Alternative Name (SAN) - DNS name
+    SanDns,
+    /// Extract from Subject Alternative Name (SAN) - Email
+    SanEmail,
+}
+
+fn default_mtls_identity_source() -> MtlsIdentitySource {
+    MtlsIdentitySource::Cn
 }
 
 /// Authentication configuration
@@ -99,6 +149,10 @@ pub struct AuthConfig {
     /// OAuth 2.1 configuration
     #[serde(default)]
     pub oauth: Option<OAuthConfig>,
+
+    /// mTLS client certificate authentication
+    #[serde(default)]
+    pub mtls: Option<MtlsConfig>,
 }
 
 /// API key configuration

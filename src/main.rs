@@ -1,10 +1,12 @@
 //! MCP Guard - Security gateway for MCP servers
 
 use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::RwLock;
 
 use mcp_guard::{
     audit::AuditLogger,
-    auth::{ApiKeyProvider, AuthProvider, JwtProvider, MultiProvider, OAuthAuthProvider},
+    auth::{ApiKeyProvider, AuthProvider, JwtProvider, MtlsAuthProvider, MultiProvider, OAuthAuthProvider},
     cli::{generate_api_key, generate_config, hash_api_key, Cli, Commands},
     config::Config,
     observability::{init_metrics, init_tracing},
@@ -179,6 +181,19 @@ async fn main() -> anyhow::Result<()> {
             // Create OAuth state store for PKCE
             let oauth_state_store = new_oauth_state_store();
 
+            // Set up mTLS provider if configured
+            let mtls_provider: Option<Arc<MtlsAuthProvider>> =
+                if let Some(mtls_config) = config.auth.mtls.clone() {
+                    if mtls_config.enabled {
+                        tracing::info!("Enabling mTLS client certificate authentication");
+                        Some(Arc::new(MtlsAuthProvider::new(mtls_config)))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
             // Set up rate limiter
             let rate_limiter = RateLimitService::new(&config.rate_limit);
 
@@ -219,6 +234,9 @@ async fn main() -> anyhow::Result<()> {
                 }
             };
 
+            // Create readiness state (set to true since transport is initialized)
+            let ready = Arc::new(RwLock::new(true));
+
             // Create application state
             let state = Arc::new(AppState {
                 config,
@@ -229,6 +247,9 @@ async fn main() -> anyhow::Result<()> {
                 metrics_handle,
                 oauth_provider,
                 oauth_state_store,
+                started_at: Instant::now(),
+                ready,
+                mtls_provider,
             });
 
             // Run server

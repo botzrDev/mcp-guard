@@ -162,6 +162,17 @@ pub fn init_metrics() -> PrometheusHandle {
         .expect("Failed to install Prometheus recorder")
 }
 
+/// Create a Prometheus handle without installing a global recorder
+///
+/// Useful for tests where multiple tests may run in parallel and each
+/// needs its own metrics handle. The returned handle can still render
+/// metrics but they won't be globally accessible.
+pub fn create_metrics_handle() -> PrometheusHandle {
+    let recorder = PrometheusBuilder::new()
+        .build_recorder();
+    recorder.handle()
+}
+
 /// Record a completed request
 ///
 /// # Arguments
