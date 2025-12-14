@@ -10,7 +10,7 @@ use mcp_guard::{
     observability::{init_metrics, init_tracing},
     rate_limit::RateLimitService,
     server::{self, new_oauth_state_store, AppState},
-    transport::StdioTransport,
+    transport::{HttpTransport, SseTransport, StdioTransport},
 };
 
 #[tokio::main]
@@ -194,10 +194,28 @@ async fn main() -> anyhow::Result<()> {
                         .command
                         .as_ref()
                         .expect("command required for stdio transport");
+                    tracing::info!(command = %command, "Using stdio transport");
                     Arc::new(StdioTransport::spawn(command, &config.upstream.args).await?)
                 }
-                _ => {
-                    anyhow::bail!("HTTP/SSE transport not yet implemented");
+                mcp_guard::config::TransportType::Http => {
+                    let url = config
+                        .upstream
+                        .url
+                        .as_ref()
+                        .expect("url required for HTTP transport")
+                        .clone();
+                    tracing::info!(url = %url, "Using HTTP transport");
+                    Arc::new(HttpTransport::new(url))
+                }
+                mcp_guard::config::TransportType::Sse => {
+                    let url = config
+                        .upstream
+                        .url
+                        .as_ref()
+                        .expect("url required for SSE transport")
+                        .clone();
+                    tracing::info!(url = %url, "Using SSE transport");
+                    Arc::new(SseTransport::connect(url).await?)
                 }
             };
 

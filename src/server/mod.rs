@@ -19,7 +19,8 @@ use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::audit::AuditLogger;
-use crate::auth::{AuthProvider, OAuthAuthProvider};
+use crate::auth::{AuthProvider, Identity, OAuthAuthProvider};
+use crate::authz::{filter_tools_list_response, is_tools_list_request};
 use crate::config::Config;
 use crate::observability::{record_auth, record_rate_limit, record_request, set_active_identities};
 use crate::rate_limit::RateLimitService;
@@ -83,16 +84,27 @@ async fn metrics_handler(State(state): State<Arc<AppState>>) -> impl IntoRespons
     )
 }
 
-/// MCP message handler
+/// MCP message handler with tools/list filtering (FR-AUTHZ-03)
 async fn handle_mcp_message(
     State(state): State<Arc<AppState>>,
+    axum::Extension(identity): axum::Extension<Identity>,
     Json(message): Json<Message>,
 ) -> Result<Json<Message>, AppError> {
+    // Check if this is a tools/list request (for later filtering)
+    let is_tools_list = is_tools_list_request(&message);
+
     // Forward to upstream transport
     state.transport.send(message).await?;
 
     // Wait for response
     let response = state.transport.receive().await?;
+
+    // Filter tools/list response to only show authorized tools (FR-AUTHZ-03)
+    let response = if is_tools_list {
+        filter_tools_list_response(response, &identity)
+    } else {
+        response
+    };
 
     Ok(Json(response))
 }

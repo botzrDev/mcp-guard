@@ -162,10 +162,53 @@ propagate_context = true           # Extract/inject W3C traceparent headers
 # otlp_endpoint = "http://tempo.monitoring.svc:4317"
 # sample_rate = 0.1  # Sample 10% of requests in production
 
+# =============================================================================
+# Upstream MCP Server Configuration
+# Supported transports: stdio, http, sse
+# =============================================================================
+
 [upstream]
 transport = "stdio"
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
-# For HTTP upstream:
+
+# -----------------------------------------------------------------------------
+# Stdio Transport (default) - Spawn a local MCP server process
+# -----------------------------------------------------------------------------
+# [upstream]
+# transport = "stdio"
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+
+# Python MCP server example:
+# [upstream]
+# transport = "stdio"
+# command = "python"
+# args = ["-m", "mcp_server", "--port", "0"]
+
+# -----------------------------------------------------------------------------
+# HTTP Transport - Connect to HTTP-based MCP server
+# Sends JSON-RPC requests via HTTP POST, receives JSON responses
+# -----------------------------------------------------------------------------
+# [upstream]
 # transport = "http"
 # url = "http://localhost:8080/mcp"
+
+# Remote MCP server with authentication:
+# [upstream]
+# transport = "http"
+# url = "https://mcp.example.com/api/v1/rpc"
+
+# -----------------------------------------------------------------------------
+# SSE Transport - Server-Sent Events for streaming responses
+# Sends JSON-RPC via HTTP POST, receives SSE stream for streaming results
+# Best for long-running tool calls that stream output
+# -----------------------------------------------------------------------------
+# [upstream]
+# transport = "sse"
+# url = "http://localhost:8080/mcp/stream"
+
+# Production SSE example:
+# [upstream]
+# transport = "sse"
+# url = "https://mcp.example.com/api/v1/stream"

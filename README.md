@@ -6,7 +6,8 @@
   <a href="#features">Features</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#configuration">Configuration</a> •
-  <a href="#metrics">Metrics</a>
+  <a href="#observability">Observability</a> •
+  <a href="#cli-reference">CLI Reference</a>
 </div>
 
 ---
@@ -19,10 +20,11 @@ Model Context Protocol (MCP) is powerful, but most servers are deployed with **z
 
 `mcp-guard` is a lightweight security gateway that wraps any MCP server with production-grade protection:
 
-- **Authentication**: API Keys, JWT (HS256 + JWKS)
+- **Authentication**: API Keys, JWT (HS256 + JWKS), OAuth 2.1 (PKCE)
+- **Authorization**: Per-tool permissions with scope mapping
 - **Rate Limiting**: Per-identity limits with configurable burst
-- **Observability**: Prometheus metrics endpoint
-- **Audit Logging**: Track every request
+- **Observability**: Prometheus metrics + OpenTelemetry tracing
+- **Audit Logging**: Track every request with correlation IDs
 
 ## Features
 
@@ -30,12 +32,14 @@ Model Context Protocol (MCP) is powerful, but most servers are deployed with **z
 |---------|--------|
 | API Key Authentication | ✅ |
 | JWT Authentication (HS256) | ✅ |
-| JWT Authentication (JWKS/RS256) | ✅ |
+| JWT Authentication (JWKS/RS256/ES256) | ✅ |
+| OAuth 2.1 with PKCE | ✅ |
 | Per-Identity Rate Limiting | ✅ |
-| Prometheus Metrics | ✅ |
-| Audit Logging | ✅ |
 | Per-Tool Authorization | ✅ |
-| OAuth 2.1 | Coming Soon |
+| Prometheus Metrics | ✅ |
+| OpenTelemetry Tracing | ✅ |
+| W3C Trace Context Propagation | ✅ |
+| Audit Logging | ✅ |
 
 ## Quick Start
 
@@ -65,7 +69,7 @@ cargo build --release
 
 ## Configuration
 
-Example `mcp-guard.toml`:
+### Basic Example
 
 ```toml
 [server]
@@ -77,11 +81,10 @@ transport = "stdio"
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 
-[auth]
 [[auth.api_keys]]
 id = "my-agent"
 key_hash = "YOUR_KEY_HASH_HERE"
-allowed_tools = ["read", "list"]
+allowed_tools = ["read_file", "list_directory"]
 rate_limit = 100
 
 [rate_limit]
@@ -91,11 +94,52 @@ burst_size = 50
 
 [audit]
 enabled = true
+stdout = true
 ```
 
-## Metrics
+### JWT Authentication (JWKS)
 
-Prometheus metrics are exposed at `GET /metrics`:
+```toml
+[auth.jwt]
+mode = "jwks"
+jwks_url = "https://your-idp.com/.well-known/jwks.json"
+algorithms = ["RS256", "ES256"]
+issuer = "https://your-idp.com/"
+audience = "mcp-guard"
+
+[auth.jwt.scope_tool_mapping]
+"read:files" = ["read_file", "list_directory"]
+"write:files" = ["write_file", "delete_file"]
+"admin" = ["*"]
+```
+
+### OAuth 2.1 (GitHub Example)
+
+```toml
+[auth.oauth]
+provider = "github"
+client_id = "your-github-client-id"
+client_secret = "your-github-client-secret"
+redirect_uri = "http://localhost:3000/oauth/callback"
+scopes = ["read:user", "repo"]
+```
+
+### OpenTelemetry Tracing
+
+```toml
+[tracing]
+enabled = true
+service_name = "mcp-guard"
+otlp_endpoint = "http://localhost:4317"  # Jaeger/Tempo gRPC
+sample_rate = 1.0
+propagate_context = true
+```
+
+## Observability
+
+### Prometheus Metrics
+
+Metrics are exposed at `GET /metrics`:
 
 | Metric | Type | Description |
 |--------|------|-------------|
@@ -105,13 +149,56 @@ Prometheus metrics are exposed at `GET /metrics`:
 | `mcp_guard_rate_limit_total` | Counter | Rate limit checks (labels: allowed) |
 | `mcp_guard_active_identities` | Gauge | Tracked identity count |
 
+### OpenTelemetry Tracing
+
+When enabled, mcp-guard exports traces via OTLP to collectors like Jaeger or Grafana Tempo:
+
+- **W3C Trace Context**: Extracts `traceparent`/`tracestate` from incoming requests
+- **Span propagation**: Trace context is propagated to downstream services
+- **Correlation IDs**: Trace IDs are included in logs for debugging
+
+## Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/metrics` | GET | Prometheus metrics |
+| `/mcp` | POST | MCP message handler (requires auth) |
+| `/oauth/authorize` | GET | Start OAuth flow |
+| `/oauth/callback` | GET | OAuth callback |
+
 ## CLI Reference
 
 ```bash
-mcp-guard init              # Generate config file
-mcp-guard validate          # Validate config
-mcp-guard keygen --user-id X  # Generate API key
-mcp-guard run               # Start the gateway
+mcp-guard init [--format toml|yaml] [--force]  # Generate config file
+mcp-guard validate                              # Validate config
+mcp-guard keygen --user-id X [--rate-limit N]  # Generate API key
+mcp-guard hash-key <key>                        # Hash an existing key
+mcp-guard run [--host H] [--port P]            # Start the gateway
+```
+
+### Global Options
+
+```bash
+-c, --config <FILE>    Config file path (default: mcp-guard.toml)
+-v, --verbose          Enable verbose logging
+-h, --help             Show help
+```
+
+## Architecture
+
+```
+┌─────────────┐     ┌─────────────────┐     ┌─────────────┐
+│   Client    │────▶│   mcp-guard     │────▶│  MCP Server │
+│  (Agent)    │◀────│  (Gateway)      │◀────│  (Upstream) │
+└─────────────┘     └─────────────────┘     └─────────────┘
+                           │
+                    ┌──────┴──────┐
+                    ▼             ▼
+              ┌─────────┐   ┌──────────┐
+              │Prometheus│   │  Jaeger  │
+              │ /metrics │   │  (OTLP)  │
+              └─────────┘   └──────────┘
 ```
 
 ## License
