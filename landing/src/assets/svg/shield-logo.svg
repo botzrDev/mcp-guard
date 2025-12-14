@@ -1,0 +1,18 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="shield-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4ecdc4"/>
+      <stop offset="50%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield outline -->
+  <path d="M32 4L8 14v18c0 16.5 10.8 31.5 24 36 13.2-4.5 24-19.5 24-36V14L32 4z"
+        fill="url(#shield-gradient)" opacity="0.9"/>
+  <!-- Inner shield highlight -->
+  <path d="M32 8l-20 8.5v15c0 13.5 8.8 25.8 20 30 11.2-4.2 20-16.5 20-30v-15L32 8z"
+        fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <!-- Door/gate icon inside -->
+  <rect x="24" y="24" width="16" height="20" rx="2" fill="rgba(5,5,8,0.8)"/>
+  <circle cx="36" cy="34" r="2" fill="#4ecdc4"/>
+</svg>

@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { NavbarComponent } from './components/navbar/navbar.component';
 import { HeroComponent } from './components/hero/hero.component';
 import { StatsComponent } from './components/stats/stats.component';
@@ -7,10 +7,12 @@ import { ComparisonComponent } from './components/comparison/comparison.componen
 import { PricingComponent } from './components/pricing/pricing.component';
 import { CtaComponent } from './components/cta/cta.component';
 import { FooterComponent } from './components/footer/footer.component';
+import { BackgroundComponent } from './components/background/background.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     NavbarComponent,
     HeroComponent,
@@ -19,9 +21,11 @@ import { FooterComponent } from './components/footer/footer.component';
     ComparisonComponent,
     PricingComponent,
     CtaComponent,
-    FooterComponent
+    FooterComponent,
+    BackgroundComponent
   ],
   template: `
+    <app-background />
     <app-navbar />
     <main>
       <app-hero />
@@ -44,4 +48,4 @@ import { FooterComponent } from './components/footer/footer.component';
     }
   `]
 })
-export class App {}
+export class App { }

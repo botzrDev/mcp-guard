@@ -1,11 +1,12 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { IconComponent, IconName } from '../../shared/icon/icon.component';
 
 interface Feature {
   id: string;
   title: string;
   description: string;
-  icon: string;
+  icon: IconName;
   tag: string;
   size: 'large' | 'small';
   code?: string;
@@ -14,7 +15,8 @@ interface Feature {
 @Component({
   selector: 'app-features',
   standalone: true,
-  imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [CommonModule, IconComponent],
   template: `
     <section class="features" id="features">
       <div class="features-container">
@@ -36,7 +38,9 @@ interface Feature {
               [attr.data-feature]="feature.id"
             >
               <div class="card-header">
-                <div class="card-icon" [innerHTML]="feature.icon"></div>
+                <div class="card-icon">
+                  <app-icon [name]="feature.icon" />
+                </div>
                 <span class="card-tag">{{ feature.tag }}</span>
               </div>
 
@@ -370,7 +374,7 @@ export class FeaturesComponent {
       id: 'auth',
       title: 'Multi-Provider Authentication',
       description: 'API keys for simplicity. JWT for scale. OAuth 2.1 with PKCE for enterprise SSO. Use one or combine them all.',
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>',
+      icon: 'auth',
       tag: 'OAuth 2.1 • JWT • API Keys',
       size: 'large',
       code: `[auth]
@@ -384,7 +388,7 @@ client_id = "your_client_id"`
       id: 'authz',
       title: 'Tool-Level Authorization',
       description: 'Define exactly which users can access which MCP tools. Map OAuth scopes or JWT claims to granular permissions.',
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>',
+      icon: 'authz',
       tag: 'Per-tool ACLs',
       size: 'small'
     },
@@ -392,7 +396,7 @@ client_id = "your_client_id"`
       id: 'rate',
       title: 'Per-Identity Rate Limiting',
       description: 'Token bucket algorithm with per-user limits. Custom rates per identity. Automatic Retry-After headers.',
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
+      icon: 'rate',
       tag: 'Token Bucket',
       size: 'small'
     },
@@ -400,7 +404,7 @@ client_id = "your_client_id"`
       id: 'audit',
       title: 'Audit Logging',
       description: 'Every request logged with identity, tool, timestamp, and outcome. Automatic secret redaction. Export-ready for compliance.',
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
+      icon: 'audit',
       tag: 'SOC 2 Ready',
       size: 'small'
     },
@@ -408,7 +412,7 @@ client_id = "your_client_id"`
       id: 'metrics',
       title: 'Prometheus Metrics',
       description: 'Built-in /metrics endpoint with request counts, latency histograms, auth outcomes, and rate limit tracking.',
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>',
+      icon: 'metrics',
       tag: 'Grafana Compatible',
       size: 'small'
     },
@@ -416,7 +420,7 @@ client_id = "your_client_id"`
       id: 'binary',
       title: 'Zero Infrastructure',
       description: 'Single static binary. No Docker, no Kubernetes, no databases. Compiles to WASM for edge deployment.',
-      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>',
+      icon: 'binary',
       tag: 'Rust • WASM Ready',
       size: 'large'
     }
