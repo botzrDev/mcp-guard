@@ -1,0 +1,280 @@
+//! Configuration types and parsing for mcp-guard
+
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+/// Configuration error type
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("Failed to read config file: {0}")]
+    Read(#[from] std::io::Error),
+
+    #[error("Failed to parse config: {0}")]
+    Parse(String),
+
+    #[error("Validation error: {0}")]
+    Validation(String),
+}
+
+/// Main configuration struct
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config {
+    /// Server configuration
+    #[serde(default)]
+    pub server: ServerConfig,
+
+    /// Authentication configuration
+    #[serde(default)]
+    pub auth: AuthConfig,
+
+    /// Rate limiting configuration
+    #[serde(default)]
+    pub rate_limit: RateLimitConfig,
+
+    /// Audit logging configuration
+    #[serde(default)]
+    pub audit: AuditConfig,
+
+    /// Upstream MCP server configuration
+    pub upstream: UpstreamConfig,
+}
+
+/// Server configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerConfig {
+    /// Host to bind to
+    #[serde(default = "default_host")]
+    pub host: String,
+
+    /// Port to listen on
+    #[serde(default = "default_port")]
+    pub port: u16,
+
+    /// Enable TLS
+    #[serde(default)]
+    pub tls: Option<TlsConfig>,
+}
+
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            host: default_host(),
+            port: default_port(),
+            tls: None,
+        }
+    }
+}
+
+fn default_host() -> String {
+    "127.0.0.1".to_string()
+}
+
+fn default_port() -> u16 {
+    3000
+}
+
+/// TLS configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TlsConfig {
+    pub cert_path: PathBuf,
+    pub key_path: PathBuf,
+}
+
+/// Authentication configuration
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AuthConfig {
+    /// API key authentication
+    #[serde(default)]
+    pub api_keys: Vec<ApiKeyConfig>,
+
+    /// JWT authentication
+    #[serde(default)]
+    pub jwt: Option<JwtConfig>,
+
+    /// OAuth 2.1 configuration
+    #[serde(default)]
+    pub oauth: Option<OAuthConfig>,
+}
+
+/// API key configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiKeyConfig {
+    /// User/service identifier
+    pub id: String,
+
+    /// The hashed API key
+    pub key_hash: String,
+
+    /// Allowed tools (empty means all)
+    #[serde(default)]
+    pub allowed_tools: Vec<String>,
+
+    /// Custom rate limit (overrides global)
+    #[serde(default)]
+    pub rate_limit: Option<u32>,
+}
+
+/// JWT configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JwtConfig {
+    /// JWT secret or public key
+    pub secret: String,
+
+    /// Expected issuer
+    pub issuer: Option<String>,
+
+    /// Expected audience
+    pub audience: Option<String>,
+
+    /// Algorithm (HS256, RS256, etc.)
+    #[serde(default = "default_algorithm")]
+    pub algorithm: String,
+}
+
+fn default_algorithm() -> String {
+    "HS256".to_string()
+}
+
+/// OAuth 2.1 configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthConfig {
+    /// Authorization server URL
+    pub issuer_url: String,
+
+    /// Client ID
+    pub client_id: String,
+
+    /// Client secret
+    pub client_secret: Option<String>,
+
+    /// Token introspection endpoint
+    pub introspection_url: Option<String>,
+}
+
+/// Rate limiting configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RateLimitConfig {
+    /// Enable rate limiting
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+
+    /// Requests per second
+    #[serde(default = "default_rps")]
+    pub requests_per_second: u32,
+
+    /// Burst size
+    #[serde(default = "default_burst")]
+    pub burst_size: u32,
+}
+
+impl Default for RateLimitConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            requests_per_second: default_rps(),
+            burst_size: default_burst(),
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_rps() -> u32 {
+    100
+}
+
+fn default_burst() -> u32 {
+    50
+}
+
+/// Audit logging configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditConfig {
+    /// Enable audit logging
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+
+    /// Log file path
+    #[serde(default)]
+    pub file: Option<PathBuf>,
+
+    /// Log to stdout
+    #[serde(default)]
+    pub stdout: bool,
+}
+
+impl Default for AuditConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            file: None,
+            stdout: true,
+        }
+    }
+}
+
+/// Upstream MCP server configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpstreamConfig {
+    /// Transport type
+    pub transport: TransportType,
+
+    /// Command to run (for stdio transport)
+    pub command: Option<String>,
+
+    /// Arguments for the command
+    #[serde(default)]
+    pub args: Vec<String>,
+
+    /// URL for HTTP transport
+    pub url: Option<String>,
+}
+
+/// Transport type for upstream connection
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TransportType {
+    Stdio,
+    Http,
+    Sse,
+}
+
+impl Config {
+    /// Load configuration from a file
+    pub fn from_file(path: &PathBuf) -> Result<Self, ConfigError> {
+        let content = std::fs::read_to_string(path)?;
+
+        let config: Config = if path.extension().map(|e| e == "yaml" || e == "yml").unwrap_or(false) {
+            serde_yaml::from_str(&content).map_err(|e| ConfigError::Parse(e.to_string()))?
+        } else {
+            toml::from_str(&content).map_err(|e| ConfigError::Parse(e.to_string()))?
+        };
+
+        config.validate()?;
+        Ok(config)
+    }
+
+    /// Validate the configuration
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        match self.upstream.transport {
+            TransportType::Stdio => {
+                if self.upstream.command.is_none() {
+                    return Err(ConfigError::Validation(
+                        "stdio transport requires 'command' to be set".to_string(),
+                    ));
+                }
+            }
+            TransportType::Http | TransportType::Sse => {
+                if self.upstream.url.is_none() {
+                    return Err(ConfigError::Validation(
+                        "http/sse transport requires 'url' to be set".to_string(),
+                    ));
+                }
+            }
+        }
+
+        Ok(())
+    }
+}

@@ -1,0 +1,39 @@
+# MCP Guard Configuration Template
+# Copy this file to your project root and customize
+
+[server]
+host = "127.0.0.1"
+port = 3000
+# tls = { cert_path = "cert.pem", key_path = "key.pem" }
+
+[auth]
+# API Key Authentication
+# Generate keys with: mcp-guard keygen --user-id <name>
+# api_keys = [
+#   { id = "service1", key_hash = "<hash>", allowed_tools = ["read", "list"] },
+#   { id = "admin", key_hash = "<hash>", rate_limit = 1000 },
+# ]
+
+# JWT Authentication (optional)
+# jwt = { secret = "your-secret", issuer = "your-issuer", audience = "mcp-guard" }
+
+# OAuth 2.1 (optional)
+# oauth = { issuer_url = "https://auth.example.com", client_id = "mcp-guard" }
+
+[rate_limit]
+enabled = true
+requests_per_second = 100
+burst_size = 50
+
+[audit]
+enabled = true
+stdout = true
+# file = "/var/log/mcp-guard/audit.log"
+
+[upstream]
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+# For HTTP upstream:
+# transport = "http"
+# url = "http://localhost:8080/mcp"
