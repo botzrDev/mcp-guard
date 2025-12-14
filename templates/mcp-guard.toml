@@ -14,10 +14,66 @@ port = 3000
 #   { id = "admin", key_hash = "<hash>", rate_limit = 1000 },
 # ]
 
-# JWT Authentication (optional)
-# jwt = { secret = "your-secret", issuer = "your-issuer", audience = "mcp-guard" }
+# =============================================================================
+# JWT Authentication (optional) - Choose ONE mode below
+# =============================================================================
 
-# OAuth 2.1 (optional)
+# -----------------------------------------------------------------------------
+# Simple Mode (HS256) - Good for development/single-tenant
+# -----------------------------------------------------------------------------
+# [auth.jwt]
+# mode = "simple"
+# secret = "your-256-bit-secret-key-here-min-32-chars"
+# issuer = "https://your-app.com"
+# audience = "mcp-guard"
+# user_id_claim = "sub"          # default: extract user ID from 'sub' claim
+# scopes_claim = "scope"         # default: extract scopes from 'scope' claim
+# leeway_secs = 60               # optional: clock skew tolerance
+
+# -----------------------------------------------------------------------------
+# JWKS Mode (RS256/ES256) - Production with IdP
+# -----------------------------------------------------------------------------
+# [auth.jwt]
+# mode = "jwks"
+# jwks_url = "https://your-idp.com/.well-known/jwks.json"
+# algorithms = ["RS256", "ES256"]  # allowed algorithms
+# cache_duration_secs = 3600       # default: 1 hour
+# issuer = "https://your-idp.com/"
+# audience = "mcp-guard"
+# user_id_claim = "sub"
+# scopes_claim = "scope"
+
+# Scope-to-tool mapping (optional) - maps JWT scopes to allowed MCP tools
+# [auth.jwt.scope_tool_mapping]
+# "read:files" = ["read_file", "list_directory"]
+# "write:files" = ["write_file", "delete_file"]
+# "admin" = ["*"]  # wildcard = all tools allowed
+
+# -----------------------------------------------------------------------------
+# Auth0 Example
+# -----------------------------------------------------------------------------
+# [auth.jwt]
+# mode = "jwks"
+# jwks_url = "https://YOUR_DOMAIN.auth0.com/.well-known/jwks.json"
+# algorithms = ["RS256"]
+# issuer = "https://YOUR_DOMAIN.auth0.com/"
+# audience = "mcp-guard"
+# scopes_claim = "permissions"  # Auth0 uses 'permissions' for RBAC
+
+# -----------------------------------------------------------------------------
+# Keycloak Example
+# -----------------------------------------------------------------------------
+# [auth.jwt]
+# mode = "jwks"
+# jwks_url = "https://keycloak.example.com/realms/YOUR_REALM/protocol/openid-connect/certs"
+# algorithms = ["RS256"]
+# issuer = "https://keycloak.example.com/realms/YOUR_REALM"
+# audience = "mcp-guard"
+# user_id_claim = "preferred_username"
+
+# =============================================================================
+# OAuth 2.1 (optional) - future support
+# =============================================================================
 # oauth = { issuer_url = "https://auth.example.com", client_id = "mcp-guard" }
 
 [rate_limit]

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use mcp_guard::{
     audit::AuditLogger,
-    auth::{ApiKeyProvider, AuthProvider},
+    auth::{ApiKeyProvider, AuthProvider, JwtProvider, MultiProvider},
     cli::{generate_api_key, generate_config, hash_api_key, Cli, Commands},
     config::Config,
     observability::init_tracing,
@@ -100,9 +100,41 @@ async fn main() -> anyhow::Result<()> {
                 config.server.port = p;
             }
 
-            // Set up authentication provider
-            let auth_provider: Arc<dyn AuthProvider> =
-                Arc::new(ApiKeyProvider::new(config.auth.api_keys.clone()));
+            // Set up authentication provider(s)
+            let auth_provider: Arc<dyn AuthProvider> = {
+                let mut providers: Vec<Arc<dyn AuthProvider>> = Vec::new();
+
+                // Add API key provider if configured
+                if !config.auth.api_keys.is_empty() {
+                    tracing::info!("Enabling API key authentication ({} keys)", config.auth.api_keys.len());
+                    providers.push(Arc::new(ApiKeyProvider::new(config.auth.api_keys.clone())));
+                }
+
+                // Add JWT provider if configured
+                if let Some(jwt_config) = &config.auth.jwt {
+                    tracing::info!("Enabling JWT authentication");
+                    let jwt_provider = Arc::new(
+                        JwtProvider::new(jwt_config.clone())
+                            .map_err(|e| anyhow::anyhow!("Failed to initialize JWT provider: {}", e))?
+                    );
+                    // Start background refresh for JWKS mode
+                    jwt_provider.start_background_refresh();
+                    providers.push(jwt_provider);
+                }
+
+                // Select appropriate provider setup
+                match providers.len() {
+                    0 => {
+                        tracing::warn!("No authentication providers configured - all requests will be rejected");
+                        Arc::new(ApiKeyProvider::new(vec![])) // Deny all
+                    }
+                    1 => providers.pop().unwrap(),
+                    _ => {
+                        tracing::info!("Using multi-provider authentication");
+                        Arc::new(MultiProvider::new(providers))
+                    }
+                }
+            };
 
             // Set up rate limiter
             let rate_limiter = RateLimitService::new(&config.rate_limit);

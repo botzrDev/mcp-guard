@@ -58,6 +58,9 @@ opentelemetry-otlp = "0.17"
 async-trait = "0.1"
 futures = "0.3"
 
+# HTTP client (for JWKS fetching)
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
 # Time
 chrono = { version = "0.4", features = ["serde"] }
 
@@ -66,7 +69,6 @@ uuid = { version = "1.11", features = ["v4", "serde"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
-reqwest = { version = "0.12", features = ["json"] }
 tempfile = "3.13"
 assert_cmd = "2.0"
 predicates = "3.1"

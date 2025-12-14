@@ -1,6 +1,7 @@
 //! Configuration types and parsing for mcp-guard
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Configuration error type
@@ -114,25 +115,73 @@ pub struct ApiKeyConfig {
     pub rate_limit: Option<u32>,
 }
 
-/// JWT configuration
+/// JWT authentication mode
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JwtConfig {
-    /// JWT secret or public key
-    pub secret: String,
-
-    /// Expected issuer
-    pub issuer: Option<String>,
-
-    /// Expected audience
-    pub audience: Option<String>,
-
-    /// Algorithm (HS256, RS256, etc.)
-    #[serde(default = "default_algorithm")]
-    pub algorithm: String,
+#[serde(tag = "mode", rename_all = "lowercase")]
+pub enum JwtMode {
+    /// Simple mode: HS256 with local secret
+    Simple {
+        /// Shared secret for HS256 signing (min 32 characters recommended)
+        secret: String,
+    },
+    /// JWKS mode: RS256/ES256 with remote JWKS endpoint
+    Jwks {
+        /// JWKS endpoint URL
+        jwks_url: String,
+        /// Allowed algorithms (default: ["RS256", "ES256"])
+        #[serde(default = "default_jwks_algorithms")]
+        algorithms: Vec<String>,
+        /// JWKS cache duration in seconds (default: 3600 = 1 hour)
+        #[serde(default = "default_cache_duration")]
+        cache_duration_secs: u64,
+    },
 }
 
-fn default_algorithm() -> String {
-    "HS256".to_string()
+/// JWT configuration supporting both simple and JWKS modes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JwtConfig {
+    /// JWT validation mode (simple or jwks)
+    #[serde(flatten)]
+    pub mode: JwtMode,
+
+    /// Expected issuer (iss claim) - required for validation
+    pub issuer: String,
+
+    /// Expected audience (aud claim) - required for validation
+    pub audience: String,
+
+    /// Claim to extract user ID from (default: "sub")
+    #[serde(default = "default_user_id_claim")]
+    pub user_id_claim: String,
+
+    /// Claim to extract scopes from (default: "scope")
+    #[serde(default = "default_scopes_claim")]
+    pub scopes_claim: String,
+
+    /// Mapping from scopes to allowed tools
+    /// e.g., {"read:files": ["read_file", "list_files"], "admin": ["*"]}
+    #[serde(default)]
+    pub scope_tool_mapping: HashMap<String, Vec<String>>,
+
+    /// Leeway in seconds for exp/nbf validation (default: 0)
+    #[serde(default)]
+    pub leeway_secs: u64,
+}
+
+fn default_jwks_algorithms() -> Vec<String> {
+    vec!["RS256".to_string(), "ES256".to_string()]
+}
+
+fn default_cache_duration() -> u64 {
+    3600 // 1 hour
+}
+
+fn default_user_id_claim() -> String {
+    "sub".to_string()
+}
+
+fn default_scopes_claim() -> String {
+    "scope".to_string()
 }
 
 /// OAuth 2.1 configuration
