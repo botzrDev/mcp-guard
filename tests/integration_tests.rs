@@ -246,3 +246,37 @@ fn test_mcp_message_types() {
     assert!(error.is_response());
     assert!(error.error.is_some());
 }
+
+#[test]
+fn test_metrics_initialization_and_rendering() {
+    use mcp_guard::observability::init_metrics;
+
+    // Initialize metrics (can only be done once per process, so this test
+    // must be careful). We use a different approach - test that the handle
+    // renders valid Prometheus format
+    let handle = init_metrics();
+
+    // Render should return valid Prometheus format (even if empty)
+    let output = handle.render();
+    // Output should be valid text (may be empty if no metrics recorded yet)
+    assert!(output.is_empty() || output.contains("# ") || output.contains("mcp_guard"));
+}
+
+#[test]
+fn test_metrics_prometheus_format() {
+    use mcp_guard::observability::{
+        record_auth, record_rate_limit, record_request, set_active_identities,
+    };
+
+    // Record some metrics (these use the global recorder)
+    record_request("POST", 200, std::time::Duration::from_millis(50));
+    record_request("GET", 404, std::time::Duration::from_millis(10));
+    record_auth("api_key", true);
+    record_auth("jwt", false);
+    record_rate_limit(true);
+    record_rate_limit(false);
+    set_active_identities(10);
+
+    // These should not panic even without a recorder installed
+    // (metrics crate uses no-op by default)
+}

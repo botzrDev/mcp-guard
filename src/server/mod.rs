@@ -9,12 +9,15 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use metrics_exporter_prometheus::PrometheusHandle;
 use std::sync::Arc;
+use std::time::Instant;
 use tower_http::trace::TraceLayer;
 
 use crate::audit::AuditLogger;
 use crate::auth::AuthProvider;
 use crate::config::Config;
+use crate::observability::{record_auth, record_rate_limit, record_request, set_active_identities};
 use crate::rate_limit::RateLimitService;
 use crate::transport::{Message, Transport};
 
@@ -25,6 +28,7 @@ pub struct AppState {
     pub rate_limiter: RateLimitService,
     pub audit_logger: Arc<AuditLogger>,
     pub transport: Arc<dyn Transport>,
+    pub metrics_handle: PrometheusHandle,
 }
 
 /// Health check response
@@ -42,6 +46,19 @@ async fn health() -> Json<HealthResponse> {
     })
 }
 
+/// Metrics endpoint handler - returns Prometheus format metrics
+async fn metrics_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    // Update the active identities gauge before rendering
+    set_active_identities(state.rate_limiter.tracked_identities());
+
+    let metrics = state.metrics_handle.render();
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")],
+        metrics,
+    )
+}
+
 /// MCP message handler
 async fn handle_mcp_message(
     State(state): State<Arc<AppState>>,
@@ -56,7 +73,7 @@ async fn handle_mcp_message(
     Ok(Json(response))
 }
 
-/// Authentication middleware
+/// Authentication middleware with metrics
 pub async fn auth_middleware(
     State(state): State<Arc<AppState>>,
     mut request: Request<Body>,
@@ -70,20 +87,27 @@ pub async fn auth_middleware(
         .and_then(|s| s.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized("Missing authorization header".into()))?;
 
-    // Authenticate
-    let identity = state
-        .auth_provider
-        .authenticate(token)
-        .await
-        .map_err(|e| {
-            state.audit_logger.log_auth_failure(&e.to_string());
-            AppError::Unauthorized(e.to_string())
-        })?;
+    // Get provider name for metrics
+    let provider_name = state.auth_provider.name().to_string();
 
-    state.audit_logger.log_auth_success(&identity.id);
+    // Authenticate
+    let identity = match state.auth_provider.authenticate(token).await {
+        Ok(identity) => {
+            record_auth(&provider_name, true);
+            state.audit_logger.log_auth_success(&identity.id);
+            identity
+        }
+        Err(e) => {
+            record_auth(&provider_name, false);
+            state.audit_logger.log_auth_failure(&e.to_string());
+            return Err(AppError::Unauthorized(e.to_string()));
+        }
+    };
 
     // Check rate limit (per-identity)
     let rate_limit_result = state.rate_limiter.check(&identity.id, identity.rate_limit);
+    record_rate_limit(rate_limit_result.allowed);
+
     if !rate_limit_result.allowed {
         state.audit_logger.log_rate_limited(&identity.id);
         return Err(AppError::RateLimited {
@@ -95,6 +119,20 @@ pub async fn auth_middleware(
     request.extensions_mut().insert(identity);
 
     Ok(next.run(request).await)
+}
+
+/// Middleware for recording request duration metrics
+pub async fn metrics_middleware(request: Request<Body>, next: Next) -> Response {
+    let method = request.method().to_string();
+    let start = Instant::now();
+
+    let response = next.run(request).await;
+
+    let duration = start.elapsed();
+    let status = response.status().as_u16();
+    record_request(&method, status, duration);
+
+    response
 }
 
 /// Application error type
@@ -158,7 +196,9 @@ pub fn build_router(state: Arc<AppState>) -> Router {
 
     Router::new()
         .route("/health", get(health))
+        .route("/metrics", get(metrics_handler))
         .merge(protected_routes)
+        .layer(middleware::from_fn(metrics_middleware))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

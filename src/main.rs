@@ -7,7 +7,7 @@ use mcp_guard::{
     auth::{ApiKeyProvider, AuthProvider, JwtProvider, MultiProvider},
     cli::{generate_api_key, generate_config, hash_api_key, Cli, Commands},
     config::Config,
-    observability::init_tracing,
+    observability::{init_metrics, init_tracing},
     rate_limit::RateLimitService,
     server::{self, AppState},
     transport::StdioTransport,
@@ -89,6 +89,9 @@ async fn main() -> anyhow::Result<()> {
         }
 
         Commands::Run { host, port } => {
+            // Initialize Prometheus metrics
+            let metrics_handle = init_metrics();
+
             // Load configuration
             let mut config = Config::from_file(&cli.config)?;
 
@@ -165,6 +168,7 @@ async fn main() -> anyhow::Result<()> {
                 rate_limiter,
                 audit_logger,
                 transport,
+                metrics_handle,
             });
 
             // Run server
