@@ -132,8 +132,16 @@ impl StdioTransport {
             .stderr(std::process::Stdio::inherit())
             .spawn()?;
 
-        let stdin = child.stdin.take().expect("stdin should be piped");
-        let stdout = child.stdout.take().expect("stdout should be piped");
+        let stdin = child.stdin.take().ok_or_else(|| {
+            TransportError::Spawn(std::io::Error::other(
+                "Failed to capture stdin pipe from child process",
+            ))
+        })?;
+        let stdout = child.stdout.take().ok_or_else(|| {
+            TransportError::Spawn(std::io::Error::other(
+                "Failed to capture stdout pipe from child process",
+            ))
+        })?;
 
         let (to_process_tx, mut to_process_rx) = mpsc::channel::<Message>(32);
         let (from_process_tx, from_process_rx) = mpsc::channel::<Message>(32);
@@ -142,7 +150,13 @@ impl StdioTransport {
         tokio::spawn(async move {
             let mut stdin = stdin;
             while let Some(msg) = to_process_rx.recv().await {
-                let json = serde_json::to_string(&msg).expect("serialize message");
+                let json = match serde_json::to_string(&msg) {
+                    Ok(j) => j,
+                    Err(e) => {
+                        tracing::error!(error = %e, "Failed to serialize MCP message, dropping");
+                        continue;
+                    }
+                };
                 if stdin.write_all(json.as_bytes()).await.is_err() {
                     break;
                 }
@@ -438,9 +452,8 @@ impl SseTransport {
                         Ok(_) => {
                             let trimmed = line.trim();
 
-                            if trimmed.starts_with("data:") {
-                                let data = trimmed.strip_prefix("data:").unwrap().trim();
-                                data_buffer.push_str(data);
+                            if let Some(data) = trimmed.strip_prefix("data:") {
+                                data_buffer.push_str(data.trim());
                             } else if trimmed.is_empty() && !data_buffer.is_empty() {
                                 // Empty line signals end of event
                                 if let Ok(msg) = serde_json::from_str::<Message>(&data_buffer) {

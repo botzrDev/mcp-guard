@@ -154,7 +154,7 @@ async fn handle_mcp_message(
 ) -> Result<Json<Message>, AppError> {
     // Get the transport (single-server mode)
     let transport = state.transport.as_ref().ok_or_else(|| {
-        AppError::Internal("No transport configured (use multi-server routing?)".into())
+        AppError::internal("No transport configured (use multi-server routing?)")
     })?;
 
     // Check if this is a tools/list request (for later filtering)
@@ -186,7 +186,7 @@ async fn handle_routed_mcp_message(
 ) -> Result<Json<Message>, AppError> {
     // Get the router (multi-server mode)
     let router = state.router.as_ref().ok_or_else(|| {
-        AppError::Internal("No router configured (use single-server mode?)".into())
+        AppError::internal("No router configured (use single-server mode?)")
     })?;
 
     // Build path for routing
@@ -194,7 +194,7 @@ async fn handle_routed_mcp_message(
 
     // Get the transport for this path
     let transport = router.get_transport(&path).ok_or_else(|| {
-        AppError::NotFound(format!("No server route for path: {}", path))
+        AppError::not_found(format!("No server route for path: {}", path))
     })?;
 
     tracing::debug!(
@@ -269,7 +269,7 @@ async fn oauth_authorize(State(state): State<Arc<AppState>>) -> Result<impl Into
     let oauth_provider = state
         .oauth_provider
         .as_ref()
-        .ok_or_else(|| AppError::Internal("OAuth not configured".into()))?;
+        .ok_or_else(|| AppError::internal("OAuth not configured"))?;
 
     // Generate PKCE code verifier and challenge
     let (code_verifier, code_challenge) = generate_pkce();
@@ -323,7 +323,7 @@ async fn oauth_callback(
     if let Some(error) = params.error {
         let description = params.error_description.unwrap_or_default();
         tracing::warn!("OAuth error: {} - {}", error, description);
-        return Err(AppError::Unauthorized(format!(
+        return Err(AppError::unauthorized(format!(
             "OAuth error: {} - {}",
             error, description
         )));
@@ -332,30 +332,30 @@ async fn oauth_callback(
     // Validate state parameter
     let oauth_state = params
         .state
-        .ok_or_else(|| AppError::Unauthorized("Missing state parameter".into()))?;
+        .ok_or_else(|| AppError::unauthorized("Missing state parameter"))?;
 
     // Retrieve and remove PKCE state
     let pkce_state = state
         .oauth_state_store
         .remove(&oauth_state)
         .map(|(_, v)| v)
-        .ok_or_else(|| AppError::Unauthorized("Invalid or expired state".into()))?;
+        .ok_or_else(|| AppError::unauthorized("Invalid or expired state"))?;
 
     // Validate state hasn't expired (10 minute limit)
     if pkce_state.created_at.elapsed() > Duration::from_secs(600) {
-        return Err(AppError::Unauthorized("OAuth state expired".into()));
+        return Err(AppError::unauthorized("OAuth state expired"));
     }
 
     // Get authorization code
     let code = params
         .code
-        .ok_or_else(|| AppError::Unauthorized("Missing authorization code".into()))?;
+        .ok_or_else(|| AppError::unauthorized("Missing authorization code"))?;
 
     // Get OAuth provider
     let oauth_provider = state
         .oauth_provider
         .as_ref()
-        .ok_or_else(|| AppError::Internal("OAuth not configured".into()))?;
+        .ok_or_else(|| AppError::internal("OAuth not configured"))?;
 
     // Exchange code for tokens
     let tokens = exchange_code_for_tokens(
@@ -382,7 +382,7 @@ async fn exchange_code_for_tokens(
         .auth
         .oauth
         .as_ref()
-        .ok_or_else(|| AppError::Internal("OAuth not configured".into()))?;
+        .ok_or_else(|| AppError::internal("OAuth not configured"))?;
 
     // Build token request
     let client = reqwest::Client::new();
@@ -407,13 +407,13 @@ async fn exchange_code_for_tokens(
         .form(&form)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("Token exchange request failed: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("Token exchange request failed: {}", e)))?;
 
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
         tracing::error!("Token exchange failed: {} - {}", status, body);
-        return Err(AppError::Unauthorized(format!(
+        return Err(AppError::unauthorized(format!(
             "Token exchange failed: {}",
             status
         )));
@@ -422,12 +422,12 @@ async fn exchange_code_for_tokens(
     let token_response: serde_json::Value = response
         .json()
         .await
-        .map_err(|e| AppError::Internal(format!("Failed to parse token response: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("Failed to parse token response: {}", e)))?;
 
     let access_token = token_response
         .get("access_token")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::Internal("No access_token in response".into()))?
+        .ok_or_else(|| AppError::internal("No access_token in response"))?
         .to_string();
 
     let token_type = token_response
@@ -485,9 +485,7 @@ pub async fn auth_middleware(
 
                         if !rate_limit_result.allowed {
                             state.audit_logger.log_rate_limited(&identity.id);
-                            return Err(AppError::RateLimited {
-                                retry_after_secs: rate_limit_result.retry_after_secs,
-                            });
+                            return Err(AppError::rate_limited(rate_limit_result.retry_after_secs));
                         }
 
                         request.extensions_mut().insert(identity);
@@ -509,7 +507,7 @@ pub async fn auth_middleware(
         .get("Authorization")
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "))
-        .ok_or(AppError::Unauthorized("Missing authorization header".into()))?;
+        .ok_or_else(|| AppError::unauthorized("Missing authorization header"))?;
 
     // Get provider name for metrics
     let provider_name = state.auth_provider.name().to_string();
@@ -524,7 +522,7 @@ pub async fn auth_middleware(
         Err(e) => {
             record_auth(&provider_name, false);
             state.audit_logger.log_auth_failure(&e.to_string());
-            return Err(AppError::Unauthorized(e.to_string()));
+            return Err(AppError::unauthorized(e.to_string()));
         }
     };
 
@@ -534,9 +532,7 @@ pub async fn auth_middleware(
 
     if !rate_limit_result.allowed {
         state.audit_logger.log_rate_limited(&identity.id);
-        return Err(AppError::RateLimited {
-            retry_after_secs: rate_limit_result.retry_after_secs,
-        });
+        return Err(AppError::rate_limited(rate_limit_result.retry_after_secs));
     }
 
     // Add identity to request extensions
@@ -624,9 +620,18 @@ pub async fn trace_context_middleware(request: Request<Body>, next: Next) -> Res
     response
 }
 
-/// Application error type
+/// Application error type with unique error ID for correlation
 #[derive(Debug)]
-pub enum AppError {
+pub struct AppError {
+    /// Unique error ID for correlation across logs and responses
+    pub error_id: String,
+    /// The actual error kind
+    pub kind: AppErrorKind,
+}
+
+/// Application error variants
+#[derive(Debug)]
+pub enum AppErrorKind {
     Unauthorized(String),
     Forbidden(String),
     NotFound(String),
@@ -635,32 +640,86 @@ pub enum AppError {
     Internal(String),
 }
 
+impl AppError {
+    /// Create a new error with a unique ID
+    fn new(kind: AppErrorKind) -> Self {
+        let error_id = uuid::Uuid::new_v4().to_string();
+        Self { error_id, kind }
+    }
+
+    /// Create an Unauthorized error
+    pub fn unauthorized(msg: impl Into<String>) -> Self {
+        Self::new(AppErrorKind::Unauthorized(msg.into()))
+    }
+
+    /// Create a Forbidden error
+    pub fn forbidden(msg: impl Into<String>) -> Self {
+        Self::new(AppErrorKind::Forbidden(msg.into()))
+    }
+
+    /// Create a NotFound error
+    pub fn not_found(msg: impl Into<String>) -> Self {
+        Self::new(AppErrorKind::NotFound(msg.into()))
+    }
+
+    /// Create a RateLimited error
+    pub fn rate_limited(retry_after_secs: Option<u64>) -> Self {
+        Self::new(AppErrorKind::RateLimited { retry_after_secs })
+    }
+
+    /// Create a Transport error
+    pub fn transport(e: crate::transport::TransportError) -> Self {
+        Self::new(AppErrorKind::Transport(e))
+    }
+
+    /// Create an Internal error
+    pub fn internal(msg: impl Into<String>) -> Self {
+        Self::new(AppErrorKind::Internal(msg.into()))
+    }
+}
+
 impl From<crate::transport::TransportError> for AppError {
     fn from(e: crate::transport::TransportError) -> Self {
-        AppError::Transport(e)
+        AppError::transport(e)
     }
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        match self {
-            AppError::Unauthorized(msg) => {
-                let body = serde_json::json!({ "error": msg });
+        let error_id = self.error_id.clone();
+
+        match self.kind {
+            AppErrorKind::Unauthorized(msg) => {
+                tracing::warn!(error_id = %error_id, error = %msg, "Authentication failed");
+                let body = serde_json::json!({
+                    "error": msg,
+                    "error_id": error_id
+                });
                 (StatusCode::UNAUTHORIZED, Json(body)).into_response()
             }
-            AppError::Forbidden(msg) => {
-                let body = serde_json::json!({ "error": msg });
+            AppErrorKind::Forbidden(msg) => {
+                tracing::warn!(error_id = %error_id, error = %msg, "Authorization denied");
+                let body = serde_json::json!({
+                    "error": msg,
+                    "error_id": error_id
+                });
                 (StatusCode::FORBIDDEN, Json(body)).into_response()
             }
-            AppError::NotFound(msg) => {
-                let body = serde_json::json!({ "error": msg });
+            AppErrorKind::NotFound(msg) => {
+                tracing::debug!(error_id = %error_id, error = %msg, "Resource not found");
+                let body = serde_json::json!({
+                    "error": msg,
+                    "error_id": error_id
+                });
                 (StatusCode::NOT_FOUND, Json(body)).into_response()
             }
-            AppError::RateLimited { retry_after_secs } => {
+            AppErrorKind::RateLimited { retry_after_secs } => {
                 let retry_after = retry_after_secs.unwrap_or(1);
+                tracing::debug!(error_id = %error_id, retry_after = retry_after, "Rate limit exceeded");
                 let body = serde_json::json!({
                     "error": "Rate limit exceeded",
-                    "retry_after": retry_after
+                    "retry_after": retry_after,
+                    "error_id": error_id
                 });
                 // FR-RATE-05: Return 429 with Retry-After header
                 (
@@ -670,12 +729,33 @@ impl IntoResponse for AppError {
                 )
                     .into_response()
             }
-            AppError::Transport(e) => {
-                let body = serde_json::json!({ "error": e.to_string() });
+            AppErrorKind::Transport(e) => {
+                // Log the full error internally for debugging, but return sanitized message
+                tracing::error!(
+                    error_id = %error_id,
+                    error = %e,
+                    "Upstream transport error"
+                );
+                // Sanitize: don't expose internal paths, commands, or detailed error messages
+                let sanitized_msg = match &e {
+                    crate::transport::TransportError::Timeout => "Upstream request timed out",
+                    crate::transport::TransportError::ConnectionClosed => "Upstream connection closed",
+                    crate::transport::TransportError::ProcessExited => "Upstream process unavailable",
+                    _ => "Upstream communication error",
+                };
+                let body = serde_json::json!({
+                    "error": sanitized_msg,
+                    "error_id": error_id
+                });
                 (StatusCode::BAD_GATEWAY, Json(body)).into_response()
             }
-            AppError::Internal(msg) => {
-                let body = serde_json::json!({ "error": msg });
+            AppErrorKind::Internal(msg) => {
+                // Log the full message internally but return generic message to client
+                tracing::error!(error_id = %error_id, error = %msg, "Internal server error");
+                let body = serde_json::json!({
+                    "error": "Internal server error",
+                    "error_id": error_id
+                });
                 (StatusCode::INTERNAL_SERVER_ERROR, Json(body)).into_response()
             }
         }

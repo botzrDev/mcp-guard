@@ -137,7 +137,7 @@ async fn main() -> anyhow::Result<()> {
                         .upstream
                         .command
                         .as_ref()
-                        .expect("command required for stdio transport");
+                        .ok_or_else(|| anyhow::anyhow!("stdio transport requires 'command' in config"))?;
 
                     println!("Transport: stdio");
                     println!("Command:   {}", command);
@@ -170,7 +170,7 @@ async fn main() -> anyhow::Result<()> {
                         .upstream
                         .url
                         .as_ref()
-                        .expect("url required for HTTP transport");
+                        .ok_or_else(|| anyhow::anyhow!("HTTP transport requires 'url' in config"))?;
 
                     println!("Transport: HTTP");
                     println!("URL:       {}", url);
@@ -196,7 +196,7 @@ async fn main() -> anyhow::Result<()> {
                         .upstream
                         .url
                         .as_ref()
-                        .expect("url required for SSE transport");
+                        .ok_or_else(|| anyhow::anyhow!("SSE transport requires 'url' in config"))?;
 
                     println!("Transport: SSE");
                     println!("URL:       {}", url);
@@ -288,16 +288,17 @@ async fn main() -> anyhow::Result<()> {
                 }
 
                 // Select appropriate provider setup
-                match providers.len() {
-                    0 => {
-                        tracing::warn!("No authentication providers configured - all requests will be rejected");
-                        Arc::new(ApiKeyProvider::new(vec![])) // Deny all
-                    }
-                    1 => providers.pop().unwrap(),
-                    _ => {
-                        tracing::info!("Using multi-provider authentication");
-                        Arc::new(MultiProvider::new(providers))
-                    }
+                if providers.is_empty() {
+                    tracing::warn!("No authentication providers configured - all requests will be rejected");
+                    Arc::new(ApiKeyProvider::new(vec![])) // Deny all
+                } else if providers.len() == 1 {
+                    // Safe: we just checked length is exactly 1
+                    providers.into_iter().next().unwrap_or_else(|| {
+                        Arc::new(ApiKeyProvider::new(vec![]))
+                    })
+                } else {
+                    tracing::info!("Using multi-provider authentication");
+                    Arc::new(MultiProvider::new(providers))
                 }
             };
 
@@ -320,8 +321,9 @@ async fn main() -> anyhow::Result<()> {
             // Set up rate limiter
             let rate_limiter = RateLimitService::new(&config.rate_limit);
 
-            // Set up audit logger
-            let audit_logger = Arc::new(AuditLogger::new(&config.audit)?);
+            // Set up audit logger with background tasks for non-blocking I/O
+            let (audit_logger, _audit_handle) = AuditLogger::with_tasks(&config.audit)?;
+            let audit_logger = Arc::new(audit_logger);
 
             // Set up transport/router based on configuration
             let (transport, router): (Option<Arc<dyn mcp_guard::transport::Transport>>, Option<Arc<ServerRouter>>) =
@@ -352,7 +354,7 @@ async fn main() -> anyhow::Result<()> {
                                 .upstream
                                 .command
                                 .as_ref()
-                                .expect("command required for stdio transport");
+                                .ok_or_else(|| anyhow::anyhow!("stdio transport requires 'command' in config"))?;
                             tracing::info!(command = %command, "Using stdio transport");
                             Arc::new(StdioTransport::spawn(command, &config.upstream.args).await?)
                         }
@@ -361,7 +363,7 @@ async fn main() -> anyhow::Result<()> {
                                 .upstream
                                 .url
                                 .as_ref()
-                                .expect("url required for HTTP transport")
+                                .ok_or_else(|| anyhow::anyhow!("HTTP transport requires 'url' in config"))?
                                 .clone();
                             tracing::info!(url = %url, "Using HTTP transport");
                             Arc::new(HttpTransport::new(url))
@@ -371,7 +373,7 @@ async fn main() -> anyhow::Result<()> {
                                 .upstream
                                 .url
                                 .as_ref()
-                                .expect("url required for SSE transport")
+                                .ok_or_else(|| anyhow::anyhow!("SSE transport requires 'url' in config"))?
                                 .clone();
                             tracing::info!(url = %url, "Using SSE transport");
                             Arc::new(SseTransport::connect(url).await?)

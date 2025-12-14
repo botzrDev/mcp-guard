@@ -156,10 +156,23 @@ fn init_opentelemetry_tracing(verbose: bool, config: &TracingConfig) -> Result<T
 ///
 /// Returns a handle that can be used to render metrics in Prometheus format.
 /// This must be called once at application startup before recording any metrics.
+///
+/// If the global recorder cannot be installed (e.g., one is already installed),
+/// a local recorder handle is returned instead, allowing metrics to still be
+/// rendered but not globally recorded.
 pub fn init_metrics() -> PrometheusHandle {
-    PrometheusBuilder::new()
-        .install_recorder()
-        .expect("Failed to install Prometheus recorder")
+    match PrometheusBuilder::new().install_recorder() {
+        Ok(handle) => handle,
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "Failed to install global Prometheus recorder, using local recorder. \
+                 Metrics will still be available but won't be globally accessible."
+            );
+            // Fall back to a local recorder that can still render metrics
+            PrometheusBuilder::new().build_recorder().handle()
+        }
+    }
 }
 
 /// Create a Prometheus handle without installing a global recorder
