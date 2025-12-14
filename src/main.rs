@@ -97,6 +97,128 @@ async fn main() -> anyhow::Result<()> {
             println!("{}", hash);
         }
 
+        Commands::Version => {
+            println!("mcp-guard {}", env!("CARGO_PKG_VERSION"));
+            println!();
+            println!("Build Information:");
+            println!("  Package:     {}", env!("CARGO_PKG_NAME"));
+            println!("  Version:     {}", env!("CARGO_PKG_VERSION"));
+            println!("  Description: {}", env!("CARGO_PKG_DESCRIPTION"));
+            println!("  License:     {}", env!("CARGO_PKG_LICENSE"));
+            println!("  Repository:  {}", env!("CARGO_PKG_REPOSITORY"));
+            println!();
+            println!("Features:");
+            println!("  Auth providers: API Key, JWT (HS256/JWKS), OAuth 2.1 (PKCE), mTLS");
+            println!("  Transports:     Stdio, HTTP, SSE");
+            println!("  Rate limiting:  Per-identity, token bucket");
+            println!("  Observability:  Prometheus metrics, OpenTelemetry tracing");
+        }
+
+        Commands::CheckUpstream { timeout } => {
+            // Initialize basic tracing for CLI commands
+            let _guard = init_tracing(cli.verbose, None);
+
+            // Load configuration
+            let config = match Config::from_file(&cli.config) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Error loading config: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            println!("Checking upstream connectivity...");
+            println!();
+
+            match &config.upstream.transport {
+                mcp_guard::config::TransportType::Stdio => {
+                    let command = config
+                        .upstream
+                        .command
+                        .as_ref()
+                        .expect("command required for stdio transport");
+
+                    println!("Transport: stdio");
+                    println!("Command:   {}", command);
+                    println!("Args:      {:?}", config.upstream.args);
+                    println!();
+
+                    // Try to spawn the process and send a test message
+                    let timeout_duration = std::time::Duration::from_secs(timeout);
+                    match tokio::time::timeout(
+                        timeout_duration,
+                        check_stdio_upstream(command, &config.upstream.args),
+                    )
+                    .await
+                    {
+                        Ok(Ok(())) => {
+                            println!("✓ Upstream is reachable and responding");
+                        }
+                        Ok(Err(e)) => {
+                            eprintln!("✗ Upstream check failed: {}", e);
+                            std::process::exit(1);
+                        }
+                        Err(_) => {
+                            eprintln!("✗ Upstream check timed out after {}s", timeout);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                mcp_guard::config::TransportType::Http => {
+                    let url = config
+                        .upstream
+                        .url
+                        .as_ref()
+                        .expect("url required for HTTP transport");
+
+                    println!("Transport: HTTP");
+                    println!("URL:       {}", url);
+                    println!();
+
+                    let timeout_duration = std::time::Duration::from_secs(timeout);
+                    match tokio::time::timeout(timeout_duration, check_http_upstream(url)).await {
+                        Ok(Ok(())) => {
+                            println!("✓ Upstream is reachable");
+                        }
+                        Ok(Err(e)) => {
+                            eprintln!("✗ Upstream check failed: {}", e);
+                            std::process::exit(1);
+                        }
+                        Err(_) => {
+                            eprintln!("✗ Upstream check timed out after {}s", timeout);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                mcp_guard::config::TransportType::Sse => {
+                    let url = config
+                        .upstream
+                        .url
+                        .as_ref()
+                        .expect("url required for SSE transport");
+
+                    println!("Transport: SSE");
+                    println!("URL:       {}", url);
+                    println!();
+
+                    let timeout_duration = std::time::Duration::from_secs(timeout);
+                    match tokio::time::timeout(timeout_duration, check_sse_upstream(url)).await {
+                        Ok(Ok(())) => {
+                            println!("✓ Upstream is reachable");
+                        }
+                        Ok(Err(e)) => {
+                            eprintln!("✗ Upstream check failed: {}", e);
+                            std::process::exit(1);
+                        }
+                        Err(_) => {
+                            eprintln!("✗ Upstream check timed out after {}s", timeout);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+            }
+        }
+
         Commands::Run { host, port } => {
             // Load configuration first so we can use tracing config
             let mut config = Config::from_file(&cli.config)?;
@@ -255,6 +377,114 @@ async fn main() -> anyhow::Result<()> {
             // Run server
             server::run(state).await?;
         }
+    }
+
+    Ok(())
+}
+
+/// Check stdio upstream connectivity by spawning the process and sending an initialize request
+async fn check_stdio_upstream(command: &str, args: &[String]) -> anyhow::Result<()> {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::process::Command;
+
+    // Spawn the upstream process
+    let mut child = Command::new(command)
+        .args(args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()?;
+
+    let mut stdin = child.stdin.take().ok_or_else(|| anyhow::anyhow!("Failed to open stdin"))?;
+    let stdout = child.stdout.take().ok_or_else(|| anyhow::anyhow!("Failed to open stdout"))?;
+    let mut reader = BufReader::new(stdout);
+
+    // Send MCP initialize request
+    let init_request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {
+                "name": "mcp-guard-check",
+                "version": env!("CARGO_PKG_VERSION")
+            }
+        }
+    });
+
+    let msg = format!("{}\n", serde_json::to_string(&init_request)?);
+    stdin.write_all(msg.as_bytes()).await?;
+    stdin.flush().await?;
+
+    // Read response
+    let mut line = String::new();
+    reader.read_line(&mut line).await?;
+
+    if line.is_empty() {
+        return Err(anyhow::anyhow!("No response from upstream"));
+    }
+
+    // Parse response to verify it's valid JSON-RPC
+    let response: serde_json::Value = serde_json::from_str(&line)?;
+    if response.get("result").is_some() || response.get("error").is_some() {
+        // Valid JSON-RPC response
+        if let Some(result) = response.get("result") {
+            if let Some(server_info) = result.get("serverInfo") {
+                println!(
+                    "Server: {} v{}",
+                    server_info.get("name").and_then(|v| v.as_str()).unwrap_or("unknown"),
+                    server_info.get("version").and_then(|v| v.as_str()).unwrap_or("unknown")
+                );
+            }
+        }
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("Invalid JSON-RPC response: {}", line))
+    }
+}
+
+/// Check HTTP upstream connectivity by sending a simple request
+async fn check_http_upstream(url: &str) -> anyhow::Result<()> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()?;
+
+    // Try to send an empty POST to check if the server is responding
+    let response = client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .body("{}")
+        .send()
+        .await?;
+
+    let status = response.status();
+    println!("HTTP Status: {}", status);
+
+    // Any response (even 400/500) means the server is reachable
+    Ok(())
+}
+
+/// Check SSE upstream connectivity by attempting to connect
+async fn check_sse_upstream(url: &str) -> anyhow::Result<()> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()?;
+
+    // Try to connect to the SSE endpoint
+    let response = client
+        .get(url)
+        .header("Accept", "text/event-stream")
+        .send()
+        .await?;
+
+    let status = response.status();
+    println!("HTTP Status: {}", status);
+
+    // Check if the content type suggests SSE
+    if let Some(content_type) = response.headers().get("content-type") {
+        println!("Content-Type: {}", content_type.to_str().unwrap_or("unknown"));
     }
 
     Ok(())

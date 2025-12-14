@@ -67,6 +67,16 @@ pub enum Commands {
         /// The API key to hash
         key: String,
     },
+
+    /// Show version and build information
+    Version,
+
+    /// Check upstream MCP server connectivity
+    CheckUpstream {
+        /// Timeout in seconds for the connectivity check
+        #[arg(short, long, default_value = "10")]
+        timeout: u64,
+    },
 }
 
 impl Cli {

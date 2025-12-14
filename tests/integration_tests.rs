@@ -766,3 +766,67 @@ async fn test_ready_endpoint_when_not_ready() {
     assert!(json["version"].is_string());
     assert!(json["reason"].is_string());
 }
+
+// =============================================================================
+// CLI Command Tests (Sprint 6)
+// =============================================================================
+
+#[test]
+fn test_cli_version_command() {
+    use assert_cmd::Command;
+    use predicates::prelude::*;
+
+    let mut cmd = Command::cargo_bin("mcp-guard").unwrap();
+    cmd.arg("version");
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("mcp-guard"))
+        .stdout(predicate::str::contains("0.1.0"))
+        .stdout(predicate::str::contains("Build Information"))
+        .stdout(predicate::str::contains("Features"))
+        .stdout(predicate::str::contains("Auth providers"));
+}
+
+#[test]
+fn test_cli_help_includes_new_commands() {
+    use assert_cmd::Command;
+    use predicates::prelude::*;
+
+    let mut cmd = Command::cargo_bin("mcp-guard").unwrap();
+    cmd.arg("--help");
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("version"))
+        .stdout(predicate::str::contains("Show version and build information"))
+        .stdout(predicate::str::contains("check-upstream"))
+        .stdout(predicate::str::contains("Check upstream MCP server connectivity"));
+}
+
+#[test]
+fn test_cli_check_upstream_help() {
+    use assert_cmd::Command;
+    use predicates::prelude::*;
+
+    let mut cmd = Command::cargo_bin("mcp-guard").unwrap();
+    cmd.args(["check-upstream", "--help"]);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("--timeout"))
+        .stdout(predicate::str::contains("Timeout in seconds"));
+}
+
+#[test]
+fn test_cli_check_upstream_missing_config() {
+    use assert_cmd::Command;
+    use predicates::prelude::*;
+
+    let mut cmd = Command::cargo_bin("mcp-guard").unwrap();
+    cmd.args(["--config", "nonexistent.toml", "check-upstream"]);
+
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("Error loading config"));
+}
