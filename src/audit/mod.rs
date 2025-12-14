@@ -17,6 +17,19 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
+// ============================================================================
+// Constants
+// ============================================================================
+
+/// Channel buffer size for audit log messages
+const AUDIT_CHANNEL_SIZE: usize = 1000;
+
+/// HTTP request timeout for audit export (30 seconds)
+const AUDIT_HTTP_TIMEOUT_SECS: u64 = 30;
+
+/// Maximum retry attempts for failed HTTP exports
+const AUDIT_MAX_RETRY_ATTEMPTS: usize = 3;
+
 /// Audit event types
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -183,7 +196,7 @@ impl AuditLogger {
         }
 
         // Create channel for local writes (file + stdout)
-        let (writer_tx, writer_rx) = mpsc::channel::<AuditMessage>(1000);
+        let (writer_tx, writer_rx) = mpsc::channel::<AuditMessage>(AUDIT_CHANNEL_SIZE);
         let shutdown_tx = writer_tx.clone();
 
         // Open file if configured
@@ -207,7 +220,7 @@ impl AuditLogger {
 
         // Create HTTP shipper if configured
         let (export_tx, shipper_task) = if let Some(ref export_url) = config.export_url {
-            let (tx, rx) = mpsc::channel::<AuditEntry>(1000);
+            let (tx, rx) = mpsc::channel::<AuditEntry>(AUDIT_CHANNEL_SIZE);
 
             let shipper = AuditShipper::new(
                 export_url.clone(),
@@ -438,7 +451,7 @@ impl AuditShipper {
         flush_interval_secs: u64,
     ) -> Self {
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(AUDIT_HTTP_TIMEOUT_SECS))
             .build()
             .unwrap_or_else(|e| {
                 tracing::warn!(
@@ -512,7 +525,7 @@ impl AuditShipper {
         };
 
         // Attempt to send with retry
-        for attempt in 0..3 {
+        for attempt in 0..AUDIT_MAX_RETRY_ATTEMPTS {
             match self.send_batch(&payload).await {
                 Ok(()) => {
                     tracing::debug!(count = count, "Shipped audit batch");

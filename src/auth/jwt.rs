@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
-use crate::auth::{AuthError, AuthProvider, Identity};
+use crate::auth::{map_scopes_to_tools, AuthError, AuthProvider, Identity};
 use crate::config::{JwtConfig, JwtMode};
 
 /// JWKS key entry with decoded key and algorithm
@@ -209,31 +209,6 @@ impl JwtProvider {
         validation
     }
 
-    /// Map scopes to allowed tools based on scope_tool_mapping config
-    fn map_scopes_to_tools(&self, scopes: &[String]) -> Option<Vec<String>> {
-        if self.config.scope_tool_mapping.is_empty() {
-            return None; // No mapping = all tools allowed
-        }
-
-        let mut tools = Vec::new();
-        for scope in scopes {
-            if let Some(scope_tools) = self.config.scope_tool_mapping.get(scope) {
-                if scope_tools.contains(&"*".to_string()) {
-                    return None; // Wildcard = all tools
-                }
-                tools.extend(scope_tools.iter().cloned());
-            }
-        }
-
-        if tools.is_empty() {
-            Some(vec![]) // Empty = no tools allowed (scope not in mapping)
-        } else {
-            tools.sort();
-            tools.dedup();
-            Some(tools)
-        }
-    }
-
     /// Extract scopes from token claims
     fn extract_scopes(&self, claims: &HashMap<String, serde_json::Value>) -> Vec<String> {
         claims
@@ -313,7 +288,7 @@ impl AuthProvider for JwtProvider {
 
         // Extract scopes and map to tools
         let scopes = self.extract_scopes(&token_data.claims);
-        let allowed_tools = self.map_scopes_to_tools(&scopes);
+        let allowed_tools = map_scopes_to_tools(&scopes, &self.config.scope_tool_mapping);
 
         // Extract optional name
         let name = token_data.claims

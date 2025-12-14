@@ -6,6 +6,16 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 
+// ============================================================================
+// Constants
+// ============================================================================
+
+/// Channel buffer size for transport messages
+const TRANSPORT_CHANNEL_SIZE: usize = 32;
+
+/// Default HTTP request timeout (30 seconds)
+const HTTP_REQUEST_TIMEOUT_SECS: u64 = 30;
+
 /// Transport error type
 #[derive(Debug, thiserror::Error)]
 pub enum TransportError {
@@ -121,6 +131,10 @@ pub struct StdioTransport {
     tx: mpsc::Sender<Message>,
     rx: tokio::sync::Mutex<mpsc::Receiver<Message>>,
     _child: tokio::sync::Mutex<Child>,
+    /// Handle to the writer task
+    writer_task: tokio::task::JoinHandle<()>,
+    /// Handle to the reader task
+    reader_task: tokio::task::JoinHandle<()>,
 }
 
 impl StdioTransport {
@@ -143,11 +157,11 @@ impl StdioTransport {
             ))
         })?;
 
-        let (to_process_tx, mut to_process_rx) = mpsc::channel::<Message>(32);
-        let (from_process_tx, from_process_rx) = mpsc::channel::<Message>(32);
+        let (to_process_tx, mut to_process_rx) = mpsc::channel::<Message>(TRANSPORT_CHANNEL_SIZE);
+        let (from_process_tx, from_process_rx) = mpsc::channel::<Message>(TRANSPORT_CHANNEL_SIZE);
 
-        // Writer task
-        tokio::spawn(async move {
+        // Writer task with error tracking
+        let writer_task = tokio::spawn(async move {
             let mut stdin = stdin;
             while let Some(msg) = to_process_rx.recv().await {
                 let json = match serde_json::to_string(&msg) {
@@ -157,36 +171,70 @@ impl StdioTransport {
                         continue;
                     }
                 };
-                if stdin.write_all(json.as_bytes()).await.is_err() {
+                if let Err(e) = stdin.write_all(json.as_bytes()).await {
+                    tracing::error!(error = %e, "Failed to write to stdin, writer task exiting");
                     break;
                 }
-                if stdin.write_all(b"\n").await.is_err() {
+                if let Err(e) = stdin.write_all(b"\n").await {
+                    tracing::error!(error = %e, "Failed to write newline to stdin, writer task exiting");
                     break;
                 }
-                if stdin.flush().await.is_err() {
+                if let Err(e) = stdin.flush().await {
+                    tracing::error!(error = %e, "Failed to flush stdin, writer task exiting");
                     break;
                 }
             }
+            tracing::debug!("Writer task exiting");
         });
 
-        // Reader task
-        tokio::spawn(async move {
+        // Reader task with error tracking
+        let reader_task = tokio::spawn(async move {
             let reader = BufReader::new(stdout);
             let mut lines = reader.lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                if let Ok(msg) = serde_json::from_str::<Message>(&line) {
-                    if from_process_tx.send(msg).await.is_err() {
+            loop {
+                match lines.next_line().await {
+                    Ok(Some(line)) => {
+                        match serde_json::from_str::<Message>(&line) {
+                            Ok(msg) => {
+                                if from_process_tx.send(msg).await.is_err() {
+                                    tracing::debug!("Receiver dropped, reader task exiting");
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    error = %e,
+                                    line = %line.chars().take(100).collect::<String>(),
+                                    "Failed to parse MCP message, skipping"
+                                );
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        tracing::debug!("EOF from process, reader task exiting");
+                        break;
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "Failed to read from stdout, reader task exiting");
                         break;
                     }
                 }
             }
+            tracing::debug!("Reader task exiting");
         });
 
         Ok(Self {
             tx: to_process_tx,
             rx: tokio::sync::Mutex::new(from_process_rx),
             _child: tokio::sync::Mutex::new(child),
+            writer_task,
+            reader_task,
         })
+    }
+
+    /// Check if the transport tasks are still running
+    pub fn is_healthy(&self) -> bool {
+        !self.writer_task.is_finished() && !self.reader_task.is_finished()
     }
 }
 
@@ -244,7 +292,7 @@ impl HttpTransport {
             client: reqwest::Client::new(),
             url,
             headers: HashMap::new(),
-            timeout: std::time::Duration::from_secs(30),
+            timeout: std::time::Duration::from_secs(HTTP_REQUEST_TIMEOUT_SECS),
             pending_responses: tokio::sync::Mutex::new(Vec::new()),
         }
     }
@@ -374,7 +422,7 @@ impl SseTransport {
         headers: HashMap<String, String>,
         timeout_secs: u64,
     ) -> Result<Self, TransportError> {
-        let (tx, rx) = mpsc::channel::<Message>(32);
+        let (tx, rx) = mpsc::channel::<Message>(TRANSPORT_CHANNEL_SIZE);
 
         Ok(Self {
             client: reqwest::Client::new(),

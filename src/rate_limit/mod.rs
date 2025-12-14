@@ -4,6 +4,7 @@
 //! - Global default rate limits
 //! - Per-identity custom rate limits
 //! - Token bucket algorithm via Governor crate
+//! - TTL-based eviction to prevent memory growth
 //!
 //! See PRD FR-RATE-01 through FR-RATE-07 for requirements.
 
@@ -15,9 +16,22 @@ use governor::{
 };
 use std::num::NonZeroU32;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 /// Rate limiter type alias
 type Limiter = RateLimiter<NotKeyed, InMemoryState, DefaultClock>;
+
+/// Default TTL for idle rate limiter entries (1 hour)
+const DEFAULT_ENTRY_TTL: Duration = Duration::from_secs(3600);
+
+/// Cleanup threshold - run cleanup when this many identities are tracked
+const CLEANUP_THRESHOLD: usize = 1000;
+
+/// Entry in the rate limiter cache with last access time
+struct RateLimitEntry {
+    limiter: Arc<Limiter>,
+    last_access: Instant,
+}
 
 /// Result of a rate limit check
 #[derive(Debug, Clone)]
@@ -51,8 +65,10 @@ pub struct RateLimitService {
     default_rps: u32,
     /// Default burst size
     default_burst: u32,
-    /// Per-identity rate limiters (created lazily)
-    identity_limiters: DashMap<String, Arc<Limiter>>,
+    /// Per-identity rate limiters (created lazily) with last access time
+    identity_limiters: DashMap<String, RateLimitEntry>,
+    /// TTL for idle entries
+    entry_ttl: Duration,
 }
 
 impl RateLimitService {
@@ -63,6 +79,7 @@ impl RateLimitService {
             default_rps: config.requests_per_second,
             default_burst: config.burst_size,
             identity_limiters: DashMap::new(),
+            entry_ttl: DEFAULT_ENTRY_TTL,
         }
     }
 
@@ -75,11 +92,19 @@ impl RateLimitService {
         RateLimiter::direct(quota)
     }
 
-    /// Get or create a rate limiter for the given identity
+    /// Get or create a rate limiter for the given identity, updating last access time
     fn get_identity_limiter(&self, identity_id: &str, custom_limit: Option<u32>) -> Arc<Limiter> {
+        let now = Instant::now();
+
         // Check if we already have a limiter for this identity
-        if let Some(limiter) = self.identity_limiters.get(identity_id) {
-            return limiter.clone();
+        if let Some(mut entry) = self.identity_limiters.get_mut(identity_id) {
+            entry.last_access = now;
+            return entry.limiter.clone();
+        }
+
+        // Maybe run cleanup if we have too many entries
+        if self.identity_limiters.len() >= CLEANUP_THRESHOLD {
+            self.cleanup_expired();
         }
 
         // Create a new limiter for this identity
@@ -93,9 +118,27 @@ impl RateLimitService {
         };
 
         let limiter = Arc::new(Self::create_limiter(rps, burst));
-        self.identity_limiters
-            .insert(identity_id.to_string(), limiter.clone());
+        let entry = RateLimitEntry {
+            limiter: limiter.clone(),
+            last_access: now,
+        };
+        self.identity_limiters.insert(identity_id.to_string(), entry);
         limiter
+    }
+
+    /// Remove expired entries that haven't been accessed within the TTL
+    pub fn cleanup_expired(&self) {
+        let now = Instant::now();
+        let ttl = self.entry_ttl;
+
+        self.identity_limiters.retain(|_, entry| {
+            now.duration_since(entry.last_access) < ttl
+        });
+
+        tracing::debug!(
+            remaining = self.identity_limiters.len(),
+            "Rate limiter cleanup completed"
+        );
     }
 
     /// Check if a request should be allowed for the given identity
@@ -147,6 +190,13 @@ impl RateLimitService {
     /// Clear rate limit state for a specific identity (e.g., on identity deletion)
     pub fn clear_identity(&self, identity_id: &str) {
         self.identity_limiters.remove(identity_id);
+    }
+
+    /// Set a custom TTL for entry expiration (for testing)
+    #[cfg(test)]
+    pub fn with_ttl(mut self, ttl: Duration) -> Self {
+        self.entry_ttl = ttl;
+        self
     }
 }
 
@@ -295,5 +345,50 @@ mod tests {
         assert!(result.retry_after_secs.is_some());
         // Should be at least 1 second
         assert!(result.retry_after_secs.unwrap() >= 1);
+    }
+
+    #[test]
+    fn test_ttl_cleanup() {
+        let config = RateLimitConfig {
+            enabled: true,
+            requests_per_second: 10,
+            burst_size: 10,
+        };
+        // Set TTL to 0 so entries are immediately expired
+        let service = RateLimitService::new(&config).with_ttl(Duration::ZERO);
+
+        // Create entries for multiple users
+        service.check("user_a", None);
+        service.check("user_b", None);
+        service.check("user_c", None);
+
+        assert_eq!(service.tracked_identities(), 3);
+
+        // Cleanup should remove all expired entries
+        service.cleanup_expired();
+
+        assert_eq!(service.tracked_identities(), 0);
+    }
+
+    #[test]
+    fn test_ttl_preserves_active_entries() {
+        let config = RateLimitConfig {
+            enabled: true,
+            requests_per_second: 10,
+            burst_size: 10,
+        };
+        // Set a longer TTL
+        let service = RateLimitService::new(&config).with_ttl(Duration::from_secs(3600));
+
+        // Create entries for multiple users
+        service.check("user_a", None);
+        service.check("user_b", None);
+
+        assert_eq!(service.tracked_identities(), 2);
+
+        // Cleanup should preserve entries that haven't expired
+        service.cleanup_expired();
+
+        assert_eq!(service.tracked_identities(), 2);
     }
 }

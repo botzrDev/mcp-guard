@@ -9,6 +9,7 @@ pub use mtls::{ClientCertInfo, MtlsAuthProvider, HEADER_CLIENT_CERT_CN, HEADER_C
 pub use oauth::OAuthAuthProvider;
 
 use async_trait::async_trait;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Authentication error type
@@ -53,6 +54,43 @@ pub struct Identity {
 
     /// Additional claims/metadata
     pub claims: std::collections::HashMap<String, serde_json::Value>,
+}
+
+/// Map OAuth/JWT scopes to allowed tools based on a scope-to-tool mapping
+///
+/// # Arguments
+/// * `scopes` - List of scopes from the token
+/// * `scope_tool_mapping` - Mapping from scope names to tool names
+///
+/// # Returns
+/// * `None` - No restrictions (empty mapping or wildcard "*" scope)
+/// * `Some(vec![])` - No tools allowed (scopes not in mapping)
+/// * `Some(tools)` - Specific tools allowed
+pub fn map_scopes_to_tools(
+    scopes: &[String],
+    scope_tool_mapping: &HashMap<String, Vec<String>>,
+) -> Option<Vec<String>> {
+    if scope_tool_mapping.is_empty() {
+        return None; // No mapping = all tools allowed
+    }
+
+    let mut tools = Vec::new();
+    for scope in scopes {
+        if let Some(scope_tools) = scope_tool_mapping.get(scope) {
+            if scope_tools.contains(&"*".to_string()) {
+                return None; // Wildcard = all tools
+            }
+            tools.extend(scope_tools.iter().cloned());
+        }
+    }
+
+    if tools.is_empty() {
+        Some(vec![]) // Empty = no tools allowed (scope not in mapping)
+    } else {
+        tools.sort();
+        tools.dedup();
+        Some(tools)
+    }
 }
 
 /// Authentication provider trait
@@ -127,13 +165,36 @@ impl MultiProvider {
 #[async_trait]
 impl AuthProvider for MultiProvider {
     async fn authenticate(&self, token: &str) -> Result<Identity, AuthError> {
+        if self.providers.is_empty() {
+            return Err(AuthError::MissingCredentials);
+        }
+
+        let mut last_error: Option<AuthError> = None;
+
         for provider in &self.providers {
             match provider.authenticate(token).await {
                 Ok(identity) => return Ok(identity),
-                Err(_) => continue,
+                Err(e) => {
+                    // Prioritize more informative errors
+                    let should_replace = match (&last_error, &e) {
+                        (None, _) => true,
+                        // Token expired is more specific than generic errors
+                        (Some(AuthError::InvalidApiKey), AuthError::TokenExpired) => true,
+                        (Some(AuthError::InvalidApiKey), AuthError::InvalidJwt(_)) => true,
+                        (Some(AuthError::InvalidApiKey), AuthError::OAuth(_)) => true,
+                        (Some(AuthError::MissingCredentials), _) => true,
+                        // Keep the current error in other cases
+                        _ => false,
+                    };
+
+                    if should_replace {
+                        last_error = Some(e);
+                    }
+                }
             }
         }
-        Err(AuthError::MissingCredentials)
+
+        Err(last_error.unwrap_or(AuthError::MissingCredentials))
     }
 
     fn name(&self) -> &str {

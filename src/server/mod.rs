@@ -19,6 +19,13 @@ use tokio::sync::RwLock;
 use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
+// ============================================================================
+// Constants
+// ============================================================================
+
+/// OAuth state expiry time (10 minutes)
+const OAUTH_STATE_EXPIRY_SECS: u64 = 600;
+
 use crate::audit::AuditLogger;
 use crate::auth::{AuthProvider, ClientCertInfo, Identity, MtlsAuthProvider, OAuthAuthProvider};
 use crate::authz::{filter_tools_list_response, is_tools_list_request};
@@ -260,7 +267,7 @@ fn generate_pkce() -> (String, String) {
 
 /// Clean up expired OAuth states (older than 10 minutes)
 fn cleanup_expired_oauth_states(store: &OAuthStateStore) {
-    let expiry = Duration::from_secs(600); // 10 minutes
+    let expiry = Duration::from_secs(OAUTH_STATE_EXPIRY_SECS);
     store.retain(|_, state| state.created_at.elapsed() < expiry);
 }
 
@@ -342,7 +349,7 @@ async fn oauth_callback(
         .ok_or_else(|| AppError::unauthorized("Invalid or expired state"))?;
 
     // Validate state hasn't expired (10 minute limit)
-    if pkce_state.created_at.elapsed() > Duration::from_secs(600) {
+    if pkce_state.created_at.elapsed() > Duration::from_secs(OAUTH_STATE_EXPIRY_SECS) {
         return Err(AppError::unauthorized("OAuth state expired"));
     }
 

@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
-use crate::auth::{AuthError, AuthProvider, Identity};
+use crate::auth::{map_scopes_to_tools, AuthError, AuthProvider, Identity};
 use crate::config::{OAuthConfig, OAuthProvider as OAuthProviderType};
 
 /// Well-known OAuth provider endpoints
@@ -53,10 +53,23 @@ struct TokenInfo {
     claims: HashMap<String, serde_json::Value>,
 }
 
+/// Token cache duration (5 minutes)
+const TOKEN_CACHE_DURATION_SECS: u64 = 300;
+
+/// HTTP request timeout (10 seconds)
+const HTTP_REQUEST_TIMEOUT_SECS: u64 = 10;
+
+/// Maximum cache entries before forced cleanup
+const CACHE_CLEANUP_THRESHOLD: usize = 100;
+
+/// Maximum cache entries (hard limit)
+const CACHE_MAX_ENTRIES: usize = 500;
+
 /// Cached token info to avoid repeated introspection calls
 struct TokenCache {
     entries: HashMap<String, CachedToken>,
     cache_duration: Duration,
+    insert_count: usize, // Track inserts for periodic cleanup
 }
 
 struct CachedToken {
@@ -69,6 +82,7 @@ impl TokenCache {
         Self {
             entries: HashMap::new(),
             cache_duration,
+            insert_count: 0,
         }
     }
 
@@ -90,11 +104,53 @@ impl TokenCache {
                 cached_at: Instant::now(),
             },
         );
+        self.insert_count += 1;
+
+        // Periodic cleanup based on insert count
+        if self.insert_count >= CACHE_CLEANUP_THRESHOLD {
+            self.cleanup_expired();
+            self.insert_count = 0;
+        }
+
+        // Hard limit - if still too many entries, remove oldest
+        if self.entries.len() > CACHE_MAX_ENTRIES {
+            self.evict_oldest();
+        }
     }
 
     fn cleanup_expired(&mut self) {
+        let before = self.entries.len();
         self.entries
             .retain(|_, cached| cached.cached_at.elapsed() < self.cache_duration);
+        let removed = before - self.entries.len();
+        if removed > 0 {
+            tracing::debug!(removed = removed, remaining = self.entries.len(), "Token cache cleanup");
+        }
+    }
+
+    /// Remove oldest entries to enforce hard limit
+    fn evict_oldest(&mut self) {
+        // Collect entries with their ages
+        let mut entries: Vec<_> = self
+            .entries
+            .iter()
+            .map(|(k, v)| (k.clone(), v.cached_at))
+            .collect();
+
+        // Sort by age (oldest first)
+        entries.sort_by(|a, b| a.1.cmp(&b.1));
+
+        // Remove oldest entries until we're under the limit
+        let to_remove = self.entries.len() - CACHE_MAX_ENTRIES + 50; // Remove 50 extra to avoid frequent eviction
+        for (key, _) in entries.into_iter().take(to_remove) {
+            self.entries.remove(&key);
+        }
+
+        tracing::debug!(
+            removed = to_remove,
+            remaining = self.entries.len(),
+            "Token cache evicted oldest entries"
+        );
     }
 }
 
@@ -141,12 +197,12 @@ impl OAuthAuthProvider {
             .or_else(|| endpoints.as_ref().and_then(|e| e.introspection_url.map(String::from)));
 
         let http_client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(HTTP_REQUEST_TIMEOUT_SECS))
             .build()
             .map_err(|e| AuthError::Internal(format!("Failed to create HTTP client: {}", e)))?;
 
         // Cache tokens for 5 minutes by default
-        let token_cache = Arc::new(RwLock::new(TokenCache::new(Duration::from_secs(300))));
+        let token_cache = Arc::new(RwLock::new(TokenCache::new(Duration::from_secs(TOKEN_CACHE_DURATION_SECS))));
 
         Ok(Self {
             config,
@@ -332,31 +388,6 @@ impl OAuthAuthProvider {
         })
     }
 
-    /// Map scopes to allowed tools based on scope_tool_mapping config
-    fn map_scopes_to_tools(&self, scopes: &[String]) -> Option<Vec<String>> {
-        if self.config.scope_tool_mapping.is_empty() {
-            return None; // No mapping = all tools allowed
-        }
-
-        let mut tools = Vec::new();
-        for scope in scopes {
-            if let Some(scope_tools) = self.config.scope_tool_mapping.get(scope) {
-                if scope_tools.contains(&"*".to_string()) {
-                    return None; // Wildcard = all tools
-                }
-                tools.extend(scope_tools.iter().cloned());
-            }
-        }
-
-        if tools.is_empty() {
-            Some(vec![]) // Empty = no tools allowed (scope not in mapping)
-        } else {
-            tools.sort();
-            tools.dedup();
-            Some(tools)
-        }
-    }
-
     /// Validate token and return info (with caching)
     async fn validate_token(&self, token: &str) -> Result<TokenInfo, AuthError> {
         let token_hash = Self::hash_token(token);
@@ -383,14 +414,10 @@ impl OAuthAuthProvider {
             self.get_userinfo(token).await?
         };
 
-        // Cache the result
+        // Cache the result (cleanup handled automatically in insert)
         {
             let mut cache = self.token_cache.write().await;
             cache.insert(token_hash, info.clone());
-            // Cleanup expired entries periodically
-            if cache.entries.len() > 1000 {
-                cache.cleanup_expired();
-            }
         }
 
         if !info.active {
@@ -421,7 +448,7 @@ impl AuthProvider for OAuthAuthProvider {
             .user_id
             .ok_or_else(|| AuthError::OAuth("No user ID in token info".into()))?;
 
-        let allowed_tools = self.map_scopes_to_tools(&info.scopes);
+        let allowed_tools = map_scopes_to_tools(&info.scopes, &self.config.scope_tool_mapping);
 
         Ok(Identity {
             id: user_id,
@@ -574,23 +601,10 @@ mod tests {
         scope_mapping.insert("read:files".to_string(), vec!["read_file".to_string()]);
         scope_mapping.insert("write:files".to_string(), vec!["write_file".to_string()]);
 
-        let config = OAuthConfig {
-            provider: OAuthProviderType::GitHub,
-            client_id: "test".to_string(),
-            client_secret: None,
-            authorization_url: None,
-            token_url: None,
-            introspection_url: None,
-            userinfo_url: None,
-            redirect_uri: "http://localhost:3000/oauth/callback".to_string(),
-            scopes: vec![],
-            user_id_claim: "sub".to_string(),
-            scope_tool_mapping: scope_mapping,
-        };
-
-        let provider = OAuthAuthProvider::new(config).unwrap();
-
-        let tools = provider.map_scopes_to_tools(&["read:files".to_string(), "write:files".to_string()]);
+        let tools = map_scopes_to_tools(
+            &["read:files".to_string(), "write:files".to_string()],
+            &scope_mapping,
+        );
         assert!(tools.is_some());
         let tools = tools.unwrap();
         assert!(tools.contains(&"read_file".to_string()));
@@ -602,24 +616,8 @@ mod tests {
         let mut scope_mapping = HashMap::new();
         scope_mapping.insert("admin".to_string(), vec!["*".to_string()]);
 
-        let config = OAuthConfig {
-            provider: OAuthProviderType::GitHub,
-            client_id: "test".to_string(),
-            client_secret: None,
-            authorization_url: None,
-            token_url: None,
-            introspection_url: None,
-            userinfo_url: None,
-            redirect_uri: "http://localhost:3000/oauth/callback".to_string(),
-            scopes: vec![],
-            user_id_claim: "sub".to_string(),
-            scope_tool_mapping: scope_mapping,
-        };
-
-        let provider = OAuthAuthProvider::new(config).unwrap();
-
         // Wildcard should return None (all tools allowed)
-        let tools = provider.map_scopes_to_tools(&["admin".to_string()]);
+        let tools = map_scopes_to_tools(&["admin".to_string()], &scope_mapping);
         assert!(tools.is_none());
     }
 
