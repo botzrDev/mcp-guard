@@ -36,6 +36,7 @@ oauth2 = "4.4"
 
 # Rate limiting
 governor = "0.6"
+dashmap = "5.5"
 
 # Cryptography
 sha2 = "0.10"

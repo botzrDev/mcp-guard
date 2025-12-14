@@ -3,7 +3,7 @@
 use axum::{
     body::Body,
     extract::State,
-    http::{Request, StatusCode},
+    http::{header, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -82,10 +82,13 @@ pub async fn auth_middleware(
 
     state.audit_logger.log_auth_success(&identity.id);
 
-    // Check rate limit
-    if !state.rate_limiter.check(&identity.id, identity.rate_limit) {
+    // Check rate limit (per-identity)
+    let rate_limit_result = state.rate_limiter.check(&identity.id, identity.rate_limit);
+    if !rate_limit_result.allowed {
         state.audit_logger.log_rate_limited(&identity.id);
-        return Err(AppError::RateLimited);
+        return Err(AppError::RateLimited {
+            retry_after_secs: rate_limit_result.retry_after_secs,
+        });
     }
 
     // Add identity to request extensions
@@ -99,7 +102,7 @@ pub async fn auth_middleware(
 pub enum AppError {
     Unauthorized(String),
     Forbidden(String),
-    RateLimited,
+    RateLimited { retry_after_secs: Option<u64> },
     Transport(crate::transport::TransportError),
     Internal(String),
 }
@@ -112,19 +115,38 @@ impl From<crate::transport::TransportError> for AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, message) = match self {
-            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
-            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
-            AppError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded".into()),
-            AppError::Transport(e) => (StatusCode::BAD_GATEWAY, e.to_string()),
-            AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-        };
-
-        let body = serde_json::json!({
-            "error": message
-        });
-
-        (status, Json(body)).into_response()
+        match self {
+            AppError::Unauthorized(msg) => {
+                let body = serde_json::json!({ "error": msg });
+                (StatusCode::UNAUTHORIZED, Json(body)).into_response()
+            }
+            AppError::Forbidden(msg) => {
+                let body = serde_json::json!({ "error": msg });
+                (StatusCode::FORBIDDEN, Json(body)).into_response()
+            }
+            AppError::RateLimited { retry_after_secs } => {
+                let retry_after = retry_after_secs.unwrap_or(1);
+                let body = serde_json::json!({
+                    "error": "Rate limit exceeded",
+                    "retry_after": retry_after
+                });
+                // FR-RATE-05: Return 429 with Retry-After header
+                (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    [(header::RETRY_AFTER, retry_after.to_string())],
+                    Json(body),
+                )
+                    .into_response()
+            }
+            AppError::Transport(e) => {
+                let body = serde_json::json!({ "error": e.to_string() });
+                (StatusCode::BAD_GATEWAY, Json(body)).into_response()
+            }
+            AppError::Internal(msg) => {
+                let body = serde_json::json!({ "error": msg });
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(body)).into_response()
+            }
+        }
     }
 }
 

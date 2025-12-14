@@ -198,11 +198,13 @@ fn test_rate_limiter() {
     let limiter = RateLimitService::new(&config);
 
     // First two requests should succeed (burst)
-    assert!(limiter.check("user1", None));
-    assert!(limiter.check("user1", None));
+    assert!(limiter.check("user1", None).allowed);
+    assert!(limiter.check("user1", None).allowed);
 
     // Third should be rate limited
-    assert!(!limiter.check("user1", None));
+    let result = limiter.check("user1", None);
+    assert!(!result.allowed);
+    assert!(result.retry_after_secs.is_some());
 }
 
 #[test]
@@ -219,7 +221,7 @@ fn test_rate_limiter_disabled() {
 
     // Should never rate limit when disabled
     for _ in 0..100 {
-        assert!(limiter.check("user1", None));
+        assert!(limiter.check("user1", None).allowed);
     }
 }
 
