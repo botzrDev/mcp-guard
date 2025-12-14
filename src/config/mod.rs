@@ -357,6 +357,31 @@ pub struct AuditConfig {
     /// Log to stdout
     #[serde(default)]
     pub stdout: bool,
+
+    /// HTTP export URL for SIEM integration (e.g., "https://siem.example.com/logs")
+    /// If set, audit logs will be batched and sent to this endpoint
+    #[serde(default)]
+    pub export_url: Option<String>,
+
+    /// Number of logs to batch before sending (default: 100)
+    #[serde(default = "default_export_batch_size")]
+    pub export_batch_size: usize,
+
+    /// Interval in seconds to flush logs even if batch is not full (default: 30)
+    #[serde(default = "default_export_interval_secs")]
+    pub export_interval_secs: u64,
+
+    /// Additional headers to include in export requests (e.g., for authentication)
+    #[serde(default)]
+    pub export_headers: HashMap<String, String>,
+}
+
+fn default_export_batch_size() -> usize {
+    100
+}
+
+fn default_export_interval_secs() -> u64 {
+    30
 }
 
 impl Default for AuditConfig {
@@ -365,6 +390,10 @@ impl Default for AuditConfig {
             enabled: true,
             file: None,
             stdout: true,
+            export_url: None,
+            export_batch_size: default_export_batch_size(),
+            export_interval_secs: default_export_interval_secs(),
+            export_headers: HashMap::new(),
         }
     }
 }
@@ -416,7 +445,7 @@ fn default_sample_rate() -> f64 {
 /// Upstream MCP server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpstreamConfig {
-    /// Transport type
+    /// Transport type (used for single-server mode)
     pub transport: TransportType,
 
     /// Command to run (for stdio transport)
@@ -428,6 +457,40 @@ pub struct UpstreamConfig {
 
     /// URL for HTTP transport
     pub url: Option<String>,
+
+    /// Multiple server routes (if configured, path-based routing is enabled)
+    /// Requests are routed based on path prefix matching
+    #[serde(default)]
+    pub servers: Vec<ServerRouteConfig>,
+}
+
+/// Server route configuration for multi-server routing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerRouteConfig {
+    /// Unique name for this server
+    pub name: String,
+
+    /// Path prefix to match (e.g., "/github", "/filesystem")
+    /// Requests with this prefix are routed to this server
+    pub path_prefix: String,
+
+    /// Transport type for this server
+    pub transport: TransportType,
+
+    /// Command to run (for stdio transport)
+    pub command: Option<String>,
+
+    /// Arguments for the command
+    #[serde(default)]
+    pub args: Vec<String>,
+
+    /// URL for HTTP/SSE transport
+    pub url: Option<String>,
+
+    /// Strip the path prefix when forwarding requests
+    /// If true, "/github/repos" becomes "/repos" when sent to the server
+    #[serde(default)]
+    pub strip_prefix: bool,
 }
 
 /// Transport type for upstream connection
@@ -456,6 +519,15 @@ impl Config {
 
     /// Validate the configuration
     pub fn validate(&self) -> Result<(), ConfigError> {
+        // If multi-server routing is configured, validate each server
+        if !self.upstream.servers.is_empty() {
+            for server in &self.upstream.servers {
+                server.validate()?;
+            }
+            return Ok(());
+        }
+
+        // Single-server mode validation
         match self.upstream.transport {
             TransportType::Stdio => {
                 if self.upstream.command.is_none() {
@@ -469,6 +541,57 @@ impl Config {
                     return Err(ConfigError::Validation(
                         "http/sse transport requires 'url' to be set".to_string(),
                     ));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Check if multi-server routing is enabled
+    pub fn is_multi_server(&self) -> bool {
+        !self.upstream.servers.is_empty()
+    }
+}
+
+impl ServerRouteConfig {
+    /// Validate the server route configuration
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.name.is_empty() {
+            return Err(ConfigError::Validation(
+                "Server route 'name' cannot be empty".to_string(),
+            ));
+        }
+
+        if self.path_prefix.is_empty() {
+            return Err(ConfigError::Validation(format!(
+                "Server route '{}' path_prefix cannot be empty",
+                self.name
+            )));
+        }
+
+        if !self.path_prefix.starts_with('/') {
+            return Err(ConfigError::Validation(format!(
+                "Server route '{}' path_prefix must start with '/'",
+                self.name
+            )));
+        }
+
+        match self.transport {
+            TransportType::Stdio => {
+                if self.command.is_none() {
+                    return Err(ConfigError::Validation(format!(
+                        "Server route '{}' with stdio transport requires 'command' to be set",
+                        self.name
+                    )));
+                }
+            }
+            TransportType::Http | TransportType::Sse => {
+                if self.url.is_none() {
+                    return Err(ConfigError::Validation(format!(
+                        "Server route '{}' with http/sse transport requires 'url' to be set",
+                        self.name
+                    )));
                 }
             }
         }

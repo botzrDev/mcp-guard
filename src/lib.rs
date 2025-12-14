@@ -10,6 +10,7 @@ pub mod cli;
 pub mod config;
 pub mod observability;
 pub mod rate_limit;
+pub mod router;
 pub mod server;
 pub mod transport;
 
@@ -35,6 +36,9 @@ pub enum Error {
 
     #[error("Transport error: {0}")]
     Transport(#[from] transport::TransportError),
+
+    #[error("Router error: {0}")]
+    Router(#[from] router::RouterError),
 
     #[error("Server error: {0}")]
     Server(String),

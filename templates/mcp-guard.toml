@@ -172,6 +172,27 @@ enabled = true
 stdout = true
 # file = "/var/log/mcp-guard/audit.log"
 
+# -----------------------------------------------------------------------------
+# HTTP Export for SIEM Integration (optional)
+# Batch and ship audit logs to an HTTP endpoint
+# -----------------------------------------------------------------------------
+# export_url = "https://siem.example.com/api/logs"
+# export_batch_size = 100           # Number of logs to batch before sending
+# export_interval_secs = 30         # Flush interval even if batch not full
+# export_headers = { "Authorization" = "Bearer your-api-key", "X-Source" = "mcp-guard" }
+
+# Example: Ship to Datadog
+# export_url = "https://http-intake.logs.datadoghq.com/api/v2/logs"
+# export_headers = { "DD-API-KEY" = "your-datadog-api-key" }
+# export_batch_size = 50
+# export_interval_secs = 10
+
+# Example: Ship to Splunk HEC
+# export_url = "https://splunk.example.com:8088/services/collector/event"
+# export_headers = { "Authorization" = "Splunk your-hec-token" }
+# export_batch_size = 100
+# export_interval_secs = 15
+
 # =============================================================================
 # OpenTelemetry Tracing (optional) - FR-OBS-03
 # Distributed tracing with W3C trace context propagation
@@ -249,3 +270,58 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 # [upstream]
 # transport = "sse"
 # url = "https://mcp.example.com/api/v1/stream"
+
+# =============================================================================
+# Multi-Server Routing (optional)
+# Route requests to different upstream MCP servers based on path prefix
+# =============================================================================
+
+# When servers array is configured, requests are routed by path:
+#   POST /mcp/github  -> routes to "github" server
+#   POST /mcp/filesystem -> routes to "filesystem" server
+#
+# Use GET /routes to list all available server routes
+
+# Example: Multiple MCP servers behind single gateway
+# [upstream]
+# transport = "stdio"  # Default transport (ignored when servers configured)
+# command = "echo"     # Default command (ignored when servers configured)
+#
+# [[upstream.servers]]
+# name = "github"
+# path_prefix = "/github"
+# transport = "http"
+# url = "https://github-mcp.example.com/api"
+# strip_prefix = false  # Keep /github in forwarded path
+#
+# [[upstream.servers]]
+# name = "filesystem"
+# path_prefix = "/filesystem"
+# transport = "stdio"
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+#
+# [[upstream.servers]]
+# name = "database"
+# path_prefix = "/database"
+# transport = "http"
+# url = "http://localhost:8081/mcp"
+
+# Example: Microservices architecture
+# [[upstream.servers]]
+# name = "users"
+# path_prefix = "/users"
+# transport = "http"
+# url = "http://user-service:8080/mcp"
+#
+# [[upstream.servers]]
+# name = "orders"
+# path_prefix = "/orders"
+# transport = "http"
+# url = "http://order-service:8080/mcp"
+#
+# [[upstream.servers]]
+# name = "inventory"
+# path_prefix = "/inventory"
+# transport = "sse"
+# url = "http://inventory-service:8080/mcp/stream"

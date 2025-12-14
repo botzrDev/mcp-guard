@@ -25,6 +25,7 @@ use crate::authz::{filter_tools_list_response, is_tools_list_request};
 use crate::config::Config;
 use crate::observability::{record_auth, record_rate_limit, record_request, set_active_identities};
 use crate::rate_limit::RateLimitService;
+use crate::router::ServerRouter;
 use crate::transport::{Message, Transport};
 
 /// PKCE state entry for OAuth flow
@@ -49,7 +50,10 @@ pub struct AppState {
     pub auth_provider: Arc<dyn AuthProvider>,
     pub rate_limiter: RateLimitService,
     pub audit_logger: Arc<AuditLogger>,
-    pub transport: Arc<dyn Transport>,
+    /// Single transport for single-server mode (None when using multi-server routing)
+    pub transport: Option<Arc<dyn Transport>>,
+    /// Multi-server router (None when using single-server mode)
+    pub router: Option<Arc<ServerRouter>>,
     pub metrics_handle: PrometheusHandle,
     /// OAuth provider for authorization code flow (optional)
     pub oauth_provider: Option<Arc<OAuthAuthProvider>>,
@@ -142,19 +146,71 @@ async fn metrics_handler(State(state): State<Arc<AppState>>) -> impl IntoRespons
 }
 
 /// MCP message handler with tools/list filtering (FR-AUTHZ-03)
+/// Used for single-server mode
 async fn handle_mcp_message(
     State(state): State<Arc<AppState>>,
     axum::Extension(identity): axum::Extension<Identity>,
     Json(message): Json<Message>,
 ) -> Result<Json<Message>, AppError> {
+    // Get the transport (single-server mode)
+    let transport = state.transport.as_ref().ok_or_else(|| {
+        AppError::Internal("No transport configured (use multi-server routing?)".into())
+    })?;
+
     // Check if this is a tools/list request (for later filtering)
     let is_tools_list = is_tools_list_request(&message);
 
     // Forward to upstream transport
-    state.transport.send(message).await?;
+    transport.send(message).await?;
 
     // Wait for response
-    let response = state.transport.receive().await?;
+    let response = transport.receive().await?;
+
+    // Filter tools/list response to only show authorized tools (FR-AUTHZ-03)
+    let response = if is_tools_list {
+        filter_tools_list_response(response, &identity)
+    } else {
+        response
+    };
+
+    Ok(Json(response))
+}
+
+/// MCP message handler for multi-server routing
+/// Routes requests to different upstreams based on the server name in the path
+async fn handle_routed_mcp_message(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(server_name): axum::extract::Path<String>,
+    axum::Extension(identity): axum::Extension<Identity>,
+    Json(message): Json<Message>,
+) -> Result<Json<Message>, AppError> {
+    // Get the router (multi-server mode)
+    let router = state.router.as_ref().ok_or_else(|| {
+        AppError::Internal("No router configured (use single-server mode?)".into())
+    })?;
+
+    // Build path for routing
+    let path = format!("/{}", server_name);
+
+    // Get the transport for this path
+    let transport = router.get_transport(&path).ok_or_else(|| {
+        AppError::NotFound(format!("No server route for path: {}", path))
+    })?;
+
+    tracing::debug!(
+        server = %server_name,
+        route = ?router.get_route_name(&path),
+        "Routing MCP message"
+    );
+
+    // Check if this is a tools/list request (for later filtering)
+    let is_tools_list = is_tools_list_request(&message);
+
+    // Forward to upstream transport
+    transport.send(message).await?;
+
+    // Wait for response
+    let response = transport.receive().await?;
 
     // Filter tools/list response to only show authorized tools (FR-AUTHZ-03)
     let response = if is_tools_list {
@@ -573,6 +629,7 @@ pub async fn trace_context_middleware(request: Request<Body>, next: Next) -> Res
 pub enum AppError {
     Unauthorized(String),
     Forbidden(String),
+    NotFound(String),
     RateLimited { retry_after_secs: Option<u64> },
     Transport(crate::transport::TransportError),
     Internal(String),
@@ -594,6 +651,10 @@ impl IntoResponse for AppError {
             AppError::Forbidden(msg) => {
                 let body = serde_json::json!({ "error": msg });
                 (StatusCode::FORBIDDEN, Json(body)).into_response()
+            }
+            AppError::NotFound(msg) => {
+                let body = serde_json::json!({ "error": msg });
+                (StatusCode::NOT_FOUND, Json(body)).into_response()
             }
             AppError::RateLimited { retry_after_secs } => {
                 let retry_after = retry_after_secs.unwrap_or(1);
@@ -623,9 +684,21 @@ impl IntoResponse for AppError {
 
 /// Build the application router
 pub fn build_router(state: Arc<AppState>) -> Router {
-    let protected_routes = Router::new()
-        .route("/mcp", post(handle_mcp_message))
-        .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
+    // Determine if we're in multi-server mode
+    let is_multi_server = state.router.is_some();
+
+    // Build protected routes based on mode
+    let protected_routes = if is_multi_server {
+        // Multi-server mode: route to /mcp/:server_name
+        Router::new()
+            .route("/mcp/:server_name", post(handle_routed_mcp_message))
+            .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
+    } else {
+        // Single-server mode: route to /mcp
+        Router::new()
+            .route("/mcp", post(handle_mcp_message))
+            .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
+    };
 
     // OAuth routes (only added if OAuth is configured)
     let mut router = Router::new()
@@ -633,6 +706,11 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/live", get(live))
         .route("/ready", get(ready))
         .route("/metrics", get(metrics_handler));
+
+    // Add routes endpoint for multi-server mode (lists available servers)
+    if is_multi_server {
+        router = router.route("/routes", get(list_routes));
+    }
 
     if state.oauth_provider.is_some() {
         router = router
@@ -649,6 +727,25 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .layer(middleware::from_fn(trace_context_middleware))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+/// List available server routes (multi-server mode only)
+async fn list_routes(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    if let Some(ref router) = state.router {
+        let routes: Vec<_> = router.route_names().iter().map(|s| s.to_string()).collect();
+        let body = serde_json::json!({
+            "routes": routes,
+            "count": routes.len()
+        });
+        (StatusCode::OK, Json(body))
+    } else {
+        let body = serde_json::json!({
+            "routes": [],
+            "count": 0,
+            "note": "Single-server mode, no routes configured"
+        });
+        (StatusCode::OK, Json(body))
+    }
 }
 
 /// Run the server

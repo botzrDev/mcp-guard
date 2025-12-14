@@ -1,11 +1,19 @@
 //! Audit logging for mcp-guard
+//!
+//! Provides audit logging with multiple output destinations:
+//! - File: Append audit entries to a local file
+//! - Stdout: Print audit entries to console
+//! - HTTP Export: Batch and ship audit entries to an HTTP endpoint (SIEM integration)
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::Duration;
+use tokio::sync::mpsc;
 
 /// Audit event types
 #[derive(Debug, Clone, Serialize)]
@@ -85,11 +93,19 @@ impl AuditEntry {
     }
 }
 
-/// Audit logger
+/// Audit logger with optional HTTP export
 pub struct AuditLogger {
     enabled: bool,
     stdout: bool,
     file: Option<Mutex<std::fs::File>>,
+    /// Channel for sending entries to the shipper task
+    export_tx: Option<mpsc::Sender<AuditEntry>>,
+}
+
+/// Handle for the audit log shipper background task
+pub struct AuditShipperHandle {
+    /// Handle to the background task
+    _task: tokio::task::JoinHandle<()>,
 }
 
 impl AuditLogger {
@@ -110,7 +126,35 @@ impl AuditLogger {
             enabled: config.enabled,
             stdout: config.stdout,
             file,
+            export_tx: None,
         })
+    }
+
+    /// Create a new audit logger with HTTP export enabled
+    pub fn with_export(config: &crate::config::AuditConfig) -> std::io::Result<(Self, Option<AuditShipperHandle>)> {
+        let mut logger = Self::new(config)?;
+
+        let handle = if let Some(ref export_url) = config.export_url {
+            let (tx, rx) = mpsc::channel::<AuditEntry>(1000);
+            logger.export_tx = Some(tx);
+
+            let shipper = AuditShipper::new(
+                export_url.clone(),
+                config.export_headers.clone(),
+                config.export_batch_size,
+                config.export_interval_secs,
+            );
+
+            let task = tokio::spawn(async move {
+                shipper.run(rx).await;
+            });
+
+            Some(AuditShipperHandle { _task: task })
+        } else {
+            None
+        };
+
+        Ok((logger, handle))
     }
 
     /// Create a disabled audit logger
@@ -119,6 +163,7 @@ impl AuditLogger {
             enabled: false,
             stdout: false,
             file: None,
+            export_tx: None,
         }
     }
 
@@ -144,6 +189,13 @@ impl AuditLogger {
             if let Ok(mut f) = file.lock() {
                 let _ = writeln!(f, "{}", json);
             }
+        }
+
+        // Send to shipper if configured
+        if let Some(ref tx) = self.export_tx {
+            // Use try_send to avoid blocking; if channel is full, we'll drop the entry
+            // This is acceptable for audit logs as we don't want to block the main request path
+            let _ = tx.try_send(entry.clone());
         }
     }
 
@@ -208,4 +260,199 @@ impl Default for AuditLogger {
 /// Create a file path for audit logs
 pub fn default_audit_path() -> PathBuf {
     PathBuf::from("mcp-guard-audit.log")
+}
+
+// ============================================================================
+// Audit Log Shipper - HTTP Export for SIEM Integration
+// ============================================================================
+
+/// Background task that batches and ships audit logs to an HTTP endpoint
+struct AuditShipper {
+    /// Target URL for log export
+    url: String,
+    /// Additional headers for the export request
+    headers: HashMap<String, String>,
+    /// Number of entries to batch before sending
+    batch_size: usize,
+    /// Interval to flush even if batch is not full
+    flush_interval: Duration,
+    /// HTTP client
+    client: reqwest::Client,
+}
+
+/// Batch of audit entries to ship
+#[derive(Debug, Serialize)]
+struct AuditBatch {
+    /// Batch timestamp
+    timestamp: DateTime<Utc>,
+    /// Source service name
+    source: String,
+    /// Batch of audit entries
+    entries: Vec<AuditEntry>,
+    /// Number of entries in this batch
+    count: usize,
+}
+
+impl AuditShipper {
+    /// Create a new audit shipper
+    fn new(
+        url: String,
+        headers: HashMap<String, String>,
+        batch_size: usize,
+        flush_interval_secs: u64,
+    ) -> Self {
+        Self {
+            url,
+            headers,
+            batch_size,
+            flush_interval: Duration::from_secs(flush_interval_secs),
+            client: reqwest::Client::builder()
+                .timeout(Duration::from_secs(30))
+                .build()
+                .expect("Failed to create HTTP client"),
+        }
+    }
+
+    /// Run the shipper, receiving entries from the channel and batching them
+    async fn run(self, mut rx: mpsc::Receiver<AuditEntry>) {
+        let mut batch: Vec<AuditEntry> = Vec::with_capacity(self.batch_size);
+        let mut interval = tokio::time::interval(self.flush_interval);
+
+        loop {
+            tokio::select! {
+                // Receive new entry
+                entry = rx.recv() => {
+                    match entry {
+                        Some(entry) => {
+                            batch.push(entry);
+
+                            // Flush if batch is full
+                            if batch.len() >= self.batch_size {
+                                self.flush(&mut batch).await;
+                            }
+                        }
+                        None => {
+                            // Channel closed, flush remaining and exit
+                            if !batch.is_empty() {
+                                self.flush(&mut batch).await;
+                            }
+                            tracing::info!("Audit shipper shutting down");
+                            break;
+                        }
+                    }
+                }
+                // Periodic flush
+                _ = interval.tick() => {
+                    if !batch.is_empty() {
+                        self.flush(&mut batch).await;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Flush the current batch to the HTTP endpoint
+    async fn flush(&self, batch: &mut Vec<AuditEntry>) {
+        if batch.is_empty() {
+            return;
+        }
+
+        let entries = std::mem::take(batch);
+        let count = entries.len();
+
+        let payload = AuditBatch {
+            timestamp: Utc::now(),
+            source: "mcp-guard".to_string(),
+            entries,
+            count,
+        };
+
+        // Attempt to send with retry
+        for attempt in 0..3 {
+            match self.send_batch(&payload).await {
+                Ok(()) => {
+                    tracing::debug!(count = count, "Shipped audit batch");
+                    return;
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        attempt = attempt + 1,
+                        error = %e,
+                        count = count,
+                        "Failed to ship audit batch, retrying"
+                    );
+
+                    // Exponential backoff
+                    tokio::time::sleep(Duration::from_millis(100 * (1 << attempt))).await;
+                }
+            }
+        }
+
+        // After 3 retries, log error and drop the batch
+        tracing::error!(count = count, "Failed to ship audit batch after 3 retries, dropping");
+    }
+
+    /// Send a batch to the HTTP endpoint
+    async fn send_batch(&self, batch: &AuditBatch) -> Result<(), String> {
+        let mut request = self
+            .client
+            .post(&self.url)
+            .header("Content-Type", "application/json");
+
+        // Add custom headers
+        for (key, value) in &self.headers {
+            request = request.header(key, value);
+        }
+
+        let response = request
+            .json(batch)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(format!("HTTP {}: {}", status, body));
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_audit_entry_creation() {
+        let entry = AuditEntry::new(EventType::AuthSuccess)
+            .with_identity("user123")
+            .with_success(true);
+
+        assert_eq!(entry.identity_id, Some("user123".to_string()));
+        assert!(entry.success);
+        assert!(matches!(entry.event_type, EventType::AuthSuccess));
+    }
+
+    #[test]
+    fn test_audit_batch_serialization() {
+        let entries = vec![
+            AuditEntry::new(EventType::AuthSuccess).with_identity("user1"),
+            AuditEntry::new(EventType::ToolCall).with_identity("user2").with_tool("read_file"),
+        ];
+
+        let batch = AuditBatch {
+            timestamp: Utc::now(),
+            source: "mcp-guard".to_string(),
+            count: entries.len(),
+            entries,
+        };
+
+        let json = serde_json::to_string(&batch).expect("Should serialize");
+        assert!(json.contains("mcp-guard"));
+        assert!(json.contains("user1"));
+        assert!(json.contains("user2"));
+        assert!(json.contains("read_file"));
+    }
 }

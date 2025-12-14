@@ -59,6 +59,7 @@ fn test_config_validation_stdio() {
             command: Some("echo".to_string()),
             args: vec![],
             url: None,
+            servers: vec![],
         },
     };
 
@@ -79,6 +80,7 @@ fn test_config_validation_stdio_missing_command() {
             command: None,
             args: vec![],
             url: None,
+            servers: vec![],
         },
     };
 
@@ -101,6 +103,7 @@ fn test_config_validation_http_missing_url() {
             command: None,
             args: vec![],
             url: None,
+            servers: vec![],
         },
     };
 
@@ -309,6 +312,7 @@ fn test_config_validation_http_valid() {
             command: None,
             args: vec![],
             url: Some("http://localhost:8080/mcp".to_string()),
+            servers: vec![],
         },
     };
 
@@ -329,6 +333,7 @@ fn test_config_validation_sse_valid() {
             command: None,
             args: vec![],
             url: Some("http://localhost:8080/mcp/stream".to_string()),
+            servers: vec![],
         },
     };
 
@@ -349,6 +354,7 @@ fn test_config_validation_sse_missing_url() {
             command: None,
             args: vec![],
             url: None,
+            servers: vec![],
         },
     };
 
@@ -532,6 +538,7 @@ async fn test_health_endpoint_response_structure() {
             command: Some("echo".to_string()),
             args: vec![],
             url: None,
+            servers: vec![],
         },
     };
 
@@ -541,7 +548,8 @@ async fn test_health_endpoint_response_structure() {
         auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
         rate_limiter: RateLimitService::new(&config.rate_limit),
         audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
-        transport: Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap()),
+        transport: Some(Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap())),
+        router: None,
         metrics_handle: create_metrics_handle(),
         oauth_provider: None,
         oauth_state_store: new_oauth_state_store(),
@@ -599,6 +607,7 @@ async fn test_live_endpoint() {
             command: Some("echo".to_string()),
             args: vec![],
             url: None,
+            servers: vec![],
         },
     };
 
@@ -607,7 +616,8 @@ async fn test_live_endpoint() {
         auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
         rate_limiter: RateLimitService::new(&config.rate_limit),
         audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
-        transport: Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap()),
+        transport: Some(Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap())),
+        router: None,
         metrics_handle: create_metrics_handle(),
         oauth_provider: None,
         oauth_state_store: new_oauth_state_store(),
@@ -663,6 +673,7 @@ async fn test_ready_endpoint_when_ready() {
             command: Some("echo".to_string()),
             args: vec![],
             url: None,
+            servers: vec![],
         },
     };
 
@@ -671,7 +682,8 @@ async fn test_ready_endpoint_when_ready() {
         auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
         rate_limiter: RateLimitService::new(&config.rate_limit),
         audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
-        transport: Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap()),
+        transport: Some(Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap())),
+        router: None,
         metrics_handle: create_metrics_handle(),
         oauth_provider: None,
         oauth_state_store: new_oauth_state_store(),
@@ -729,6 +741,7 @@ async fn test_ready_endpoint_when_not_ready() {
             command: Some("echo".to_string()),
             args: vec![],
             url: None,
+            servers: vec![],
         },
     };
 
@@ -737,7 +750,8 @@ async fn test_ready_endpoint_when_not_ready() {
         auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
         rate_limiter: RateLimitService::new(&config.rate_limit),
         audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
-        transport: Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap()),
+        transport: Some(Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap())),
+        router: None,
         metrics_handle: create_metrics_handle(),
         oauth_provider: None,
         oauth_state_store: new_oauth_state_store(),

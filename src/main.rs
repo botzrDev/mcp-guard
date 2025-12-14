@@ -11,6 +11,7 @@ use mcp_guard::{
     config::Config,
     observability::{init_metrics, init_tracing},
     rate_limit::RateLimitService,
+    router::ServerRouter,
     server::{self, new_oauth_state_store, AppState},
     transport::{HttpTransport, SseTransport, StdioTransport},
 };
@@ -322,39 +323,62 @@ async fn main() -> anyhow::Result<()> {
             // Set up audit logger
             let audit_logger = Arc::new(AuditLogger::new(&config.audit)?);
 
-            // Set up transport to upstream MCP server
-            let transport: Arc<dyn mcp_guard::transport::Transport> = match &config.upstream.transport
-            {
-                mcp_guard::config::TransportType::Stdio => {
-                    let command = config
-                        .upstream
-                        .command
-                        .as_ref()
-                        .expect("command required for stdio transport");
-                    tracing::info!(command = %command, "Using stdio transport");
-                    Arc::new(StdioTransport::spawn(command, &config.upstream.args).await?)
-                }
-                mcp_guard::config::TransportType::Http => {
-                    let url = config
-                        .upstream
-                        .url
-                        .as_ref()
-                        .expect("url required for HTTP transport")
-                        .clone();
-                    tracing::info!(url = %url, "Using HTTP transport");
-                    Arc::new(HttpTransport::new(url))
-                }
-                mcp_guard::config::TransportType::Sse => {
-                    let url = config
-                        .upstream
-                        .url
-                        .as_ref()
-                        .expect("url required for SSE transport")
-                        .clone();
-                    tracing::info!(url = %url, "Using SSE transport");
-                    Arc::new(SseTransport::connect(url).await?)
-                }
-            };
+            // Set up transport/router based on configuration
+            let (transport, router): (Option<Arc<dyn mcp_guard::transport::Transport>>, Option<Arc<ServerRouter>>) =
+                if config.is_multi_server() {
+                    // Multi-server routing mode
+                    tracing::info!(
+                        routes = config.upstream.servers.len(),
+                        "Initializing multi-server routing"
+                    );
+                    for server in &config.upstream.servers {
+                        tracing::info!(
+                            name = %server.name,
+                            path_prefix = %server.path_prefix,
+                            transport = ?server.transport,
+                            "Configuring server route"
+                        );
+                    }
+                    let server_router = ServerRouter::new(config.upstream.servers.clone())
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to initialize router: {}", e))?;
+                    (None, Some(Arc::new(server_router)))
+                } else {
+                    // Single-server mode
+                    let transport: Arc<dyn mcp_guard::transport::Transport> = match &config.upstream.transport
+                    {
+                        mcp_guard::config::TransportType::Stdio => {
+                            let command = config
+                                .upstream
+                                .command
+                                .as_ref()
+                                .expect("command required for stdio transport");
+                            tracing::info!(command = %command, "Using stdio transport");
+                            Arc::new(StdioTransport::spawn(command, &config.upstream.args).await?)
+                        }
+                        mcp_guard::config::TransportType::Http => {
+                            let url = config
+                                .upstream
+                                .url
+                                .as_ref()
+                                .expect("url required for HTTP transport")
+                                .clone();
+                            tracing::info!(url = %url, "Using HTTP transport");
+                            Arc::new(HttpTransport::new(url))
+                        }
+                        mcp_guard::config::TransportType::Sse => {
+                            let url = config
+                                .upstream
+                                .url
+                                .as_ref()
+                                .expect("url required for SSE transport")
+                                .clone();
+                            tracing::info!(url = %url, "Using SSE transport");
+                            Arc::new(SseTransport::connect(url).await?)
+                        }
+                    };
+                    (Some(transport), None)
+                };
 
             // Create readiness state (set to true since transport is initialized)
             let ready = Arc::new(RwLock::new(true));
@@ -366,6 +390,7 @@ async fn main() -> anyhow::Result<()> {
                 rate_limiter,
                 audit_logger,
                 transport,
+                router,
                 metrics_handle,
                 oauth_provider,
                 oauth_state_store,
