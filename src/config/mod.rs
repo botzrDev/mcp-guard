@@ -184,20 +184,67 @@ fn default_scopes_claim() -> String {
     "scope".to_string()
 }
 
+/// OAuth 2.1 provider type
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OAuthProvider {
+    /// GitHub OAuth
+    GitHub,
+    /// Google OAuth
+    Google,
+    /// Okta OAuth
+    Okta,
+    /// Custom OAuth provider
+    Custom,
+}
+
 /// OAuth 2.1 configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthConfig {
-    /// Authorization server URL
-    pub issuer_url: String,
+    /// OAuth provider type
+    pub provider: OAuthProvider,
 
     /// Client ID
     pub client_id: String,
 
-    /// Client secret
+    /// Client secret (for confidential clients)
     pub client_secret: Option<String>,
 
-    /// Token introspection endpoint
+    /// Authorization endpoint URL (required for custom, auto-derived for known providers)
+    pub authorization_url: Option<String>,
+
+    /// Token endpoint URL (required for custom, auto-derived for known providers)
+    pub token_url: Option<String>,
+
+    /// Token introspection endpoint URL (for validating opaque tokens)
     pub introspection_url: Option<String>,
+
+    /// User info endpoint URL (fallback if no introspection)
+    pub userinfo_url: Option<String>,
+
+    /// Redirect URI for authorization code flow
+    #[serde(default = "default_redirect_uri")]
+    pub redirect_uri: String,
+
+    /// OAuth scopes to request
+    #[serde(default = "default_oauth_scopes")]
+    pub scopes: Vec<String>,
+
+    /// Claim to extract user ID from (default: "sub")
+    #[serde(default = "default_user_id_claim")]
+    pub user_id_claim: String,
+
+    /// Mapping from scopes to allowed tools (same as JWT)
+    #[serde(default)]
+    pub scope_tool_mapping: HashMap<String, Vec<String>>,
+}
+
+fn default_redirect_uri() -> String {
+    "http://localhost:3000/oauth/callback".to_string()
+}
+
+fn default_oauth_scopes() -> Vec<String> {
+    vec!["openid".to_string(), "profile".to_string()]
 }
 
 /// Rate limiting configuration

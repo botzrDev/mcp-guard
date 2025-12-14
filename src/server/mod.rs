@@ -2,24 +2,41 @@
 
 use axum::{
     body::Body,
-    extract::State,
+    extract::{Query, State},
     http::{header, Request, StatusCode},
     middleware::{self, Next},
-    response::{IntoResponse, Response},
+    response::{IntoResponse, Redirect, Response},
     routing::{get, post},
     Json, Router,
 };
+use dashmap::DashMap;
 use metrics_exporter_prometheus::PrometheusHandle;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tower_http::trace::TraceLayer;
 
 use crate::audit::AuditLogger;
-use crate::auth::AuthProvider;
+use crate::auth::{AuthProvider, OAuthAuthProvider};
 use crate::config::Config;
 use crate::observability::{record_auth, record_rate_limit, record_request, set_active_identities};
 use crate::rate_limit::RateLimitService;
 use crate::transport::{Message, Transport};
+
+/// PKCE state entry for OAuth flow
+pub struct PkceState {
+    /// PKCE code verifier
+    pub code_verifier: String,
+    /// When the state was created
+    pub created_at: Instant,
+}
+
+/// OAuth state storage (state -> PKCE verifier)
+pub type OAuthStateStore = Arc<DashMap<String, PkceState>>;
+
+/// Create a new OAuth state store
+pub fn new_oauth_state_store() -> OAuthStateStore {
+    Arc::new(DashMap::new())
+}
 
 /// Application state shared across handlers
 pub struct AppState {
@@ -29,6 +46,10 @@ pub struct AppState {
     pub audit_logger: Arc<AuditLogger>,
     pub transport: Arc<dyn Transport>,
     pub metrics_handle: PrometheusHandle,
+    /// OAuth provider for authorization code flow (optional)
+    pub oauth_provider: Option<Arc<OAuthAuthProvider>>,
+    /// OAuth state storage for PKCE
+    pub oauth_state_store: OAuthStateStore,
 }
 
 /// Health check response
@@ -71,6 +92,243 @@ async fn handle_mcp_message(
     let response = state.transport.receive().await?;
 
     Ok(Json(response))
+}
+
+// ============================================================================
+// OAuth 2.1 Authorization Code Flow with PKCE (FR-AUTH-05)
+// ============================================================================
+
+/// Generate a cryptographically secure random string
+fn generate_random_string(len: usize) -> String {
+    use rand::Rng;
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let mut rng = rand::thread_rng();
+    (0..len)
+        .map(|_| {
+            let idx = rng.gen_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect()
+}
+
+/// Generate PKCE code verifier and challenge
+fn generate_pkce() -> (String, String) {
+    use sha2::{Digest, Sha256};
+
+    // Generate a random 43-128 character code verifier
+    let code_verifier = generate_random_string(64);
+
+    // Create SHA-256 hash and base64url encode it
+    let mut hasher = Sha256::new();
+    hasher.update(code_verifier.as_bytes());
+    let hash = hasher.finalize();
+    let code_challenge = base64::Engine::encode(
+        &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+        hash,
+    );
+
+    (code_verifier, code_challenge)
+}
+
+/// Clean up expired OAuth states (older than 10 minutes)
+fn cleanup_expired_oauth_states(store: &OAuthStateStore) {
+    let expiry = Duration::from_secs(600); // 10 minutes
+    store.retain(|_, state| state.created_at.elapsed() < expiry);
+}
+
+/// OAuth authorize endpoint - initiates the OAuth flow
+async fn oauth_authorize(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse, AppError> {
+    let oauth_provider = state
+        .oauth_provider
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("OAuth not configured".into()))?;
+
+    // Generate PKCE code verifier and challenge
+    let (code_verifier, code_challenge) = generate_pkce();
+
+    // Generate random state parameter
+    let oauth_state = generate_random_string(32);
+
+    // Store the code verifier with the state
+    cleanup_expired_oauth_states(&state.oauth_state_store);
+    state.oauth_state_store.insert(
+        oauth_state.clone(),
+        PkceState {
+            code_verifier,
+            created_at: Instant::now(),
+        },
+    );
+
+    // Build authorization URL
+    let auth_url = oauth_provider.get_authorization_url(&oauth_state, Some(&code_challenge));
+
+    tracing::info!("Initiating OAuth flow with state: {}", oauth_state);
+
+    Ok(Redirect::temporary(&auth_url))
+}
+
+/// Query parameters for OAuth callback
+#[derive(Debug, serde::Deserialize)]
+pub struct OAuthCallbackParams {
+    pub code: Option<String>,
+    pub state: Option<String>,
+    pub error: Option<String>,
+    pub error_description: Option<String>,
+}
+
+/// OAuth token response
+#[derive(Debug, serde::Serialize)]
+struct OAuthTokenResponse {
+    access_token: String,
+    token_type: String,
+    expires_in: Option<u64>,
+    refresh_token: Option<String>,
+    scope: Option<String>,
+}
+
+/// OAuth callback endpoint - exchanges authorization code for tokens
+async fn oauth_callback(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<OAuthCallbackParams>,
+) -> Result<impl IntoResponse, AppError> {
+    // Check for errors from OAuth provider
+    if let Some(error) = params.error {
+        let description = params.error_description.unwrap_or_default();
+        tracing::warn!("OAuth error: {} - {}", error, description);
+        return Err(AppError::Unauthorized(format!(
+            "OAuth error: {} - {}",
+            error, description
+        )));
+    }
+
+    // Validate state parameter
+    let oauth_state = params
+        .state
+        .ok_or_else(|| AppError::Unauthorized("Missing state parameter".into()))?;
+
+    // Retrieve and remove PKCE state
+    let pkce_state = state
+        .oauth_state_store
+        .remove(&oauth_state)
+        .map(|(_, v)| v)
+        .ok_or_else(|| AppError::Unauthorized("Invalid or expired state".into()))?;
+
+    // Validate state hasn't expired (10 minute limit)
+    if pkce_state.created_at.elapsed() > Duration::from_secs(600) {
+        return Err(AppError::Unauthorized("OAuth state expired".into()));
+    }
+
+    // Get authorization code
+    let code = params
+        .code
+        .ok_or_else(|| AppError::Unauthorized("Missing authorization code".into()))?;
+
+    // Get OAuth provider
+    let oauth_provider = state
+        .oauth_provider
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("OAuth not configured".into()))?;
+
+    // Exchange code for tokens
+    let tokens = exchange_code_for_tokens(
+        &state.config,
+        oauth_provider,
+        &code,
+        &pkce_state.code_verifier,
+    )
+    .await?;
+
+    tracing::info!("OAuth code exchange successful");
+
+    Ok(Json(tokens))
+}
+
+/// Exchange authorization code for tokens
+async fn exchange_code_for_tokens(
+    config: &Config,
+    oauth_provider: &OAuthAuthProvider,
+    code: &str,
+    code_verifier: &str,
+) -> Result<OAuthTokenResponse, AppError> {
+    let oauth_config = config
+        .auth
+        .oauth
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("OAuth not configured".into()))?;
+
+    // Build token request
+    let client = reqwest::Client::new();
+    let mut form = vec![
+        ("grant_type", "authorization_code"),
+        ("code", code),
+        ("redirect_uri", &oauth_config.redirect_uri),
+        ("client_id", &oauth_config.client_id),
+        ("code_verifier", code_verifier),
+    ];
+
+    // Add client_secret for confidential clients
+    let client_secret;
+    if let Some(ref secret) = oauth_config.client_secret {
+        client_secret = secret.clone();
+        form.push(("client_secret", &client_secret));
+    }
+
+    let response = client
+        .post(oauth_provider.token_url())
+        .header("Accept", "application/json")
+        .form(&form)
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(format!("Token exchange request failed: {}", e)))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        tracing::error!("Token exchange failed: {} - {}", status, body);
+        return Err(AppError::Unauthorized(format!(
+            "Token exchange failed: {}",
+            status
+        )));
+    }
+
+    let token_response: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to parse token response: {}", e)))?;
+
+    let access_token = token_response
+        .get("access_token")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::Internal("No access_token in response".into()))?
+        .to_string();
+
+    let token_type = token_response
+        .get("token_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Bearer")
+        .to_string();
+
+    let expires_in = token_response
+        .get("expires_in")
+        .and_then(|v| v.as_u64());
+
+    let refresh_token = token_response
+        .get("refresh_token")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let scope = token_response
+        .get("scope")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    Ok(OAuthTokenResponse {
+        access_token,
+        token_type,
+        expires_in,
+        refresh_token,
+        scope,
+    })
 }
 
 /// Authentication middleware with metrics
@@ -194,9 +452,18 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/mcp", post(handle_mcp_message))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
-    Router::new()
+    // OAuth routes (only added if OAuth is configured)
+    let mut router = Router::new()
         .route("/health", get(health))
-        .route("/metrics", get(metrics_handler))
+        .route("/metrics", get(metrics_handler));
+
+    if state.oauth_provider.is_some() {
+        router = router
+            .route("/oauth/authorize", get(oauth_authorize))
+            .route("/oauth/callback", get(oauth_callback));
+    }
+
+    router
         .merge(protected_routes)
         .layer(middleware::from_fn(metrics_middleware))
         .layer(TraceLayer::new_for_http())

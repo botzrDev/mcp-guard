@@ -1,8 +1,10 @@
 //! Authentication providers for mcp-guard
 
 mod jwt;
+mod oauth;
 
 pub use jwt::JwtProvider;
+pub use oauth::OAuthAuthProvider;
 
 use async_trait::async_trait;
 use std::sync::Arc;

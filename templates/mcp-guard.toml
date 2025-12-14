@@ -72,9 +72,58 @@ port = 3000
 # user_id_claim = "preferred_username"
 
 # =============================================================================
-# OAuth 2.1 (optional) - future support
+# OAuth 2.1 Authentication (optional)
+# Supports authorization code flow with PKCE (FR-AUTH-05)
 # =============================================================================
-# oauth = { issuer_url = "https://auth.example.com", client_id = "mcp-guard" }
+
+# -----------------------------------------------------------------------------
+# GitHub OAuth Example
+# -----------------------------------------------------------------------------
+# [auth.oauth]
+# provider = "github"
+# client_id = "your-github-client-id"
+# client_secret = "your-github-client-secret"  # Get from GitHub OAuth App settings
+# redirect_uri = "http://localhost:3000/oauth/callback"
+# scopes = ["read:user", "repo"]
+# user_id_claim = "id"  # GitHub returns numeric user ID
+
+# Scope-to-tool mapping (optional)
+# [auth.oauth.scope_tool_mapping]
+# "read:user" = ["read_file", "list_directory"]
+# "repo" = ["write_file", "read_file", "list_directory"]
+
+# -----------------------------------------------------------------------------
+# Google OAuth Example
+# -----------------------------------------------------------------------------
+# [auth.oauth]
+# provider = "google"
+# client_id = "your-google-client-id.apps.googleusercontent.com"
+# client_secret = "your-google-client-secret"
+# redirect_uri = "http://localhost:3000/oauth/callback"
+# scopes = ["openid", "profile", "email"]
+# user_id_claim = "sub"
+
+# -----------------------------------------------------------------------------
+# Custom OAuth Provider Example (e.g., Okta, Azure AD)
+# -----------------------------------------------------------------------------
+# [auth.oauth]
+# provider = "custom"
+# client_id = "your-client-id"
+# client_secret = "your-client-secret"
+# authorization_url = "https://your-idp.com/oauth/authorize"
+# token_url = "https://your-idp.com/oauth/token"
+# introspection_url = "https://your-idp.com/oauth/introspect"  # For opaque token validation
+# userinfo_url = "https://your-idp.com/userinfo"               # Fallback for token info
+# redirect_uri = "http://localhost:3000/oauth/callback"
+# scopes = ["openid", "profile"]
+# user_id_claim = "sub"
+
+# OAuth Flow:
+# 1. User visits /oauth/authorize -> redirects to OAuth provider
+# 2. User authenticates with provider
+# 3. Provider redirects to /oauth/callback with authorization code
+# 4. MCP Guard exchanges code for access token (with PKCE)
+# 5. User receives access token for API calls
 
 [rate_limit]
 enabled = true

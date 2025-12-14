@@ -4,12 +4,12 @@ use std::sync::Arc;
 
 use mcp_guard::{
     audit::AuditLogger,
-    auth::{ApiKeyProvider, AuthProvider, JwtProvider, MultiProvider},
+    auth::{ApiKeyProvider, AuthProvider, JwtProvider, MultiProvider, OAuthAuthProvider},
     cli::{generate_api_key, generate_config, hash_api_key, Cli, Commands},
     config::Config,
     observability::{init_metrics, init_tracing},
     rate_limit::RateLimitService,
-    server::{self, AppState},
+    server::{self, new_oauth_state_store, AppState},
     transport::StdioTransport,
 };
 
@@ -103,6 +103,18 @@ async fn main() -> anyhow::Result<()> {
                 config.server.port = p;
             }
 
+            // Set up OAuth provider (separate from MultiProvider for auth code flow)
+            let oauth_provider: Option<Arc<OAuthAuthProvider>> =
+                if let Some(oauth_config) = config.auth.oauth.clone() {
+                    tracing::info!("Enabling OAuth 2.1 authentication (provider: {:?})", oauth_config.provider);
+                    Some(Arc::new(
+                        OAuthAuthProvider::new(oauth_config)
+                            .map_err(|e| anyhow::anyhow!("Failed to initialize OAuth provider: {}", e))?
+                    ))
+                } else {
+                    None
+                };
+
             // Set up authentication provider(s)
             let auth_provider: Arc<dyn AuthProvider> = {
                 let mut providers: Vec<Arc<dyn AuthProvider>> = Vec::new();
@@ -125,6 +137,11 @@ async fn main() -> anyhow::Result<()> {
                     providers.push(jwt_provider);
                 }
 
+                // Add OAuth provider for token validation (shares with oauth_provider)
+                if let Some(ref oauth_prov) = oauth_provider {
+                    providers.push(oauth_prov.clone());
+                }
+
                 // Select appropriate provider setup
                 match providers.len() {
                     0 => {
@@ -138,6 +155,9 @@ async fn main() -> anyhow::Result<()> {
                     }
                 }
             };
+
+            // Create OAuth state store for PKCE
+            let oauth_state_store = new_oauth_state_store();
 
             // Set up rate limiter
             let rate_limiter = RateLimitService::new(&config.rate_limit);
@@ -169,6 +189,8 @@ async fn main() -> anyhow::Result<()> {
                 audit_logger,
                 transport,
                 metrics_handle,
+                oauth_provider,
+                oauth_state_store,
             });
 
             // Run server
