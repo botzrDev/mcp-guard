@@ -36,6 +36,10 @@ pub struct Config {
     #[serde(default)]
     pub audit: AuditConfig,
 
+    /// OpenTelemetry tracing configuration
+    #[serde(default)]
+    pub tracing: TracingConfig,
+
     /// Upstream MCP server configuration
     pub upstream: UpstreamConfig,
 }
@@ -309,6 +313,50 @@ impl Default for AuditConfig {
             stdout: true,
         }
     }
+}
+
+/// OpenTelemetry tracing configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TracingConfig {
+    /// Enable OpenTelemetry distributed tracing
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Service name for traces (default: "mcp-guard")
+    #[serde(default = "default_service_name")]
+    pub service_name: String,
+
+    /// OTLP exporter endpoint (e.g., "http://localhost:4317" for gRPC)
+    /// If not set, traces are only logged locally
+    pub otlp_endpoint: Option<String>,
+
+    /// Sample rate (0.0 to 1.0, default: 1.0 = sample all)
+    #[serde(default = "default_sample_rate")]
+    pub sample_rate: f64,
+
+    /// Propagate W3C trace context headers (traceparent, tracestate)
+    #[serde(default = "default_true")]
+    pub propagate_context: bool,
+}
+
+impl Default for TracingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            service_name: default_service_name(),
+            otlp_endpoint: None,
+            sample_rate: default_sample_rate(),
+            propagate_context: true,
+        }
+    }
+}
+
+fn default_service_name() -> String {
+    "mcp-guard".to_string()
+}
+
+fn default_sample_rate() -> f64 {
+    1.0
 }
 
 /// Upstream MCP server configuration

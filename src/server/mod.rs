@@ -3,7 +3,7 @@
 use axum::{
     body::Body,
     extract::{Query, State},
-    http::{header, Request, StatusCode},
+    http::{header, HeaderMap, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
@@ -11,9 +11,12 @@ use axum::{
 };
 use dashmap::DashMap;
 use metrics_exporter_prometheus::PrometheusHandle;
+use opentelemetry::propagation::TextMapPropagator;
+use opentelemetry_sdk::propagation::TraceContextPropagator;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tower_http::trace::TraceLayer;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::audit::AuditLogger;
 use crate::auth::{AuthProvider, OAuthAuthProvider};
@@ -393,6 +396,71 @@ pub async fn metrics_middleware(request: Request<Body>, next: Next) -> Response 
     response
 }
 
+/// Header extractor for W3C trace context propagation
+struct HeaderExtractor<'a>(&'a HeaderMap);
+
+impl opentelemetry::propagation::Extractor for HeaderExtractor<'_> {
+    fn get(&self, key: &str) -> Option<&str> {
+        self.0.get(key).and_then(|v| v.to_str().ok())
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.0.keys().map(|k| k.as_str()).collect()
+    }
+}
+
+/// Header injector for W3C trace context propagation
+struct HeaderInjector<'a>(&'a mut HeaderMap);
+
+impl opentelemetry::propagation::Injector for HeaderInjector<'_> {
+    fn set(&mut self, key: &str, value: String) {
+        if let Ok(header_name) = header::HeaderName::from_bytes(key.as_bytes()) {
+            if let Ok(header_value) = header::HeaderValue::from_str(&value) {
+                self.0.insert(header_name, header_value);
+            }
+        }
+    }
+}
+
+/// Middleware for W3C trace context propagation (FR-OBS-03)
+///
+/// Extracts W3C traceparent and tracestate headers from incoming requests
+/// and sets them on the current tracing span. Also propagates trace context
+/// to downstream requests.
+pub async fn trace_context_middleware(request: Request<Body>, next: Next) -> Response {
+    // Extract trace context from incoming headers
+    let propagator = TraceContextPropagator::new();
+    let parent_context = propagator.extract(&HeaderExtractor(request.headers()));
+
+    // Create a new span for this request with the extracted context
+    let span = tracing::info_span!(
+        "http_request",
+        method = %request.method(),
+        uri = %request.uri(),
+        trace_id = tracing::field::Empty,
+    );
+
+    // Set the parent context on the span
+    span.set_parent(parent_context);
+
+    // Record trace_id in the span (for logs)
+    if let Some(trace_id) = crate::observability::current_trace_id() {
+        span.record("trace_id", &trace_id);
+    }
+
+    // Execute the request within the span
+    let _guard = span.enter();
+    let mut response = next.run(request).await;
+
+    // Optionally inject trace context into response headers (for debugging)
+    // This allows clients to correlate their requests with our traces
+    let current_span = tracing::Span::current();
+    let context = current_span.context();
+    propagator.inject_context(&context, &mut HeaderInjector(response.headers_mut()));
+
+    response
+}
+
 /// Application error type
 #[derive(Debug)]
 pub enum AppError {
@@ -463,9 +531,13 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             .route("/oauth/callback", get(oauth_callback));
     }
 
+    // Build the router with middleware layers
+    // Layer order (bottom to top): TraceContext -> Metrics -> TraceLayer
+    // This ensures trace context is available for all subsequent layers
     router
         .merge(protected_routes)
         .layer(middleware::from_fn(metrics_middleware))
+        .layer(middleware::from_fn(trace_context_middleware))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

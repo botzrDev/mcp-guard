@@ -17,11 +17,11 @@ use mcp_guard::{
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse_args();
 
-    // Initialize tracing
-    init_tracing(cli.verbose);
-
     match cli.command {
         Commands::Init { format, force } => {
+            // Initialize basic tracing for CLI commands
+            let _guard = init_tracing(cli.verbose, None);
+
             let filename = if format == "yaml" {
                 "mcp-guard.yaml"
             } else {
@@ -43,6 +43,9 @@ async fn main() -> anyhow::Result<()> {
         }
 
         Commands::Validate => {
+            // Initialize basic tracing for CLI commands
+            let _guard = init_tracing(cli.verbose, None);
+
             match Config::from_file(&cli.config) {
                 Ok(_) => {
                     println!("Configuration is valid: {}", cli.config.display());
@@ -59,6 +62,9 @@ async fn main() -> anyhow::Result<()> {
             rate_limit,
             tools,
         } => {
+            // Initialize basic tracing for CLI commands
+            let _guard = init_tracing(cli.verbose, None);
+
             let key = generate_api_key();
             let hash = hash_api_key(&key);
 
@@ -84,15 +90,13 @@ async fn main() -> anyhow::Result<()> {
         }
 
         Commands::HashKey { key } => {
+            // No tracing needed for simple hash operation
             let hash = hash_api_key(&key);
             println!("{}", hash);
         }
 
         Commands::Run { host, port } => {
-            // Initialize Prometheus metrics
-            let metrics_handle = init_metrics();
-
-            // Load configuration
+            // Load configuration first so we can use tracing config
             let mut config = Config::from_file(&cli.config)?;
 
             // Override with CLI args
@@ -102,6 +106,22 @@ async fn main() -> anyhow::Result<()> {
             if let Some(p) = port {
                 config.server.port = p;
             }
+
+            // Initialize tracing with OpenTelemetry (if configured)
+            let _tracing_guard = init_tracing(cli.verbose, Some(&config.tracing));
+
+            // Log tracing configuration
+            if config.tracing.enabled {
+                tracing::info!(
+                    service_name = %config.tracing.service_name,
+                    otlp_endpoint = ?config.tracing.otlp_endpoint,
+                    sample_rate = %config.tracing.sample_rate,
+                    "OpenTelemetry tracing enabled"
+                );
+            }
+
+            // Initialize Prometheus metrics
+            let metrics_handle = init_metrics();
 
             // Set up OAuth provider (separate from MultiProvider for auth code flow)
             let oauth_provider: Option<Arc<OAuthAuthProvider>> =

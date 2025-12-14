@@ -135,6 +135,33 @@ enabled = true
 stdout = true
 # file = "/var/log/mcp-guard/audit.log"
 
+# =============================================================================
+# OpenTelemetry Tracing (optional) - FR-OBS-03
+# Distributed tracing with W3C trace context propagation
+# =============================================================================
+
+[tracing]
+enabled = false                    # Enable OpenTelemetry tracing
+service_name = "mcp-guard"         # Service name in traces
+# otlp_endpoint = "http://localhost:4317"  # OTLP gRPC endpoint (Jaeger, Tempo, etc.)
+sample_rate = 1.0                  # Sample rate: 0.0 (none) to 1.0 (all)
+propagate_context = true           # Extract/inject W3C traceparent headers
+
+# Example: Send traces to Jaeger (running locally)
+# [tracing]
+# enabled = true
+# service_name = "mcp-guard"
+# otlp_endpoint = "http://localhost:4317"
+# sample_rate = 1.0
+# propagate_context = true
+
+# Example: Send traces to Grafana Tempo
+# [tracing]
+# enabled = true
+# service_name = "mcp-guard"
+# otlp_endpoint = "http://tempo.monitoring.svc:4317"
+# sample_rate = 0.1  # Sample 10% of requests in production
+
 [upstream]
 transport = "stdio"
 command = "npx"

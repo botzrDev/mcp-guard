@@ -53,10 +53,12 @@ anyhow = "1.0"
 # Observability
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-opentelemetry = "0.28"
 metrics = "0.23"
 metrics-exporter-prometheus = "0.15"
-opentelemetry = "0.24"
-opentelemetry-otlp = "0.17"
+opentelemetry = "0.27"
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", features = ["tonic", "trace"] }
 
 # Async utilities
 async-trait = "0.1"

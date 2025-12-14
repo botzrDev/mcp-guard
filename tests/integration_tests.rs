@@ -2,7 +2,7 @@
 
 use mcp_guard::{
     cli::{generate_api_key, hash_api_key},
-    config::{ApiKeyConfig, Config, RateLimitConfig, TransportType, UpstreamConfig},
+    config::{ApiKeyConfig, Config, RateLimitConfig, TracingConfig, TransportType, UpstreamConfig},
 };
 
 #[test]
@@ -46,6 +46,7 @@ fn test_config_validation_stdio() {
         auth: Default::default(),
         rate_limit: Default::default(),
         audit: Default::default(),
+        tracing: TracingConfig::default(),
         upstream: UpstreamConfig {
             transport: TransportType::Stdio,
             command: Some("echo".to_string()),
@@ -65,6 +66,7 @@ fn test_config_validation_stdio_missing_command() {
         auth: Default::default(),
         rate_limit: Default::default(),
         audit: Default::default(),
+        tracing: TracingConfig::default(),
         upstream: UpstreamConfig {
             transport: TransportType::Stdio,
             command: None,
@@ -86,6 +88,7 @@ fn test_config_validation_http_missing_url() {
         auth: Default::default(),
         rate_limit: Default::default(),
         audit: Default::default(),
+        tracing: TracingConfig::default(),
         upstream: UpstreamConfig {
             transport: TransportType::Http,
             command: None,
