@@ -655,8 +655,8 @@ fn test_tools_list_filtering_integration() {
 fn test_http_transport_instantiation() {
     use mcp_guard::transport::HttpTransport;
 
-    // Should be able to create HTTP transport
-    let transport = HttpTransport::new("http://localhost:8080/mcp".to_string());
+    // Should be able to create HTTP transport (using unchecked for localhost in tests)
+    let transport = HttpTransport::new_unchecked("http://localhost:8080/mcp".to_string());
 
     // Transport should implement the Transport trait
     fn _assert_transport<T: mcp_guard::transport::Transport>(_t: &T) {}
@@ -667,8 +667,8 @@ fn test_http_transport_instantiation() {
 async fn test_sse_transport_instantiation() {
     use mcp_guard::transport::SseTransport;
 
-    // Should be able to create SSE transport
-    let transport = SseTransport::connect("http://localhost:8080/mcp/stream".to_string())
+    // Should be able to create SSE transport (using unchecked for localhost in tests)
+    let transport = SseTransport::connect_unchecked("http://localhost:8080/mcp/stream".to_string())
         .await
         .expect("Should create SSE transport");
 

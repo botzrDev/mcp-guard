@@ -82,7 +82,9 @@ impl ServerRouter {
                         "http transport requires 'url'".to_string(),
                     )
                 })?;
-                Ok(Arc::new(HttpTransport::new(url.clone())))
+                let transport = HttpTransport::new(url.clone())
+                    .map_err(|e| RouterError::TransportInit(config.name.clone(), e.to_string()))?;
+                Ok(Arc::new(transport))
             }
             TransportType::Sse => {
                 let url = config.url.as_ref().ok_or_else(|| {

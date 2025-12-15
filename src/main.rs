@@ -370,7 +370,8 @@ async fn main() -> anyhow::Result<()> {
                                 .ok_or_else(|| anyhow::anyhow!("HTTP transport requires 'url' in config"))?
                                 .clone();
                             tracing::info!(url = %url, "Using HTTP transport");
-                            Arc::new(HttpTransport::new(url))
+                            Arc::new(HttpTransport::new(url)
+                                .map_err(|e| anyhow::anyhow!("Failed to create HTTP transport: {}", e))?)
                         }
                         mcp_guard::config::TransportType::Sse => {
                             let url = config
