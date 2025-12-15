@@ -38,7 +38,19 @@ import { CommonModule } from '@angular/common';
             <h1 class="hero-title">
               <span class="title-line line-1">Secure your</span>
               <span class="title-line line-2">MCP servers</span>
-              <span class="title-line line-3 gradient-text">in 5 minutes</span>
+              <span class="title-line line-3 gradient-text">
+                in 5 minutes
+                <svg class="hand-underline" viewBox="0 0 200 12" preserveAspectRatio="none">
+                  <path d="M2 8 Q 50 2, 100 6 T 198 4" stroke="url(#underline-gradient)" stroke-width="3" fill="none" stroke-linecap="round"/>
+                  <defs>
+                    <linearGradient id="underline-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#4ecdc4"/>
+                      <stop offset="50%" stop-color="#3b82f6"/>
+                      <stop offset="100%" stop-color="#8b5cf6"/>
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </span>
             </h1>
 
             <p class="hero-subtitle">
@@ -276,8 +288,9 @@ import { CommonModule } from '@angular/common';
     }
 
     .hero-title {
-      font-size: clamp(48px, 7vw, 72px);
-      font-weight: 700;
+      font-family: var(--font-display);
+      font-size: clamp(48px, 7vw, 76px);
+      font-weight: 800;
       line-height: 1.05;
       letter-spacing: -0.03em;
       margin-bottom: 24px;
@@ -285,6 +298,11 @@ import { CommonModule } from '@angular/common';
 
     .title-line {
       display: block;
+
+      &.line-3 {
+        position: relative;
+        display: inline-block;
+      }
     }
 
     .gradient-text {
@@ -292,6 +310,27 @@ import { CommonModule } from '@angular/common';
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+    }
+
+    .hand-underline {
+      position: absolute;
+      bottom: -8px;
+      left: 0;
+      width: 100%;
+      height: 12px;
+      overflow: visible;
+
+      path {
+        stroke-dasharray: 200;
+        stroke-dashoffset: 200;
+        animation: drawUnderline 1.2s ease-out 1s forwards;
+      }
+    }
+
+    @keyframes drawUnderline {
+      to {
+        stroke-dashoffset: 0;
+      }
     }
 
     .hero-subtitle {

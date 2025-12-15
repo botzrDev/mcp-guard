@@ -1,4 +1,4 @@
-import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy, OnInit, OnDestroy, inject, NgZone, ElementRef, QueryList, ViewChildren } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IconComponent, IconName } from '../../shared/icon/icon.component';
 
@@ -31,11 +31,13 @@ interface Feature {
 
         <!-- Bento Grid -->
         <div class="bento-grid">
-          @for (feature of features; track feature.id) {
+          @for (feature of features; track feature.id; let i = $index) {
             <div
               class="bento-card"
               [class.large]="feature.size === 'large'"
+              [class.is-visible]="visibleCards().has(i)"
               [attr.data-feature]="feature.id"
+              [attr.data-index]="i"
             >
               <div class="card-header">
                 <div class="card-icon">
@@ -49,7 +51,7 @@ interface Feature {
 
               @if (feature.code) {
                 <div class="card-code">
-                  <pre><code>{{ feature.code }}</code></pre>
+                  <pre><code [innerHTML]="highlightCode(feature.code)"></code></pre>
                 </div>
               }
 
@@ -133,7 +135,8 @@ interface Feature {
     }
 
     .section-title {
-      font-size: clamp(32px, 5vw, 48px);
+      font-family: var(--font-display);
+      font-size: clamp(32px, 5vw, 52px);
       font-weight: 700;
       letter-spacing: -0.02em;
       margin-bottom: 16px;
@@ -176,7 +179,22 @@ interface Feature {
       border-radius: 20px;
       padding: 28px;
       overflow: hidden;
-      transition: all 0.4s ease;
+      transition: all 0.4s ease, opacity 0.6s ease, transform 0.6s ease;
+      opacity: 0;
+      transform: translateY(30px);
+
+      // Staggered animation delays
+      &[data-index="0"] { transition-delay: 0s; }
+      &[data-index="1"] { transition-delay: 0.1s; }
+      &[data-index="2"] { transition-delay: 0.2s; }
+      &[data-index="3"] { transition-delay: 0.15s; }
+      &[data-index="4"] { transition-delay: 0.25s; }
+      &[data-index="5"] { transition-delay: 0.1s; }
+
+      &.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
 
       &::before {
         content: '';
@@ -282,11 +300,20 @@ interface Feature {
         margin: 0;
         font-family: var(--font-mono);
         font-size: 12px;
-        line-height: 1.6;
+        line-height: 1.7;
       }
 
       code {
         color: var(--text-secondary);
+
+        :host ::ng-deep {
+          .token-comment { color: #6a737d; font-style: italic; }
+          .token-section { color: #79c0ff; }
+          .token-key { color: #7ee787; }
+          .token-operator { color: var(--text-muted); }
+          .token-string { color: #a5d6ff; }
+          .token-value { color: #ffa657; }
+        }
       }
     }
 
@@ -366,8 +393,13 @@ interface Feature {
     }
   `]
 })
-export class FeaturesComponent {
+export class FeaturesComponent implements OnInit, OnDestroy {
+  private el = inject(ElementRef);
+  private ngZone = inject(NgZone);
+  private observer: IntersectionObserver | null = null;
+
   animatedCount = signal(12847);
+  visibleCards = signal<Set<number>>(new Set());
 
   features: Feature[] = [
     {
@@ -426,10 +458,65 @@ client_id = "your_client_id"`
     }
   ];
 
-  constructor() {
+  private counterInterval: ReturnType<typeof setInterval> | null = null;
+
+  highlightCode(code: string): string {
+    return code
+      // Comments (lines starting with #)
+      .replace(/(#[^\n]*)/g, '<span class="token-comment">$1</span>')
+      // Section headers [section]
+      .replace(/(\[[^\]]+\])/g, '<span class="token-section">$1</span>')
+      // Keys (word before =)
+      .replace(/^(\s*)(\w+)(\s*=)/gm, '$1<span class="token-key">$2</span><span class="token-operator">$3</span>')
+      // Strings in quotes
+      .replace(/"([^"]*)"/g, '<span class="token-string">"$1"</span>');
+  }
+
+  ngOnInit() {
     // Animate the metrics counter
-    setInterval(() => {
+    this.counterInterval = setInterval(() => {
       this.animatedCount.update(v => v + Math.floor(Math.random() * 10));
     }, 2000);
+
+    // Set up intersection observer for card animations
+    this.ngZone.runOutsideAngular(() => {
+      this.observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const index = parseInt(
+                (entry.target as HTMLElement).dataset['index'] || '0',
+                10
+              );
+              this.ngZone.run(() => {
+                this.visibleCards.update((set) => {
+                  const newSet = new Set(set);
+                  newSet.add(index);
+                  return newSet;
+                });
+              });
+              this.observer?.unobserve(entry.target);
+            }
+          });
+        },
+        {
+          threshold: 0.1,
+          rootMargin: '0px 0px -50px 0px',
+        }
+      );
+
+      // Observe all bento cards after view init
+      setTimeout(() => {
+        const cards = this.el.nativeElement.querySelectorAll('.bento-card');
+        cards.forEach((card: Element) => this.observer?.observe(card));
+      }, 100);
+    });
+  }
+
+  ngOnDestroy() {
+    this.observer?.disconnect();
+    if (this.counterInterval) {
+      clearInterval(this.counterInterval);
+    }
   }
 }

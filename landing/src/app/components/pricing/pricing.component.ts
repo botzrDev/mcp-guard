@@ -1,4 +1,4 @@
-import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 interface PricingTier {
@@ -12,6 +12,11 @@ interface PricingTier {
   ctaLink: string;
   featured?: boolean;
   founderPricing?: boolean;
+}
+
+interface ComparisonFeature {
+  name: string;
+  values: (boolean | string)[];
 }
 
 @Component({
@@ -28,6 +33,35 @@ interface PricingTier {
           <p class="section-subtitle">
             Start free, upgrade when you need it. Lock in founder pricing — 40% off forever.
           </p>
+
+          <!-- View toggle -->
+          <div class="view-toggle">
+            <button
+              class="toggle-btn"
+              [class.active]="viewMode() === 'cards'"
+              (click)="viewMode.set('cards')"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+              </svg>
+              Cards
+            </button>
+            <button
+              class="toggle-btn"
+              [class.active]="viewMode() === 'table'"
+              (click)="viewMode.set('table')"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+              Compare
+            </button>
+          </div>
         </div>
 
         <!-- Founder pricing countdown -->
@@ -43,8 +77,8 @@ interface PricingTier {
           </div>
         </div>
 
-        <!-- Pricing tiers as levels -->
-        <div class="pricing-levels">
+        <!-- Cards View -->
+        <div class="pricing-levels" [class.hidden]="viewMode() === 'table'">
           @for (tier of tiers; track tier.name; let i = $index) {
             <div
               class="pricing-card"
@@ -104,6 +138,49 @@ interface PricingTier {
               </div>
             </div>
           }
+        </div>
+
+        <!-- Table View -->
+        <div class="comparison-table" [class.hidden]="viewMode() === 'cards'">
+          <table>
+            <thead>
+              <tr>
+                <th class="feature-col">Feature</th>
+                @for (tier of tiers; track tier.name) {
+                  <th [class.featured]="tier.featured">
+                    <span class="tier-name">{{ tier.name }}</span>
+                    <span class="tier-price">
+                      @if (tier.price === 0) {
+                        Free
+                      } @else {
+                        \${{ tier.price }}{{ tier.period }}
+                      }
+                    </span>
+                  </th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (feature of comparisonFeatures; track feature.name) {
+                <tr>
+                  <td class="feature-name">{{ feature.name }}</td>
+                  @for (tier of tiers; track tier.name; let i = $index) {
+                    <td [class.featured]="tier.featured">
+                      @if (feature.values[i] === true) {
+                        <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      } @else if (feature.values[i] === false) {
+                        <span class="dash">—</span>
+                      } @else {
+                        <span class="value">{{ feature.values[i] }}</span>
+                      }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
         </div>
 
         <!-- Team slider -->
@@ -181,7 +258,8 @@ interface PricingTier {
     }
 
     .section-title {
-      font-size: clamp(32px, 5vw, 48px);
+      font-family: var(--font-display);
+      font-size: clamp(32px, 5vw, 52px);
       font-weight: 700;
       letter-spacing: -0.02em;
       margin-bottom: 16px;
@@ -198,8 +276,45 @@ interface PricingTier {
       font-size: 18px;
       color: var(--text-secondary);
       max-width: 600px;
-      margin: 0 auto;
+      margin: 0 auto 24px;
       line-height: 1.6;
+    }
+
+    .view-toggle {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .view-toggle .toggle-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      &.active {
+        background: var(--bg-elevated);
+        border-color: var(--border-accent);
+        color: var(--text-primary);
+      }
+
+      &:hover:not(.active) {
+        border-color: var(--border-medium);
+        color: var(--text-secondary);
+      }
     }
 
     .founder-banner {
@@ -244,6 +359,10 @@ interface PricingTier {
         color: var(--text-muted);
         font-size: 13px;
       }
+    }
+
+    .hidden {
+      display: none !important;
     }
 
     .pricing-levels {
@@ -469,6 +588,113 @@ interface PricingTier {
       color: var(--text-muted);
     }
 
+    // Comparison table
+    .comparison-table {
+      margin-bottom: 64px;
+      overflow-x: auto;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+    }
+
+    .comparison-table table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 600px;
+    }
+
+    .comparison-table thead th {
+      padding: 24px 20px;
+      text-align: center;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: bottom;
+
+      &.feature-col {
+        text-align: left;
+        width: 200px;
+        color: var(--text-muted);
+        font-size: 13px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      &.featured {
+        background: linear-gradient(180deg, rgba(78, 205, 196, 0.08) 0%, transparent 100%);
+        position: relative;
+
+        &::before {
+          content: 'Popular';
+          position: absolute;
+          top: 8px;
+          left: 50%;
+          transform: translateX(-50%);
+          padding: 4px 10px;
+          background: var(--gradient-brand);
+          color: var(--bg-primary);
+          font-size: 10px;
+          font-weight: 600;
+          border-radius: 100px;
+        }
+      }
+    }
+
+    .comparison-table .tier-name {
+      display: block;
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .comparison-table .tier-price {
+      display: block;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .comparison-table tbody tr {
+      border-bottom: 1px solid var(--border-subtle);
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.02);
+      }
+    }
+
+    .comparison-table tbody td {
+      padding: 16px 20px;
+      text-align: center;
+      font-size: 14px;
+
+      &.feature-name {
+        text-align: left;
+        color: var(--text-secondary);
+      }
+
+      &.featured {
+        background: rgba(78, 205, 196, 0.03);
+      }
+    }
+
+    .comparison-table .check-icon {
+      width: 20px;
+      height: 20px;
+      color: var(--accent-cyan);
+      margin: 0 auto;
+    }
+
+    .comparison-table .dash {
+      color: var(--text-dim);
+    }
+
+    .comparison-table .value {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
     // Team calculator
     .team-calculator {
       background: var(--bg-secondary);
@@ -595,6 +821,21 @@ interface PricingTier {
 })
 export class PricingComponent {
   teamSize = signal(5);
+  viewMode = signal<'cards' | 'table'>('cards');
+
+  comparisonFeatures: ComparisonFeature[] = [
+    { name: 'MCP Servers', values: ['1', 'Unlimited', 'Unlimited'] },
+    { name: 'API Key Auth', values: [true, true, true] },
+    { name: 'JWT Auth', values: [false, true, true] },
+    { name: 'OAuth 2.1 + PKCE', values: [false, true, true] },
+    { name: 'Requests/day', values: ['1,000', 'Unlimited', 'Unlimited'] },
+    { name: 'Rate Limiting', values: ['Basic', 'Per-identity', 'Per-identity'] },
+    { name: 'Audit Logs', values: ['7 days', '90 days', '1 year'] },
+    { name: 'Log Export (SIEM)', values: [false, true, true] },
+    { name: 'Team Dashboard', values: [false, false, true] },
+    { name: 'SSO (SAML/OIDC)', values: [false, false, true] },
+    { name: 'Support', values: ['Community', 'Email (48h)', 'Priority (24h)'] },
+  ];
 
   tiers: PricingTier[] = [
     {
