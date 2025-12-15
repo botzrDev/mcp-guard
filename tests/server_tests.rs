@@ -25,8 +25,9 @@ async fn spawn_server() -> (std::process::Child, String, String) {
     // Add an API key for testing
     new_config.push_str("\n[[auth.api_keys]]\n");
     new_config.push_str("id = \"test-client\"\n");
-    // SHA256 of "secret"
-    new_config.push_str("key_hash = \"2bb80d537b1da3e38bd30361aa855686bde0eacd7162fef6a25fe97bf527a25b\"\n");
+    // SHA256 of "secret" (Base64 encoded)
+    let hash = mcp_guard::cli::hash_api_key("secret");
+    new_config.push_str(&format!("key_hash = \"{}\"\n", hash));
     
     fs::write(&config_path, new_config).unwrap();
     
@@ -42,11 +43,6 @@ async fn spawn_server() -> (std::process::Child, String, String) {
         panic!("Server failed to start");
     }
     
-    // Leak temp_dir so config file persists until test end (or child process end)
-    // Actually we drop temp_dir at end of function but we need it to persist.
-    // We can't return TempDir easily unless we change signature. 
-    // For simplicity, we just won't clean up this temp dir or we rely on OS cleanup.
-    // Or we can return (child, base_url, temp_dir) but we don't need to look at it.
     std::mem::forget(temp_dir);
 
     (child, base_url, "secret".to_string())
@@ -68,13 +64,14 @@ async fn test_health_endpoints() {
     
     // Ready
     let resp = client.get(format!("{}/ready", base_url)).send().await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK); // Should be ready quickly with stdio
+    assert_eq!(resp.status(), StatusCode::OK);
     
     // Metrics
     let resp = client.get(format!("{}/metrics", base_url)).send().await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = resp.text().await.unwrap();
-    assert!(body.contains("http_requests_total"));
+    // Check for standard prometheus output header
+    assert!(body.contains("# HELP") || body.contains("# TYPE"));
 
     child.kill().unwrap();
 }

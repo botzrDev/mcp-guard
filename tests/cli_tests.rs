@@ -17,15 +17,16 @@ fn test_version() {
 #[test]
 fn test_init_creates_config() {
     let temp = tempfile::tempdir().unwrap();
-    let config_path = temp.path().join("mcp-guard.toml");
+    // We don't set --path, we just run in the temp dir.
+    // The init command writes to mcp-guard.toml in CWD.
 
     let mut cmd = common::cargo_bin("mcp-guard");
     cmd.arg("init")
-        .arg("--path")
-        .arg(config_path.to_str().unwrap())
+        .current_dir(&temp)
         .assert()
         .success();
 
+    let config_path = temp.path().join("mcp-guard.toml");
     assert!(config_path.exists());
     let content = fs::read_to_string(config_path).unwrap();
     assert!(content.contains("[server]"));
@@ -39,8 +40,7 @@ fn test_init_fails_if_exists_without_force() {
 
     let mut cmd = common::cargo_bin("mcp-guard");
     cmd.arg("init")
-        .arg("--path")
-        .arg(config_path.to_str().unwrap())
+        .current_dir(&temp)
         .assert()
         .failure();
     
@@ -51,9 +51,8 @@ fn test_init_fails_if_exists_without_force() {
     // With force it should succeed
     let mut cmd = common::cargo_bin("mcp-guard");
     cmd.arg("init")
-        .arg("--path")
-        .arg(config_path.to_str().unwrap())
         .arg("--force")
+        .current_dir(&temp)
         .assert()
         .success();
         
@@ -94,7 +93,7 @@ fn test_keygen() {
         
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("API Key"));
-    assert!(stdout.contains("Hash"));
+    assert!(stdout.contains("key_hash"));
     assert!(stdout.contains("id = \"test-user\""));
 }
 
