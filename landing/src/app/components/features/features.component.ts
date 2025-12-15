@@ -1,4 +1,4 @@
-import { Component, signal, ChangeDetectionStrategy, OnInit, OnDestroy, inject, NgZone, ElementRef, QueryList, ViewChildren } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy, OnInit, OnDestroy, inject, NgZone, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IconComponent, IconName } from '../../shared/icon/icon.component';
 
@@ -18,79 +18,61 @@ interface Feature {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, IconComponent],
   template: `
-    <section class="features" id="features">
+    <section class="features" id="features" #container>
       <div class="features-container">
+        <!-- Clean header -->
         <div class="section-header">
-          <span class="section-tag">// Features</span>
-          <h2 class="section-title">Everything you need to <span class="gradient-text">secure MCP</span></h2>
+          <div class="header-tag">
+            <span class="tag-decorator">//</span>
+            <span class="tag-text">Features</span>
+          </div>
+          <h2 class="section-title">
+            Everything you need.<br>
+            <span class="title-gradient">Nothing you don't.</span>
+          </h2>
           <p class="section-subtitle">
-            Production-grade security without the infrastructure complexity.
-            Drop-in protection for any MCP server.
+            Enterprise-grade security in a single binary. No containers, no databases, no complexity.
           </p>
         </div>
 
-        <!-- Bento Grid -->
+        <!-- Clean Bento Grid -->
         <div class="bento-grid">
-          @for (feature of features; track feature.id; let i = $index) {
-            <div
-              class="bento-card"
-              [class.large]="feature.size === 'large'"
-              [class.is-visible]="visibleCards().has(i)"
-              [attr.data-feature]="feature.id"
-              [attr.data-index]="i"
-            >
-              <div class="card-header">
-                <div class="card-icon">
-                  <app-icon [name]="feature.icon" />
-                </div>
-                <span class="card-tag">{{ feature.tag }}</span>
+          <!-- Main feature - spans 2 columns -->
+          <div class="feature-card feature-main" [class.visible]="visibleCards().has(0)">
+            <div class="card-accent"></div>
+            <div class="card-header">
+              <div class="card-icon">
+                <app-icon name="auth" />
               </div>
+              <span class="card-tag">OAuth 2.1 • JWT • API Keys</span>
+            </div>
+            <h3 class="card-title">Multi-Provider Authentication</h3>
+            <p class="card-description">
+              API keys for simplicity. JWT for scale. OAuth 2.1 with PKCE for enterprise SSO. 
+              Use one or combine them all.
+            </p>
+            <div class="card-code">
+              <pre><code><span class="code-section">[auth]</span>
+<span class="code-key">providers</span> = <span class="code-value">["api_key", "jwt", "oauth"]</span>
 
-              <h3 class="card-title">{{ feature.title }}</h3>
-              <p class="card-description">{{ feature.description }}</p>
+<span class="code-section">[auth.oauth]</span>
+<span class="code-key">provider</span> = <span class="code-value">"github"</span>
+<span class="code-key">client_id</span> = <span class="code-value">"your_client_id"</span></code></pre>
+            </div>
+          </div>
 
-              @if (feature.code) {
-                <div class="card-code">
-                  <pre><code [innerHTML]="highlightCode(feature.code)"></code></pre>
-                </div>
-              }
-
-              <!-- Visual element for specific cards -->
-              @if (feature.id === 'binary') {
-                <div class="binary-visual">
-                  <div class="size-bar">
-                    <div class="size-fill" style="width: 15%">
-                      <span class="size-label">mcp-guard</span>
-                      <span class="size-value">14MB</span>
-                    </div>
-                  </div>
-                  <div class="size-bar comparison">
-                    <div class="size-fill full">
-                      <span class="size-label">Docker image</span>
-                      <span class="size-value">~500MB</span>
-                    </div>
-                  </div>
-                </div>
-              }
-
-              @if (feature.id === 'metrics') {
-                <div class="metrics-visual">
-                  <div class="metric-row">
-                    <span class="metric-name">requests_total</span>
-                    <span class="metric-value">{{ animatedCount() }}</span>
-                  </div>
-                  <div class="metric-row">
-                    <span class="metric-name">auth_success</span>
-                    <span class="metric-value">99.8%</span>
-                  </div>
-                  <div class="metric-row">
-                    <span class="metric-name">p99_latency_ms</span>
-                    <span class="metric-value">1.2</span>
-                  </div>
-                </div>
-              }
-
-              <div class="card-glow"></div>
+          <!-- Secondary features - smaller cards -->
+          @for (feature of secondaryFeatures; track feature.id; let i = $index) {
+            <div 
+              class="feature-card feature-small" 
+              [class.visible]="visibleCards().has(i + 1)"
+            >
+              <div class="card-icon-small">
+                <app-icon [name]="feature.icon" />
+              </div>
+              <h4 class="card-title-small">{{ feature.title }}</h4>
+              <p class="card-description-small">{{ feature.description }}</p>
+              <span class="card-tag-small">{{ feature.tag }}</span>
             </div>
           }
         </div>
@@ -100,49 +82,56 @@ interface Feature {
   styles: [`
     .features {
       position: relative;
-      padding: 120px 0;
-      background: var(--bg-primary);
-
-      &::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, var(--border-subtle), transparent);
-      }
+      padding: 100px 0 120px;
+      background: var(--bg-secondary);
     }
 
     .features-container {
-      max-width: 1280px;
+      max-width: 1200px;
       margin: 0 auto;
       padding: 0 24px;
     }
 
+    /* Header */
     .section-header {
       text-align: center;
       margin-bottom: 64px;
     }
 
-    .section-tag {
+    .header-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding: 8px 16px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+    }
+
+    .tag-decorator {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--accent-cyan);
+      font-weight: 600;
+    }
+
+    .tag-text {
       font-family: var(--font-mono);
       font-size: 13px;
-      color: var(--accent-cyan);
-      letter-spacing: 0.05em;
-      margin-bottom: 16px;
-      display: block;
+      color: var(--text-secondary);
     }
 
     .section-title {
       font-family: var(--font-display);
-      font-size: clamp(32px, 5vw, 52px);
+      font-size: clamp(32px, 5vw, 48px);
       font-weight: 700;
       letter-spacing: -0.02em;
+      line-height: 1.2;
       margin-bottom: 16px;
     }
 
-    .gradient-text {
+    .title-gradient {
       background: var(--gradient-brand);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -150,125 +139,100 @@ interface Feature {
     }
 
     .section-subtitle {
-      font-size: 18px;
+      font-size: 17px;
       color: var(--text-secondary);
-      max-width: 600px;
+      max-width: 520px;
       margin: 0 auto;
       line-height: 1.6;
     }
 
+    /* Bento Grid */
     .bento-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      grid-auto-rows: minmax(200px, auto);
       gap: 20px;
 
-      @media (max-width: 1024px) {
+      @media (max-width: 900px) {
         grid-template-columns: repeat(2, 1fr);
       }
 
-      @media (max-width: 640px) {
+      @media (max-width: 600px) {
         grid-template-columns: 1fr;
       }
     }
 
-    .bento-card {
+    /* Main feature card */
+    .feature-main {
+      grid-column: span 2;
+      grid-row: span 2;
+
+      @media (max-width: 900px) {
+        grid-column: span 2;
+        grid-row: span 1;
+      }
+
+      @media (max-width: 600px) {
+        grid-column: span 1;
+      }
+    }
+
+    .feature-card {
       position: relative;
-      background: var(--bg-secondary);
+      background: var(--bg-primary);
       border: 1px solid var(--border-subtle);
-      border-radius: 20px;
+      border-radius: 16px;
       padding: 28px;
-      overflow: hidden;
-      transition: all 0.4s ease, opacity 0.6s ease, transform 0.6s ease;
       opacity: 0;
-      transform: translateY(30px);
+      transform: translateY(20px);
+      transition: opacity 0.4s ease, transform 0.4s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 
-      // Staggered animation delays
-      &[data-index="0"] { transition-delay: 0s; }
-      &[data-index="1"] { transition-delay: 0.1s; }
-      &[data-index="2"] { transition-delay: 0.2s; }
-      &[data-index="3"] { transition-delay: 0.15s; }
-      &[data-index="4"] { transition-delay: 0.25s; }
-      &[data-index="5"] { transition-delay: 0.1s; }
-
-      &.is-visible {
+      &.visible {
         opacity: 1;
         transform: translateY(0);
       }
 
-      &::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: var(--gradient-brand);
-        opacity: 0;
-        transition: opacity 0.3s;
-      }
-
       &:hover {
         border-color: var(--border-accent);
-        transform: translateY(-4px);
+        box-shadow: 0 8px 32px -8px rgba(255, 122, 48, 0.12);
 
-        &::before {
-          opacity: 1;
-        }
-
-        .card-glow {
-          opacity: 1;
-        }
-      }
-
-      &.large {
-        grid-column: span 2;
-
-        @media (max-width: 640px) {
-          grid-column: span 1;
+        .card-accent {
+          transform: scaleY(1);
         }
       }
     }
 
-    .card-glow {
+    .card-accent {
       position: absolute;
       top: 0;
       left: 0;
-      right: 0;
-      height: 150px;
-      background: radial-gradient(ellipse at top, rgba(255, 122, 48, 0.1) 0%, transparent 70%);
-      opacity: 0;
-      transition: opacity 0.4s;
-      pointer-events: none;
+      width: 3px;
+      height: 100%;
+      background: var(--gradient-brand);
+      border-radius: 16px 0 0 16px;
+      transform: scaleY(0);
+      transform-origin: top;
+      transition: transform 0.25s ease;
     }
 
-    // Alternate blue glow for visual variety
-    .bento-card[data-index="1"] .card-glow,
-    .bento-card[data-index="3"] .card-glow {
-      background: radial-gradient(ellipse at top, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
-    }
-
-    .bento-card[data-index="1"]:hover,
-    .bento-card[data-index="3"]:hover {
-      border-color: var(--border-blue);
-    }
-
+    /* Main card styles */
     .card-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
     }
 
     .card-icon {
       width: 48px;
       height: 48px;
-      background: var(--bg-elevated);
+      background: var(--gradient-brand);
       border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--accent-cyan);
+      color: var(--bg-primary);
 
       :host ::ng-deep svg {
         width: 24px;
@@ -280,28 +244,29 @@ interface Feature {
       font-family: var(--font-mono);
       font-size: 11px;
       color: var(--accent-cyan);
-      background: rgba(255, 122, 48, 0.1);
-      padding: 5px 10px;
+      background: rgba(255, 122, 48, 0.08);
+      padding: 6px 12px;
       border-radius: 6px;
       letter-spacing: 0.02em;
     }
 
     .card-title {
-      font-size: 20px;
-      font-weight: 600;
-      margin-bottom: 10px;
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 700;
       letter-spacing: -0.01em;
+      margin-bottom: 12px;
     }
 
     .card-description {
+      font-size: 15px;
       color: var(--text-secondary);
-      font-size: 14px;
       line-height: 1.6;
+      margin-bottom: 24px;
     }
 
     .card-code {
-      margin-top: 20px;
-      background: var(--bg-primary);
+      background: var(--bg-secondary);
       border: 1px solid var(--border-subtle);
       border-radius: 10px;
       padding: 16px;
@@ -310,127 +275,106 @@ interface Feature {
       pre {
         margin: 0;
         font-family: var(--font-mono);
-        font-size: 12px;
+        font-size: 13px;
         line-height: 1.7;
       }
 
-      code {
+      .code-section {
+        color: var(--accent-slate);
+        font-weight: 600;
+      }
+
+      .code-key {
+        color: var(--accent-cyan);
+      }
+
+      .code-value {
         color: var(--text-secondary);
-
-        :host ::ng-deep {
-          .token-comment { color: #6a737d; font-style: italic; }
-          .token-section { color: #3B82F6; font-weight: bold; }
-          .token-key { color: #FF7A30; }
-          .token-operator { color: var(--text-muted); }
-          .token-string { color: #94a3b8; }
-          .token-value { color: #E9E3DF; }
-        }
       }
     }
 
-    // Binary size visual
-    .binary-visual {
-      margin-top: 24px;
+    /* Small card styles */
+    .feature-small {
+      display: flex;
+      flex-direction: column;
     }
 
-    .size-bar {
-      margin-bottom: 12px;
-
-      &.comparison .size-fill {
-        background: var(--bg-elevated);
-        border-color: var(--border-subtle);
-
-        .size-label, .size-value {
-          color: var(--text-muted);
-        }
-      }
-    }
-
-    .size-fill {
+    .card-icon-small {
+      width: 40px;
       height: 40px;
-      background: rgba(255, 122, 48, 0.15);
-      border: 1px solid var(--border-accent);
-      border-radius: 8px;
+      background: var(--bg-elevated);
+      border-radius: 10px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 0 12px;
-      transition: width 1s ease-out;
+      justify-content: center;
+      color: var(--accent-cyan);
+      margin-bottom: 16px;
 
-      &.full {
-        width: 100% !important;
+      :host ::ng-deep svg {
+        width: 20px;
+        height: 20px;
       }
     }
 
-    .size-label {
-      font-size: 12px;
-      color: var(--text-primary);
-    }
-
-    .size-value {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      color: var(--accent-cyan);
-    }
-
-    // Metrics visual
-    .metrics-visual {
-      margin-top: 24px;
-      background: var(--bg-primary);
-      border: 1px solid var(--border-subtle);
-      border-radius: 10px;
-      padding: 16px;
-    }
-
-    .metric-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 0;
-      font-family: var(--font-mono);
-      font-size: 12px;
-
-      &:not(:last-child) {
-        border-bottom: 1px solid var(--border-subtle);
-      }
-    }
-
-    .metric-name {
-      color: var(--text-muted);
-    }
-
-    .metric-value {
-      color: var(--accent-cyan);
+    .card-title-small {
+      font-size: 17px;
       font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 8px;
+    }
+
+    .card-description-small {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      flex: 1;
+      margin-bottom: 16px;
+    }
+
+    .card-tag-small {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      background: var(--bg-elevated);
+      padding: 5px 10px;
+      border-radius: 5px;
+      letter-spacing: 0.02em;
+      align-self: flex-start;
+    }
+
+    @media (max-width: 600px) {
+      .features {
+        padding: 80px 0 100px;
+      }
+
+      .section-header {
+        margin-bottom: 48px;
+      }
+
+      .feature-card {
+        padding: 24px;
+      }
+
+      .card-title {
+        font-size: 20px;
+      }
     }
   `]
 })
-export class FeaturesComponent implements OnInit, OnDestroy {
-  private el = inject(ElementRef);
+export class FeaturesComponent implements OnInit, OnDestroy, AfterViewInit {
+  @ViewChild('container') containerRef!: ElementRef<HTMLElement>;
+
   private ngZone = inject(NgZone);
   private observer: IntersectionObserver | null = null;
 
-  animatedCount = signal(12847);
   visibleCards = signal<Set<number>>(new Set());
 
-  features: Feature[] = [
-    {
-      id: 'auth',
-      title: 'Multi-Provider Authentication',
-      description: 'API keys for simplicity. JWT for scale. OAuth 2.1 with PKCE for enterprise SSO. Use one or combine them all.',
-      icon: 'auth',
-      tag: 'OAuth 2.1 • JWT • API Keys',
-      size: 'large',
-      code: `[auth]
-providers = ["api_key", "jwt", "oauth"]
-
-[auth.oauth]
-provider = "github"
-client_id = "your_client_id"`
-    },
+  secondaryFeatures: Feature[] = [
     {
       id: 'authz',
       title: 'Tool-Level Authorization',
-      description: 'Define exactly which users can access which MCP tools. Map OAuth scopes or JWT claims to granular permissions.',
+      description: 'Define exactly which users can access which MCP tools with fine-grained ACLs.',
       icon: 'authz',
       tag: 'Per-tool ACLs',
       size: 'small'
@@ -438,7 +382,7 @@ client_id = "your_client_id"`
     {
       id: 'rate',
       title: 'Per-Identity Rate Limiting',
-      description: 'Token bucket algorithm with per-user limits. Custom rates per identity. Automatic Retry-After headers.',
+      description: 'Token bucket algorithm with configurable per-user limits and burst allowance.',
       icon: 'rate',
       tag: 'Token Bucket',
       size: 'small'
@@ -446,7 +390,7 @@ client_id = "your_client_id"`
     {
       id: 'audit',
       title: 'Audit Logging',
-      description: 'Every request logged with identity, tool, timestamp, and outcome. Automatic secret redaction. Export-ready for compliance.',
+      description: 'Every request logged with automatic secret redaction. SOC 2 ready out of the box.',
       icon: 'audit',
       tag: 'SOC 2 Ready',
       size: 'small'
@@ -454,7 +398,7 @@ client_id = "your_client_id"`
     {
       id: 'metrics',
       title: 'Prometheus Metrics',
-      description: 'Built-in /metrics endpoint with request counts, latency histograms, auth outcomes, and rate limit tracking.',
+      description: 'Built-in /metrics endpoint for seamless observability integration.',
       icon: 'metrics',
       tag: 'Grafana Compatible',
       size: 'small'
@@ -462,72 +406,53 @@ client_id = "your_client_id"`
     {
       id: 'binary',
       title: 'Zero Infrastructure',
-      description: 'Single static binary. No Docker, no Kubernetes, no databases. Compiles to WASM for edge deployment.',
+      description: 'Single static binary. No Docker, no databases, no external dependencies.',
       icon: 'binary',
-      tag: 'Rust • WASM Ready',
-      size: 'large'
+      tag: 'Pure Rust',
+      size: 'small'
     }
   ];
 
-  private counterInterval: ReturnType<typeof setInterval> | null = null;
+  ngOnInit() { }
 
-  highlightCode(code: string): string {
-    return code
-      // Comments (lines starting with #)
-      .replace(/(#[^\n]*)/g, '<span class="token-comment">$1</span>')
-      // Section headers [section]
-      .replace(/(\[[^\]]+\])/g, '<span class="token-section">$1</span>')
-      // Keys (word before =)
-      .replace(/^(\s*)(\w+)(\s*=)/gm, '$1<span class="token-key">$2</span><span class="token-operator">$3</span>')
-      // Strings in quotes
-      .replace(/"([^"]*)"/g, '<span class="token-string">"$1"</span>');
+  ngAfterViewInit() {
+    this.initObserver();
   }
 
-  ngOnInit() {
-    // Animate the metrics counter
-    this.counterInterval = setInterval(() => {
-      this.animatedCount.update(v => v + Math.floor(Math.random() * 10));
-    }, 2000);
+  ngOnDestroy() {
+    this.observer?.disconnect();
+  }
 
-    // Set up intersection observer for card animations
+  private initObserver() {
     this.ngZone.runOutsideAngular(() => {
       this.observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
-              const index = parseInt(
-                (entry.target as HTMLElement).dataset['index'] || '0',
-                10
-              );
               this.ngZone.run(() => {
-                this.visibleCards.update((set) => {
-                  const newSet = new Set(set);
-                  newSet.add(index);
-                  return newSet;
-                });
+                this.revealCards();
               });
               this.observer?.unobserve(entry.target);
             }
           });
         },
-        {
-          threshold: 0.1,
-          rootMargin: '0px 0px -50px 0px',
-        }
+        { threshold: 0.15 }
       );
 
-      // Observe all bento cards after view init
-      setTimeout(() => {
-        const cards = this.el.nativeElement.querySelectorAll('.bento-card');
-        cards.forEach((card: Element) => this.observer?.observe(card));
-      }, 100);
+      this.observer.observe(this.containerRef.nativeElement);
     });
   }
 
-  ngOnDestroy() {
-    this.observer?.disconnect();
-    if (this.counterInterval) {
-      clearInterval(this.counterInterval);
+  private revealCards() {
+    const totalCards = this.secondaryFeatures.length + 1;
+    for (let i = 0; i < totalCards; i++) {
+      setTimeout(() => {
+        this.visibleCards.update(set => {
+          const newSet = new Set(set);
+          newSet.add(i);
+          return newSet;
+        });
+      }, i * 80);
     }
   }
 }

@@ -1,5 +1,9 @@
-import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy, OnInit, OnDestroy, ElementRef, inject, NgZone, AfterViewInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+gsap.registerPlugin(ScrollTrigger);
 
 @Component({
   selector: 'app-comparison',
@@ -7,124 +11,154 @@ import { CommonModule } from '@angular/common';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule],
   template: `
-    <section class="comparison">
+    <section class="comparison" #container>
+      <!-- Bold diagonal brand element -->
+      <div class="diagonal-brand">
+        <span>BEFORE</span>
+        <span class="brand-divider">/</span>
+        <span class="after-text">AFTER</span>
+      </div>
+
+      <!-- Floating brand marks -->
+      <div class="brand-float brand-float-1">mcp</div>
+      <div class="brand-float brand-float-2">guard</div>
+
       <div class="comparison-container">
+        <!-- Unconventional header - off-grid -->
         <div class="section-header">
-          <span class="section-tag">// Before & After</span>
-          <h2 class="section-title">From exposed to <span class="gradient-text">enterprise-secure</span></h2>
-          <p class="section-subtitle">
-            Most MCP servers are deployed with zero authentication. Toggle to see the difference.
-          </p>
+          <span class="section-number">03</span>
+          <div class="header-text">
+            <span class="section-tag">// The Transformation</span>
+            <h2 class="section-title">
+              <span class="title-line">Your server is</span>
+              <span class="state-text" [class.secured]="isSecured()">
+                {{ isSecured() ? 'protected' : 'exposed' }}
+              </span>
+            </h2>
+          </div>
         </div>
 
-        <!-- Toggle Switch -->
-        <div class="toggle-container">
-          <button
-            class="toggle-btn"
-            [class.active]="!isSecured()"
-            (click)="isSecured.set(false)"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="15" y1="9" x2="9" y2="15"></line>
-              <line x1="9" y1="9" x2="15" y2="15"></line>
-            </svg>
-            Exposed
-          </button>
-          <div class="toggle-switch" (click)="toggleSecured()">
-            <div class="toggle-thumb" [class.secured]="isSecured()"></div>
-          </div>
-          <button
-            class="toggle-btn"
-            [class.active]="isSecured()"
-            (click)="isSecured.set(true)"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-              <polyline points="22 4 12 14.01 9 11.01"></polyline>
-            </svg>
-            Secured
-          </button>
-        </div>
+        <!-- DRAMATIC SPLIT SCREEN -->
+        <div class="split-container" [class.secured]="isSecured()" #splitContainer>
+          <!-- Exposed state (left) -->
+          <div class="split-panel exposed-panel">
+            <div class="panel-overlay"></div>
+            <div class="panel-content">
+              <div class="status-badge danger">
+                <div class="pulse-ring"></div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="15" y1="9" x2="9" y2="15"></line>
+                  <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+                <span>VULNERABLE</span>
+              </div>
 
-        <!-- Code Display with Diagonal Split -->
-        <div class="code-display" [class.secured]="isSecured()">
-          <div class="code-panel exposed-panel">
-            <div class="panel-header">
-              <div class="status-indicator danger">
-                <span class="pulse-dot"></span>
-                Vulnerable
+              <div class="attack-list">
+                <div class="attack-item">
+                  <span class="attack-icon">⚠</span>
+                  <span class="attack-text">Direct access to all MCP tools</span>
+                </div>
+                <div class="attack-item">
+                  <span class="attack-icon">⚠</span>
+                  <span class="attack-text">No identity verification</span>
+                </div>
+                <div class="attack-item">
+                  <span class="attack-icon">⚠</span>
+                  <span class="attack-text">Unlimited requests allowed</span>
+                </div>
+                <div class="attack-item">
+                  <span class="attack-icon">⚠</span>
+                  <span class="attack-text">No audit trail</span>
+                </div>
+              </div>
+
+              <div class="panel-terminal">
+                <pre><code><span class="comment"># Anyone can connect</span>
+<span class="prompt">$</span> curl http://your-server:8080
+<span class="output-bad">→ Full access granted</span>
+<span class="output-bad">→ No authentication required</span></code></pre>
               </div>
             </div>
-            <div class="code-content">
-              <pre><code><span class="comment"># Anyone can connect - no authentication</span>
-<span class="prompt">$</span> <span class="cmd">curl</span> http://your-mcp-server:8080
-
-<span class="comment"># Direct access to all tools</span>
-<span class="output">{{"{"}} "method": "tools/call",</span>
-<span class="output">  "params": {{"{"}} "name": "database_query" {{"}}"}} {{"}"}}</span>
-
-<span class="error">⚠ No auth required</span>
-<span class="error">⚠ No rate limiting</span>
-<span class="error">⚠ No audit trail</span>
-<span class="error">⚠ All tools exposed</span></code></pre>
-            </div>
           </div>
 
-          <div class="diagonal-divider">
-            <div class="shield-icon" [class.active]="isSecured()">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
-              </svg>
-            </div>
-          </div>
-
-          <div class="code-panel secured-panel">
-            <div class="panel-header">
-              <div class="status-indicator success">
-                <span class="pulse-dot"></span>
-                Protected
+          <!-- Center divider with animated shield -->
+          <div class="center-divider">
+            <div class="shield-container" [class.active]="isSecured()">
+              <div class="shield-glow"></div>
+              <div class="shield-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+                </svg>
               </div>
+              <div class="shield-ring"></div>
             </div>
-            <div class="code-content">
-              <pre><code><span class="comment"># OAuth 2.1 authentication required</span>
-<span class="prompt">$</span> <span class="cmd">curl</span> -H <span class="string">"Authorization: Bearer &lt;token&gt;"</span> \
+            <div class="divider-line"></div>
+          </div>
+
+          <!-- Secured state (right) -->
+          <div class="split-panel secured-panel">
+            <div class="panel-overlay"></div>
+            <div class="panel-content">
+              <div class="status-badge success">
+                <div class="pulse-ring"></div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <span>PROTECTED</span>
+              </div>
+
+              <div class="protection-list">
+                <div class="protection-item" [class.visible]="isSecured()">
+                  <span class="protection-icon">✓</span>
+                  <span class="protection-text">OAuth 2.1 + JWT + API Key auth</span>
+                </div>
+                <div class="protection-item" [class.visible]="isSecured()">
+                  <span class="protection-icon">✓</span>
+                  <span class="protection-text">Identity verified on every request</span>
+                </div>
+                <div class="protection-item" [class.visible]="isSecured()">
+                  <span class="protection-icon">✓</span>
+                  <span class="protection-text">Per-user rate limiting</span>
+                </div>
+                <div class="protection-item" [class.visible]="isSecured()">
+                  <span class="protection-icon">✓</span>
+                  <span class="protection-text">Full audit logging with redaction</span>
+                </div>
+              </div>
+
+              <div class="panel-terminal">
+                <pre><code><span class="comment"># mcp-guard enforces security</span>
+<span class="prompt">$</span> curl -H "Authorization: Bearer ..." \\
     http://mcp-guard:3000
 
-<span class="success">✓ Identity verified: user@company.com</span>
-<span class="success">✓ Rate limit: 847/1000 remaining</span>
-<span class="success">✓ Audit logged: req_abc123</span>
-<span class="success">✓ Tool access: authorized</span></code></pre>
+<span class="output-good">✓ Identity: user@company.com</span>
+<span class="output-good">✓ Rate limit: 847/1000 remaining</span>
+<span class="output-good">✓ Audit logged: req_abc123</span></code></pre>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Security checklist -->
-        <div class="security-checklist" [class.visible]="isSecured()">
-          <div class="checklist-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            <span>OAuth 2.1 / JWT / API Key authentication</span>
-          </div>
-          <div class="checklist-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            <span>Per-identity rate limiting with Retry-After</span>
-          </div>
-          <div class="checklist-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            <span>Full audit logging with secret redaction</span>
-          </div>
-          <div class="checklist-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            <span>Tool-level authorization by role/scope</span>
-          </div>
+        <!-- Big toggle -->
+        <div class="toggle-section">
+          <button 
+            class="mega-toggle" 
+            (click)="toggleSecured()"
+            [class.secured]="isSecured()"
+          >
+            <div class="toggle-track">
+              <span class="toggle-label toggle-label-off">EXPOSED</span>
+              <span class="toggle-label toggle-label-on">SECURED</span>
+              <div class="toggle-thumb">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+                </svg>
+              </div>
+            </div>
+          </button>
+          <p class="toggle-hint">Click to toggle protection</p>
         </div>
       </div>
     </section>
@@ -132,201 +166,221 @@ import { CommonModule } from '@angular/common';
   styles: [`
     .comparison {
       position: relative;
-      padding: 120px 0;
+      padding: 100px 0;
       background: var(--bg-secondary);
       overflow: hidden;
+    }
 
-      &::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, var(--border-subtle), transparent);
-      }
+    /* Subtle diagonal brand element */
+    .diagonal-brand {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      font-family: var(--font-display);
+      font-size: clamp(60px, 12vw, 150px);
+      font-weight: 800;
+      color: transparent;
+      -webkit-text-stroke: 1px rgba(255, 122, 48, 0.03);
+      white-space: nowrap;
+      pointer-events: none;
+      user-select: none;
+      letter-spacing: -0.05em;
+      z-index: 0;
+    }
+
+    .brand-divider {
+      color: rgba(255, 122, 48, 0.1);
+      -webkit-text-stroke: none;
+    }
+
+    .after-text {
+      -webkit-text-stroke-color: rgba(70, 92, 136, 0.08);
+    }
+
+    .brand-float {
+      position: absolute;
+      font-family: var(--font-display);
+      font-size: 400px;
+      font-weight: 800;
+      color: transparent;
+      -webkit-text-stroke: 1px var(--border-subtle);
+      opacity: 0.15;
+      pointer-events: none;
+      user-select: none;
+      letter-spacing: -0.05em;
+    }
+
+    .brand-float-1 {
+      top: -100px;
+      left: -100px;
+    }
+
+    .brand-float-2 {
+      bottom: -100px;
+      right: -100px;
     }
 
     .comparison-container {
-      max-width: 1100px;
+      position: relative;
+      max-width: 1400px;
       margin: 0 auto;
       padding: 0 24px;
+      z-index: 1;
     }
 
     .section-header {
-      text-align: center;
-      margin-bottom: 48px;
+      display: flex;
+      align-items: flex-start;
+      gap: 32px;
+      margin-bottom: 64px;
+    }
+
+    .section-number {
+      font-family: var(--font-mono);
+      font-size: 100px;
+      font-weight: 800;
+      color: transparent;
+      -webkit-text-stroke: 1px var(--border-subtle);
+      line-height: 0.8;
+    }
+
+    .header-text {
+      padding-top: 16px;
     }
 
     .section-tag {
       font-family: var(--font-mono);
       font-size: 13px;
-      color: var(--accent-cyan);
+      color: #FF7A30;
       letter-spacing: 0.05em;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
       display: block;
     }
 
     .section-title {
-      font-size: clamp(32px, 5vw, 48px);
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
     }
 
-    .gradient-text {
-      background: var(--gradient-brand);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .section-subtitle {
-      font-size: 18px;
+    .title-line {
+      font-family: var(--font-sans);
+      font-size: clamp(24px, 4vw, 36px);
+      font-weight: 400;
       color: var(--text-secondary);
-      max-width: 600px;
-      margin: 0 auto;
-      line-height: 1.6;
     }
 
-    .toggle-container {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-      margin-bottom: 48px;
-    }
-
-    .toggle-btn {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 20px;
-      background: transparent;
-      border: 1px solid var(--border-subtle);
-      border-radius: 10px;
-      color: var(--text-muted);
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.3s;
-
-      svg {
-        width: 18px;
-        height: 18px;
-      }
-
-      &.active {
-        background: var(--bg-elevated);
-        border-color: var(--border-accent);
-        color: var(--text-primary);
-      }
-
-      &:hover:not(.active) {
-        border-color: var(--border-medium);
-        color: var(--text-secondary);
-      }
-    }
-
-    .toggle-switch {
-      width: 56px;
-      height: 28px;
-      background: var(--bg-elevated);
-      border: 1px solid var(--border-subtle);
-      border-radius: 100px;
-      cursor: pointer;
-      position: relative;
-      transition: all 0.3s;
-
-      &:hover {
-        border-color: var(--border-accent);
-      }
-    }
-
-    .toggle-thumb {
-      position: absolute;
-      top: 3px;
-      left: 3px;
-      width: 20px;
-      height: 20px;
-      background: var(--accent-red);
-      border-radius: 50%;
-      transition: all 0.3s ease;
-      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+    .state-text {
+      font-family: var(--font-display);
+      font-size: clamp(48px, 8vw, 80px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--accent-red);
+      transition: color 0.5s, text-shadow 0.5s;
 
       &.secured {
-        left: calc(100% - 23px);
-        background: var(--accent-cyan);
-        box-shadow: 0 2px 8px rgba(78, 205, 196, 0.4);
+        color: #4ade80;
+        text-shadow: 0 0 40px rgba(74, 222, 128, 0.3);
       }
     }
 
-    .code-display {
-      position: relative;
+    /* Split container */
+    .split-container {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 80px 1fr;
       gap: 0;
-      background: var(--bg-primary);
-      border: 1px solid var(--border-subtle);
-      border-radius: 20px;
-      overflow: hidden;
+      margin-bottom: 64px;
 
-      @media (max-width: 768px) {
+      @media (max-width: 900px) {
         grid-template-columns: 1fr;
+        gap: 32px;
       }
     }
 
-    .code-panel {
-      padding: 24px;
-      transition: opacity 0.5s ease;
+    .split-panel {
+      position: relative;
+      background: var(--bg-primary);
+      border-radius: 24px;
+      padding: 40px;
+      border: 1px solid var(--border-subtle);
+      transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: hidden;
+    }
+
+    .panel-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      transition: opacity 0.6s;
     }
 
     .exposed-panel {
-      border-right: 1px solid var(--border-subtle);
-      background: linear-gradient(135deg, rgba(239, 68, 68, 0.03) 0%, transparent 50%);
+      transform-origin: right center;
 
-      @media (max-width: 768px) {
-        border-right: none;
-        border-bottom: 1px solid var(--border-subtle);
+      .panel-overlay {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, transparent 50%);
       }
     }
 
     .secured-panel {
-      background: linear-gradient(135deg, transparent 50%, rgba(78, 205, 196, 0.03) 100%);
+      transform-origin: left center;
+
+      .panel-overlay {
+        background: linear-gradient(135deg, transparent 50%, rgba(74, 222, 128, 0.05) 100%);
+      }
     }
 
-    .code-display.secured {
+    .split-container.secured {
       .exposed-panel {
         opacity: 0.4;
+        transform: scale(0.98) translateX(-10px);
       }
 
       .secured-panel {
-        opacity: 1;
+        transform: scale(1.02);
+        border-color: rgba(74, 222, 128, 0.3);
+        box-shadow: 0 0 60px -20px rgba(74, 222, 128, 0.3);
       }
     }
 
-    .code-display:not(.secured) {
+    .split-container:not(.secured) {
       .exposed-panel {
-        opacity: 1;
+        transform: scale(1.02);
+        border-color: rgba(239, 68, 68, 0.3);
+        box-shadow: 0 0 60px -20px rgba(239, 68, 68, 0.3);
       }
 
       .secured-panel {
         opacity: 0.4;
+        transform: scale(0.98) translateX(10px);
       }
     }
 
-    .panel-header {
-      margin-bottom: 16px;
+    .panel-content {
+      position: relative;
+      z-index: 1;
     }
 
-    .status-indicator {
+    .status-badge {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 14px;
+      gap: 12px;
+      padding: 12px 24px;
       border-radius: 100px;
+      font-family: var(--font-mono);
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      margin-bottom: 32px;
+      position: relative;
+
+      svg {
+        width: 20px;
+        height: 20px;
+      }
 
       &.danger {
         background: rgba(239, 68, 68, 0.1);
@@ -335,51 +389,154 @@ import { CommonModule } from '@angular/common';
       }
 
       &.success {
-        background: rgba(78, 205, 196, 0.1);
-        color: var(--accent-cyan);
-        border: 1px solid rgba(78, 205, 196, 0.2);
+        background: rgba(74, 222, 128, 0.1);
+        color: #4ade80;
+        border: 1px solid rgba(74, 222, 128, 0.2);
       }
     }
 
-    .pulse-dot {
-      width: 8px;
-      height: 8px;
+    .pulse-ring {
+      position: absolute;
+      top: 50%;
+      left: 24px;
+      transform: translate(-50%, -50%);
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
-      background: currentColor;
-      animation: pulse 2s infinite;
+      animation: pulseRing 2s infinite;
     }
 
-    .code-content {
+    .danger .pulse-ring {
+      background: rgba(239, 68, 68, 0.3);
+    }
+
+    .success .pulse-ring {
+      background: rgba(74, 222, 128, 0.3);
+    }
+
+    @keyframes pulseRing {
+      0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+    }
+
+    .attack-list, .protection-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .attack-item, .protection-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      transition: all 0.4s;
+    }
+
+    .attack-item {
+      border-left: 3px solid var(--accent-red);
+    }
+
+    .attack-icon {
+      color: var(--accent-red);
+      font-size: 18px;
+    }
+
+    .attack-text {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .protection-item {
+      border-left: 3px solid #4ade80;
+      opacity: 0;
+      transform: translateX(20px);
+      transition: all 0.4s ease;
+
+      &.visible {
+        opacity: 1;
+        transform: translateX(0);
+      }
+
+      @for $i from 1 through 4 {
+        &:nth-child(#{$i}).visible {
+          transition-delay: #{($i - 1) * 0.1}s;
+        }
+      }
+    }
+
+    .protection-icon {
+      color: #4ade80;
+      font-size: 18px;
+    }
+
+    .protection-text {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .panel-terminal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 20px;
+
       pre {
         margin: 0;
         font-family: var(--font-mono);
         font-size: 13px;
         line-height: 1.8;
-        white-space: pre-wrap;
       }
 
       .comment { color: var(--text-dim); }
-      .prompt { color: var(--accent-cyan); }
-      .cmd { color: var(--text-primary); }
-      .string { color: #a5d6a7; }
-      .output { color: var(--text-muted); }
-      .error { color: var(--accent-red); }
-      .success { color: #4ade80; }
+      .prompt { color: #FF7A30; }
+      .output-bad { color: var(--accent-red); }
+      .output-good { color: #4ade80; }
     }
 
-    .diagonal-divider {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
+    /* Center divider */
+    .center-divider {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
       z-index: 10;
 
-      @media (max-width: 768px) {
-        display: none;
+      @media (max-width: 900px) {
+        flex-direction: row;
+        order: -1;
       }
     }
 
+    .shield-container {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .shield-glow {
+      position: absolute;
+      inset: -20px;
+      background: radial-gradient(circle, rgba(255, 122, 48, 0.3) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.5s;
+    }
+
+    .shield-container.active .shield-glow {
+      opacity: 1;
+      background: radial-gradient(circle, rgba(74, 222, 128, 0.4) 0%, transparent 70%);
+    }
+
     .shield-icon {
+      position: relative;
+      z-index: 2;
       width: 56px;
       height: 56px;
       background: var(--bg-secondary);
@@ -389,66 +546,216 @@ import { CommonModule } from '@angular/common';
       align-items: center;
       justify-content: center;
       color: var(--text-muted);
-      transition: all 0.4s ease;
+      transition: all 0.5s;
 
       svg {
         width: 28px;
         height: 28px;
       }
+    }
 
-      &.active {
-        border-color: var(--accent-cyan);
-        color: var(--accent-cyan);
-        box-shadow: 0 0 30px rgba(78, 205, 196, 0.3);
+    .shield-container.active .shield-icon {
+      border-color: #4ade80;
+      color: #4ade80;
+      background: rgba(74, 222, 128, 0.1);
+    }
+
+    .shield-ring {
+      position: absolute;
+      width: 70px;
+      height: 70px;
+      border: 2px solid transparent;
+      border-top-color: var(--border-subtle);
+      border-radius: 50%;
+      animation: rotate 3s linear infinite;
+    }
+
+    .shield-container.active .shield-ring {
+      border-top-color: #4ade80;
+    }
+
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .divider-line {
+      flex: 1;
+      width: 2px;
+      background: linear-gradient(to bottom, transparent, var(--border-subtle), transparent);
+
+      @media (max-width: 900px) {
+        width: auto;
+        height: 2px;
+        flex: 1;
+        background: linear-gradient(to right, transparent, var(--border-subtle), transparent);
       }
     }
 
-    .security-checklist {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
+    /* Mega toggle */
+    .toggle-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       gap: 16px;
-      margin-top: 32px;
-      opacity: 0.3;
-      transition: opacity 0.5s ease;
+    }
 
-      &.visible {
-        opacity: 1;
+    .mega-toggle {
+      position: relative;
+      width: 280px;
+      height: 64px;
+      background: var(--bg-primary);
+      border: 2px solid var(--border-subtle);
+      border-radius: 100px;
+      cursor: pointer;
+      transition: all 0.4s;
+      overflow: hidden;
+
+      &:hover {
+        border-color: var(--border-accent);
       }
 
-      @media (max-width: 640px) {
-        grid-template-columns: 1fr;
+      &.secured {
+        border-color: rgba(74, 222, 128, 0.4);
+
+        .toggle-thumb {
+          left: calc(100% - 56px);
+          background: #4ade80;
+          color: var(--bg-primary);
+        }
+
+        .toggle-label-off {
+          opacity: 0.3;
+        }
+
+        .toggle-label-on {
+          opacity: 1;
+          color: #4ade80;
+        }
+      }
+
+      &:not(.secured) {
+        border-color: rgba(239, 68, 68, 0.4);
+
+        .toggle-label-off {
+          opacity: 1;
+          color: var(--accent-red);
+        }
+
+        .toggle-label-on {
+          opacity: 0.3;
+        }
       }
     }
 
-    .checklist-item {
+    .toggle-track {
+      position: relative;
+      width: 100%;
+      height: 100%;
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 14px 18px;
-      background: var(--bg-primary);
-      border: 1px solid var(--border-subtle);
-      border-radius: 10px;
-      font-size: 14px;
-      color: var(--text-secondary);
+      justify-content: space-between;
+      padding: 0 24px;
+    }
+
+    .toggle-label {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      transition: all 0.4s;
+    }
+
+    .toggle-thumb {
+      position: absolute;
+      left: 4px;
+      width: 52px;
+      height: 52px;
+      background: var(--accent-red);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--bg-primary);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 
       svg {
-        width: 20px;
-        height: 20px;
-        color: var(--accent-cyan);
-        flex-shrink: 0;
+        width: 24px;
+        height: 24px;
       }
     }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.9); }
+    .toggle-hint {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 768px) {
+      .section-header {
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .section-number {
+        font-size: 60px;
+      }
+
+      .split-panel {
+        padding: 24px;
+      }
+
+      .mega-toggle {
+        width: 240px;
+        height: 56px;
+      }
     }
   `]
 })
-export class ComparisonComponent {
-  isSecured = signal(true);
+export class ComparisonComponent implements OnInit, OnDestroy, AfterViewInit {
+  @ViewChild('container') containerRef!: ElementRef<HTMLElement>;
+  @ViewChild('splitContainer') splitContainerRef!: ElementRef<HTMLElement>;
+
+  private ngZone = inject(NgZone);
+  private scrollTrigger: ScrollTrigger | null = null;
+
+  isSecured = signal(false);
+
+  ngOnInit() { }
+
+  ngAfterViewInit() {
+    this.initAutoToggle();
+  }
+
+  ngOnDestroy() {
+    this.scrollTrigger?.kill();
+  }
 
   toggleSecured() {
     this.isSecured.update(v => !v);
+  }
+
+  private initAutoToggle() {
+    this.ngZone.runOutsideAngular(() => {
+      // Auto-toggle when section is 60% in view
+      this.scrollTrigger = ScrollTrigger.create({
+        trigger: this.containerRef.nativeElement,
+        start: 'top 40%',
+        onEnter: () => {
+          // Delay the toggle for dramatic effect
+          setTimeout(() => {
+            this.ngZone.run(() => {
+              this.isSecured.set(true);
+            });
+          }, 800);
+        },
+        onLeaveBack: () => {
+          this.ngZone.run(() => {
+            this.isSecured.set(false);
+          });
+        }
+      });
+    });
   }
 }

@@ -18,6 +18,9 @@
   --accent-red: #ef4444;
   --accent-purple: #8b5cf6;
   --accent-orange: #f97316;
+  --accent-green: #4ade80;
+  --accent-green-dim: #22c55e;
+  --accent-orange-deep: #ff4d00;
 
   // Gradients
   --gradient-brand: linear-gradient(135deg, #FF7A30 0%, #ff4d00 50%, #3B82F6 100%);
@@ -38,6 +41,12 @@
   --border-accent: rgba(255, 122, 48, 0.3);
   --border-blue: rgba(59, 130, 246, 0.25);
   --border-red: rgba(239, 68, 68, 0.3);
+  --border-green: rgba(74, 222, 128, 0.3);
+
+  // Terminal colors (macOS style)
+  --terminal-red: #ff5f57;
+  --terminal-yellow: #febc2e;
+  --terminal-green: #28c840;
 
   // Typography
   --font-mono: 'JetBrains Mono', monospace;
