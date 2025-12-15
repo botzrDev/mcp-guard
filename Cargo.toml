@@ -12,27 +12,19 @@ documentation = "https://docs.rs/mcp-guard"
 readme = "README.md"
 keywords = ["mcp", "security", "gateway", "proxy", "authentication"]
 categories = ["authentication", "web-programming"]
-exclude = [
-    "landing/",
-    "context/",
-    ".github/",
-    "scripts/",
-    "Makefile",
-    "RELEASE_CHECKLIST.md",
-    "CLAUDE.md",
-]
+# Only include essential files for the crate (excludes landing/, context/, .github/, etc.)
 include = [
-    "src/**/*",
-    "benches/**/*",
-    "examples/**/*",
-    "templates/**/*",
-    "docs/**/*",
-    "Cargo.toml",
-    "Cargo.lock",
-    "README.md",
-    "CHANGELOG.md",
-    "LICENSE",
-    "deny.toml",
+    "/src/**/*",
+    "/benches/**/*",
+    "/examples/**/*",
+    "/templates/**/*",
+    "/docs/**/*",
+    "/Cargo.toml",
+    "/Cargo.lock",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+    "/deny.toml",
 ]
 
 [dependencies]

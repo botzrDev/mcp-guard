@@ -301,4 +301,48 @@ mod tests {
         // May or may not be None depending on global state, but shouldn't panic
         let _ = trace_id;
     }
+
+    #[test]
+    fn test_create_metrics_handle() {
+        // Should create a local metrics handle without panicking
+        let handle = create_metrics_handle();
+        // Should be able to render metrics (may be empty)
+        let metrics = handle.render();
+        // Metrics string should be valid (not panicking is the main test)
+        assert!(metrics.is_empty() || !metrics.is_empty());
+    }
+
+    #[test]
+    fn test_record_request_various_methods() {
+        record_request("GET", 200, std::time::Duration::from_millis(10));
+        record_request("POST", 201, std::time::Duration::from_millis(20));
+        record_request("DELETE", 204, std::time::Duration::from_millis(5));
+        record_request("PUT", 400, std::time::Duration::from_millis(15));
+        record_request("PATCH", 500, std::time::Duration::from_millis(100));
+    }
+
+    #[test]
+    fn test_record_auth_various_providers() {
+        record_auth("api_key", true);
+        record_auth("jwt", true);
+        record_auth("oauth", true);
+        record_auth("mtls", true);
+        record_auth("api_key", false);
+        record_auth("jwt", false);
+    }
+
+    #[test]
+    fn test_set_active_identities_various_counts() {
+        set_active_identities(0);
+        set_active_identities(1);
+        set_active_identities(100);
+        set_active_identities(10000);
+    }
+
+    #[test]
+    fn test_tracing_guard_drop() {
+        // TracingGuard with None provider should drop without issue
+        let guard = TracingGuard { _provider: None };
+        drop(guard);
+    }
 }

@@ -728,3 +728,278 @@ impl ServerRouteConfig {
         Ok(())
     }
 }
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_valid_config() -> Config {
+        Config {
+            server: ServerConfig::default(),
+            auth: AuthConfig::default(),
+            rate_limit: RateLimitConfig::default(),
+            audit: AuditConfig::default(),
+            tracing: TracingConfig::default(),
+            upstream: UpstreamConfig {
+                transport: TransportType::Http,
+                command: None,
+                args: vec![],
+                url: Some("http://localhost:8080".to_string()),
+                servers: vec![],
+            },
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Default Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_server_config_defaults() {
+        let config = ServerConfig::default();
+        assert_eq!(config.host, "127.0.0.1");
+        assert_eq!(config.port, 3000);
+        assert!(config.tls.is_none());
+    }
+
+    #[test]
+    fn test_rate_limit_config_defaults() {
+        let config = RateLimitConfig::default();
+        assert!(config.enabled);
+        assert_eq!(config.requests_per_second, 100);
+        assert_eq!(config.burst_size, 50);
+    }
+
+    #[test]
+    fn test_audit_config_defaults() {
+        let config = AuditConfig::default();
+        assert!(config.enabled);
+        assert!(config.file.is_none());
+        assert!(config.stdout);
+        assert!(config.export_url.is_none());
+        assert_eq!(config.export_batch_size, 100);
+        assert_eq!(config.export_interval_secs, 30);
+    }
+
+    #[test]
+    fn test_tracing_config_defaults() {
+        let config = TracingConfig::default();
+        assert!(!config.enabled);
+        assert_eq!(config.service_name, "mcp-guard");
+        assert!(config.otlp_endpoint.is_none());
+        assert_eq!(config.sample_rate, 1.0);
+        assert!(config.propagate_context);
+    }
+
+    #[test]
+    fn test_mtls_config_defaults() {
+        let config = MtlsConfig::default();
+        assert!(!config.enabled);
+        assert!(matches!(config.identity_source, MtlsIdentitySource::Cn));
+        assert!(config.allowed_tools.is_empty());
+        assert!(config.rate_limit.is_none());
+    }
+
+    // ------------------------------------------------------------------------
+    // Validation Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_config_validation_success() {
+        let config = create_valid_config();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_config_validation_invalid_port() {
+        let mut config = create_valid_config();
+        config.server.port = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_rate_limit_zero_rps() {
+        let mut config = create_valid_config();
+        config.rate_limit.enabled = true;
+        config.rate_limit.requests_per_second = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_rate_limit_zero_burst() {
+        let mut config = create_valid_config();
+        config.rate_limit.enabled = true;
+        config.rate_limit.burst_size = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_stdio_missing_command() {
+        let mut config = create_valid_config();
+        config.upstream.transport = TransportType::Stdio;
+        config.upstream.command = None;
+        config.upstream.url = None;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_http_missing_url() {
+        let mut config = create_valid_config();
+        config.upstream.transport = TransportType::Http;
+        config.upstream.url = None;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_sse_missing_url() {
+        let mut config = create_valid_config();
+        config.upstream.transport = TransportType::Sse;
+        config.upstream.url = None;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_jwt_invalid_jwks_url() {
+        let mut config = create_valid_config();
+        config.auth.jwt = Some(JwtConfig {
+            mode: JwtMode::Jwks {
+                jwks_url: "invalid-url".to_string(),
+                algorithms: default_jwks_algorithms(),
+                cache_duration_secs: 3600,
+            },
+            issuer: "https://issuer.example.com".to_string(),
+            audience: "mcp-guard".to_string(),
+            user_id_claim: "sub".to_string(),
+            scopes_claim: "scope".to_string(),
+            scope_tool_mapping: HashMap::new(),
+            leeway_secs: 0,
+        });
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_oauth_invalid_redirect_uri() {
+        let mut config = create_valid_config();
+        config.auth.oauth = Some(OAuthConfig {
+            provider: OAuthProvider::GitHub,
+            client_id: "test".to_string(),
+            client_secret: None,
+            authorization_url: None,
+            token_url: None,
+            introspection_url: None,
+            userinfo_url: None,
+            redirect_uri: "invalid-uri".to_string(),
+            scopes: vec![],
+            user_id_claim: "sub".to_string(),
+            scope_tool_mapping: HashMap::new(),
+        });
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_audit_invalid_export_url() {
+        let mut config = create_valid_config();
+        config.audit.export_url = Some("not-a-url".to_string());
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_audit_batch_size_zero() {
+        let mut config = create_valid_config();
+        config.audit.export_url = Some("http://siem.example.com".to_string());
+        config.audit.export_batch_size = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_audit_batch_size_too_large() {
+        let mut config = create_valid_config();
+        config.audit.export_url = Some("http://siem.example.com".to_string());
+        config.audit.export_batch_size = 10001;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_audit_interval_zero() {
+        let mut config = create_valid_config();
+        config.audit.export_url = Some("http://siem.example.com".to_string());
+        config.audit.export_interval_secs = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_tracing_invalid_sample_rate() {
+        let mut config = create_valid_config();
+        config.tracing.enabled = true;
+        config.tracing.sample_rate = 1.5;
+        assert!(config.validate().is_err());
+
+        config.tracing.sample_rate = -0.1;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_is_multi_server() {
+        let mut config = create_valid_config();
+        assert!(!config.is_multi_server());
+
+        config.upstream.servers.push(ServerRouteConfig {
+            name: "test".to_string(),
+            path_prefix: "/test".to_string(),
+            transport: TransportType::Http,
+            command: None,
+            args: vec![],
+            url: Some("http://localhost:8080".to_string()),
+            strip_prefix: false,
+        });
+        assert!(config.is_multi_server());
+    }
+
+    // ------------------------------------------------------------------------
+    // ConfigError Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_config_error_display() {
+        let err = ConfigError::Parse("invalid TOML".to_string());
+        assert!(format!("{}", err).contains("invalid TOML"));
+
+        let err = ConfigError::Validation("port must be > 0".to_string());
+        assert!(format!("{}", err).contains("port must be > 0"));
+    }
+
+    // ------------------------------------------------------------------------
+    // Transport Type Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_transport_type_serialization() {
+        let json = serde_json::to_string(&TransportType::Stdio).unwrap();
+        assert!(json.contains("stdio"));
+
+        let json = serde_json::to_string(&TransportType::Http).unwrap();
+        assert!(json.contains("http"));
+
+        let json = serde_json::to_string(&TransportType::Sse).unwrap();
+        assert!(json.contains("sse"));
+    }
+
+    // ------------------------------------------------------------------------
+    // OAuth Provider Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_oauth_provider_serialization() {
+        let provider = OAuthProvider::GitHub;
+        let json = serde_json::to_string(&provider).unwrap();
+        assert!(json.contains("github"));
+
+        let provider = OAuthProvider::Google;
+        let json = serde_json::to_string(&provider).unwrap();
+        assert!(json.contains("google"));
+    }
+}
