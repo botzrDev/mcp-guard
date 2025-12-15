@@ -101,6 +101,9 @@ assert_cmd = "2.0"
 predicates = "3.1"
 criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
 wiremock = "0.6"
+axum-test = "16.1"
+hyper = { version = "1.0", features = ["client"] }
+tower = { version = "0.5", features = ["util"] }
 
 [[bench]]
 name = "performance"

@@ -49,7 +49,7 @@ pub enum Commands {
     /// Initialize a new configuration file
     Init {
         /// Output format (toml or yaml)
-        #[arg(short, long, default_value = "toml")]
+        #[arg(long, default_value = "toml")]
         format: String,
 
         /// Force overwrite existing file
