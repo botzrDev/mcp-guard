@@ -1,4 +1,4 @@
-import { Component, signal, ChangeDetectionStrategy, OnInit, OnDestroy, inject, NgZone, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy, OnInit, OnDestroy, inject, NgZone, ElementRef, AfterViewInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IconComponent, IconName } from '../../shared/icon/icon.component';
 
@@ -8,7 +8,6 @@ interface Feature {
   description: string;
   icon: IconName;
   tag: string;
-  size: 'large' | 'small';
   code?: string;
 }
 
@@ -18,63 +17,75 @@ interface Feature {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, IconComponent],
   template: `
-    <section class="features" id="features" #container>
+    <section class="features" id="features">
       <div class="features-container">
-        <!-- Clean header -->
+        <!-- Header -->
         <div class="section-header">
           <div class="header-tag">
-            <span class="tag-decorator">//</span>
+            <span class="tag-dot"></span>
             <span class="tag-text">Features</span>
           </div>
-          <h2 class="section-title">
-            Everything you need.<br>
-            <span class="title-gradient">Nothing you don't.</span>
-          </h2>
-          <p class="section-subtitle">
-            Enterprise-grade security in a single binary. No containers, no databases, no complexity.
-          </p>
+          <h2 class="section-title">Built for security teams.</h2>
         </div>
 
-        <!-- Clean Bento Grid -->
-        <div class="bento-grid">
-          <!-- Main feature - spans 2 columns -->
-          <div class="feature-card feature-main" [class.visible]="visibleCards().has(0)">
-            <div class="card-accent"></div>
-            <div class="card-header">
-              <div class="card-icon">
-                <app-icon name="auth" />
-              </div>
-              <span class="card-tag">OAuth 2.1 • JWT • API Keys</span>
-            </div>
-            <h3 class="card-title">Multi-Provider Authentication</h3>
-            <p class="card-description">
-              API keys for simplicity. JWT for scale. OAuth 2.1 with PKCE for enterprise SSO. 
-              Use one or combine them all.
-            </p>
-            <div class="card-code">
-              <pre><code><span class="code-section">[auth]</span>
-<span class="code-key">providers</span> = <span class="code-value">["api_key", "jwt", "oauth"]</span>
+        <!-- Horizontal scroll track -->
+        <div class="cards-viewport" #viewport>
+          <div class="cards-track" #track>
+            @for (feature of features; track feature.id; let i = $index) {
+              <div 
+                class="feature-card" 
+                [class.active]="activeIndex() === i"
+                (click)="setActive(i)"
+                (mouseenter)="setActive(i)"
+              >
+                <div class="card-inner">
+                  <!-- Collapsed state -->
+                  <div class="card-collapsed">
+                    <div class="card-icon">
+                      <app-icon [name]="feature.icon" />
+                    </div>
+                    <span class="card-number">0{{ i + 1 }}</span>
+                  </div>
 
-<span class="code-section">[auth.oauth]</span>
-<span class="code-key">provider</span> = <span class="code-value">"github"</span>
-<span class="code-key">client_id</span> = <span class="code-value">"your_client_id"</span></code></pre>
-            </div>
+                  <!-- Expanded state -->
+                  <div class="card-expanded">
+                    <div class="expanded-header">
+                      <div class="card-icon">
+                        <app-icon [name]="feature.icon" />
+                      </div>
+                      <span class="card-tag">{{ feature.tag }}</span>
+                    </div>
+                    <h3 class="card-title">{{ feature.title }}</h3>
+                    <p class="card-description">{{ feature.description }}</p>
+                    @if (feature.code) {
+                      <div class="card-code">
+                        <pre><code>{{ feature.code }}</code></pre>
+                      </div>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
           </div>
+        </div>
 
-          <!-- Secondary features - smaller cards -->
-          @for (feature of secondaryFeatures; track feature.id; let i = $index) {
-            <div 
-              class="feature-card feature-small" 
-              [class.visible]="visibleCards().has(i + 1)"
-            >
-              <div class="card-icon-small">
-                <app-icon [name]="feature.icon" />
-              </div>
-              <h4 class="card-title-small">{{ feature.title }}</h4>
-              <p class="card-description-small">{{ feature.description }}</p>
-              <span class="card-tag-small">{{ feature.tag }}</span>
-            </div>
-          }
+        <!-- Scroll indicators -->
+        <div class="scroll-controls">
+          <div class="scroll-dots">
+            @for (feature of features; track feature.id; let i = $index) {
+              <button 
+                class="scroll-dot" 
+                [class.active]="activeIndex() === i"
+                (click)="scrollToCard(i)"
+              ></button>
+            }
+          </div>
+          <div class="scroll-hint">
+            <span>Drag to explore</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </div>
         </div>
       </div>
     </section>
@@ -82,377 +93,392 @@ interface Feature {
   styles: [`
     .features {
       position: relative;
-      padding: 100px 0 120px;
+      padding: 100px 0;
       background: var(--bg-secondary);
+      overflow: hidden;
     }
 
     .features-container {
-      max-width: 1200px;
+      max-width: 1400px;
       margin: 0 auto;
-      padding: 0 24px;
     }
 
     /* Header */
     .section-header {
-      text-align: center;
-      margin-bottom: 64px;
+      padding: 0 24px;
+      margin-bottom: 48px;
     }
 
     .header-tag {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 16px;
-      padding: 8px 16px;
-      background: var(--bg-primary);
-      border: 1px solid var(--border-subtle);
-      border-radius: 6px;
+      margin-bottom: 12px;
     }
 
-    .tag-decorator {
-      font-family: var(--font-mono);
-      font-size: 14px;
-      color: var(--accent-cyan);
-      font-weight: 600;
+    .tag-dot {
+      width: 8px;
+      height: 8px;
+      background: #FF7A30;
+      border-radius: 50%;
     }
 
     .tag-text {
       font-family: var(--font-mono);
       font-size: 13px;
-      color: var(--text-secondary);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     .section-title {
       font-family: var(--font-display);
-      font-size: clamp(32px, 5vw, 48px);
+      font-size: clamp(28px, 4vw, 40px);
       font-weight: 700;
       letter-spacing: -0.02em;
-      line-height: 1.2;
-      margin-bottom: 16px;
     }
 
-    .title-gradient {
-      background: var(--gradient-brand);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
+    /* Cards viewport */
+    .cards-viewport {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 20px 0 40px;
+      cursor: grab;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
 
-    .section-subtitle {
-      font-size: 17px;
-      color: var(--text-secondary);
-      max-width: 520px;
-      margin: 0 auto;
-      line-height: 1.6;
-    }
-
-    /* Bento Grid */
-    .bento-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 20px;
-
-      @media (max-width: 900px) {
-        grid-template-columns: repeat(2, 1fr);
+      &::-webkit-scrollbar {
+        display: none;
       }
 
-      @media (max-width: 600px) {
-        grid-template-columns: 1fr;
+      &:active {
+        cursor: grabbing;
       }
     }
 
-    /* Main feature card */
-    .feature-main {
-      grid-column: span 2;
-      grid-row: span 2;
-
-      @media (max-width: 900px) {
-        grid-column: span 2;
-        grid-row: span 1;
-      }
-
-      @media (max-width: 600px) {
-        grid-column: span 1;
-      }
+    .cards-track {
+      display: flex;
+      gap: 16px;
+      padding: 0 24px;
+      width: max-content;
     }
 
+    /* Feature cards */
     .feature-card {
-      position: relative;
+      flex-shrink: 0;
+      width: 120px;
+      height: 400px;
       background: var(--bg-primary);
       border: 1px solid var(--border-subtle);
       border-radius: 16px;
-      padding: 28px;
-      opacity: 0;
-      transform: translateY(20px);
-      transition: opacity 0.4s ease, transform 0.4s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-
-      &.visible {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      cursor: pointer;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
+                  border-color 0.2s ease,
+                  box-shadow 0.2s ease;
+      overflow: hidden;
 
       &:hover {
         border-color: var(--border-accent);
-        box-shadow: 0 8px 32px -8px rgba(255, 122, 48, 0.12);
+      }
 
-        .card-accent {
-          transform: scaleY(1);
+      &.active {
+        width: 380px;
+        border-color: rgba(255, 122, 48, 0.3);
+        box-shadow: 0 8px 32px -8px rgba(255, 122, 48, 0.15);
+
+        .card-collapsed {
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .card-expanded {
+          opacity: 1;
+          pointer-events: auto;
+        }
+      }
+
+      @media (max-width: 600px) {
+        width: 100px;
+        height: 320px;
+
+        &.active {
+          width: 300px;
         }
       }
     }
 
-    .card-accent {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 3px;
+    .card-inner {
+      position: relative;
+      width: 100%;
       height: 100%;
-      background: var(--gradient-brand);
-      border-radius: 16px 0 0 16px;
-      transform: scaleY(0);
-      transform-origin: top;
-      transition: transform 0.25s ease;
     }
 
-    /* Main card styles */
-    .card-header {
+    /* Collapsed state */
+    .card-collapsed {
+      position: absolute;
+      inset: 0;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-      gap: 12px;
+      padding: 24px 16px;
+      opacity: 1;
+      transition: opacity 0.3s ease;
     }
 
     .card-icon {
-      width: 48px;
-      height: 48px;
-      background: var(--gradient-brand);
+      width: 44px;
+      height: 44px;
+      background: var(--bg-elevated);
       border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--bg-primary);
+      color: #FF7A30;
 
       :host ::ng-deep svg {
-        width: 24px;
-        height: 24px;
+        width: 22px;
+        height: 22px;
       }
+    }
+
+    .card-number {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--text-muted);
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      transform: rotate(180deg);
+    }
+
+    /* Expanded state */
+    .card-expanded {
+      position: absolute;
+      inset: 0;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease 0.1s;
+    }
+
+    .expanded-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
     }
 
     .card-tag {
       font-family: var(--font-mono);
       font-size: 11px;
-      color: var(--accent-cyan);
+      color: #FF7A30;
       background: rgba(255, 122, 48, 0.08);
-      padding: 6px 12px;
-      border-radius: 6px;
-      letter-spacing: 0.02em;
+      padding: 5px 10px;
+      border-radius: 5px;
     }
 
     .card-title {
       font-family: var(--font-display);
-      font-size: 24px;
+      font-size: 20px;
       font-weight: 700;
       letter-spacing: -0.01em;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
 
     .card-description {
-      font-size: 15px;
+      font-size: 14px;
       color: var(--text-secondary);
       line-height: 1.6;
-      margin-bottom: 24px;
+      flex: 1;
     }
 
     .card-code {
+      margin-top: 16px;
       background: var(--bg-secondary);
       border: 1px solid var(--border-subtle);
-      border-radius: 10px;
-      padding: 16px;
+      border-radius: 8px;
+      padding: 12px;
       overflow-x: auto;
 
       pre {
         margin: 0;
         font-family: var(--font-mono);
-        font-size: 13px;
-        line-height: 1.7;
-      }
-
-      .code-section {
-        color: var(--accent-slate);
-        font-weight: 600;
-      }
-
-      .code-key {
-        color: var(--accent-cyan);
-      }
-
-      .code-value {
+        font-size: 11px;
+        line-height: 1.6;
         color: var(--text-secondary);
       }
     }
 
-    /* Small card styles */
-    .feature-small {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .card-icon-small {
-      width: 40px;
-      height: 40px;
-      background: var(--bg-elevated);
-      border-radius: 10px;
+    /* Scroll controls */
+    .scroll-controls {
       display: flex;
       align-items: center;
-      justify-content: center;
-      color: var(--accent-cyan);
-      margin-bottom: 16px;
+      justify-content: space-between;
+      padding: 0 24px;
+    }
 
-      :host ::ng-deep svg {
-        width: 20px;
-        height: 20px;
+    .scroll-dots {
+      display: flex;
+      gap: 8px;
+    }
+
+    .scroll-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--bg-hover);
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      padding: 0;
+
+      &:hover {
+        background: var(--text-muted);
+      }
+
+      &.active {
+        width: 24px;
+        border-radius: 4px;
+        background: #FF7A30;
       }
     }
 
-    .card-title-small {
-      font-size: 17px;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-      margin-bottom: 8px;
-    }
-
-    .card-description-small {
-      font-size: 14px;
-      color: var(--text-secondary);
-      line-height: 1.5;
-      flex: 1;
-      margin-bottom: 16px;
-    }
-
-    .card-tag-small {
-      display: inline-block;
-      font-family: var(--font-mono);
-      font-size: 10px;
+    .scroll-hint {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       color: var(--text-muted);
-      background: var(--bg-elevated);
-      padding: 5px 10px;
-      border-radius: 5px;
-      letter-spacing: 0.02em;
-      align-self: flex-start;
+      font-size: 12px;
+
+      svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      @media (max-width: 600px) {
+        display: none;
+      }
     }
 
-    @media (max-width: 600px) {
+    @media (max-width: 768px) {
       .features {
-        padding: 80px 0 100px;
+        padding: 80px 0;
       }
 
       .section-header {
-        margin-bottom: 48px;
-      }
-
-      .feature-card {
-        padding: 24px;
-      }
-
-      .card-title {
-        font-size: 20px;
+        margin-bottom: 32px;
       }
     }
   `]
 })
 export class FeaturesComponent implements OnInit, OnDestroy, AfterViewInit {
-  @ViewChild('container') containerRef!: ElementRef<HTMLElement>;
+  @ViewChild('viewport') viewportRef!: ElementRef<HTMLElement>;
+  @ViewChild('track') trackRef!: ElementRef<HTMLElement>;
 
   private ngZone = inject(NgZone);
-  private observer: IntersectionObserver | null = null;
 
-  visibleCards = signal<Set<number>>(new Set());
+  activeIndex = signal(0);
 
-  secondaryFeatures: Feature[] = [
+  features: Feature[] = [
+    {
+      id: 'auth',
+      title: 'Multi-Provider Auth',
+      description: 'API keys for simplicity. JWT for scale. OAuth 2.1 with PKCE for enterprise SSO.',
+      icon: 'auth',
+      tag: 'OAuth 2.1 • JWT • API Keys',
+      code: '[auth]\nproviders = ["api_key", "jwt", "oauth"]'
+    },
     {
       id: 'authz',
-      title: 'Tool-Level Authorization',
+      title: 'Tool Authorization',
       description: 'Define exactly which users can access which MCP tools with fine-grained ACLs.',
       icon: 'authz',
-      tag: 'Per-tool ACLs',
-      size: 'small'
+      tag: 'Per-tool ACLs'
     },
     {
       id: 'rate',
-      title: 'Per-Identity Rate Limiting',
+      title: 'Rate Limiting',
       description: 'Token bucket algorithm with configurable per-user limits and burst allowance.',
       icon: 'rate',
-      tag: 'Token Bucket',
-      size: 'small'
+      tag: 'Token Bucket'
     },
     {
       id: 'audit',
       title: 'Audit Logging',
-      description: 'Every request logged with automatic secret redaction. SOC 2 ready out of the box.',
+      description: 'Every request logged with automatic secret redaction. SOC 2 ready.',
       icon: 'audit',
-      tag: 'SOC 2 Ready',
-      size: 'small'
+      tag: 'SOC 2 Ready'
     },
     {
       id: 'metrics',
       title: 'Prometheus Metrics',
       description: 'Built-in /metrics endpoint for seamless observability integration.',
       icon: 'metrics',
-      tag: 'Grafana Compatible',
-      size: 'small'
+      tag: 'Grafana Ready'
     },
     {
       id: 'binary',
       title: 'Zero Infrastructure',
       description: 'Single static binary. No Docker, no databases, no external dependencies.',
       icon: 'binary',
-      tag: 'Pure Rust',
-      size: 'small'
+      tag: 'Pure Rust'
     }
   ];
 
   ngOnInit() { }
 
   ngAfterViewInit() {
-    this.initObserver();
+    this.initDragScroll();
   }
 
-  ngOnDestroy() {
-    this.observer?.disconnect();
+  ngOnDestroy() { }
+
+  setActive(index: number) {
+    this.activeIndex.set(index);
   }
 
-  private initObserver() {
-    this.ngZone.runOutsideAngular(() => {
-      this.observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              this.ngZone.run(() => {
-                this.revealCards();
-              });
-              this.observer?.unobserve(entry.target);
-            }
-          });
-        },
-        { threshold: 0.15 }
-      );
+  scrollToCard(index: number) {
+    this.activeIndex.set(index);
+    const viewport = this.viewportRef.nativeElement;
+    const cards = this.trackRef.nativeElement.querySelectorAll('.feature-card');
+    const card = cards[index] as HTMLElement;
 
-      this.observer.observe(this.containerRef.nativeElement);
-    });
-  }
-
-  private revealCards() {
-    const totalCards = this.secondaryFeatures.length + 1;
-    for (let i = 0; i < totalCards; i++) {
-      setTimeout(() => {
-        this.visibleCards.update(set => {
-          const newSet = new Set(set);
-          newSet.add(i);
-          return newSet;
-        });
-      }, i * 80);
+    if (card) {
+      const scrollLeft = card.offsetLeft - 24; // Account for padding
+      viewport.scrollTo({ left: scrollLeft, behavior: 'smooth' });
     }
+  }
+
+  private initDragScroll() {
+    const viewport = this.viewportRef.nativeElement;
+    let isDown = false;
+    let startX: number;
+    let scrollLeft: number;
+
+    this.ngZone.runOutsideAngular(() => {
+      viewport.addEventListener('mousedown', (e) => {
+        isDown = true;
+        startX = e.pageX - viewport.offsetLeft;
+        scrollLeft = viewport.scrollLeft;
+      });
+
+      viewport.addEventListener('mouseleave', () => {
+        isDown = false;
+      });
+
+      viewport.addEventListener('mouseup', () => {
+        isDown = false;
+      });
+
+      viewport.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - viewport.offsetLeft;
+        const walk = (x - startX) * 1.5;
+        viewport.scrollLeft = scrollLeft - walk;
+      });
+    });
   }
 }

@@ -254,7 +254,7 @@ interface Step {
     .section-tag {
       font-family: var(--font-mono);
       font-size: 13px;
-      color: #FF7A30;
+      color: var(--accent-cyan);
       letter-spacing: 0.05em;
     }
 
@@ -322,7 +322,7 @@ interface Step {
         transform: translateX(-50%);
         width: 4px;
         height: 8px;
-        background: #FF7A30;
+        background: var(--accent-cyan);
         border-radius: 2px;
         animation: scrollBounce 1.5s infinite;
       }
@@ -416,7 +416,7 @@ interface Step {
       transition: all 0.4s;
 
       &.active {
-        border-color: #FF7A30;
+        border-color: var(--accent-cyan);
 
         .indicator-fill {
           transform: scale(1);
@@ -473,7 +473,7 @@ interface Step {
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #FF7A30;
+      color: var(--accent-cyan);
     }
 
     .step-title {
@@ -539,7 +539,7 @@ interface Step {
     }
 
     .prompt {
-      color: #FF7A30;
+      color: var(--accent-cyan);
     }
 
     .command {
@@ -549,7 +549,7 @@ interface Step {
     .cursor {
       width: 8px;
       height: 18px;
-      background: #FF7A30;
+      background: var(--accent-cyan);
       animation: blink 1s step-end infinite;
     }
 
@@ -567,11 +567,11 @@ interface Step {
     }
 
     .output-success {
-      color: #4ade80;
+      color: var(--accent-green);
     }
 
     .output-highlight {
-      color: #FF7A30;
+      color: var(--accent-cyan);
     }
 
     @keyframes blink {
@@ -620,12 +620,12 @@ interface Step {
       height: 80px;
       margin: 0 auto 24px;
       background: rgba(74, 222, 128, 0.1);
-      border: 2px solid rgba(74, 222, 128, 0.3);
+      border: 2px solid var(--border-green);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #4ade80;
+      color: var(--accent-green);
 
       svg {
         width: 40px;
@@ -723,9 +723,9 @@ interface Step {
     }
 
     .progress-marker.active .marker-dot {
-      background: #FF7A30;
-      border-color: #FF7A30;
-      box-shadow: 0 0 12px rgba(255, 122, 48, 0.5);
+      background: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 12px var(--border-accent);
     }
 
     .marker-label {

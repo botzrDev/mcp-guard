@@ -268,7 +268,7 @@ gsap.registerPlugin(ScrollTrigger);
     .marker-text {
       font-family: var(--font-mono);
       font-size: 13px;
-      color: #FF7A30;
+      color: var(--accent-cyan);
       letter-spacing: 0.05em;
     }
 
@@ -454,9 +454,9 @@ gsap.registerPlugin(ScrollTrigger);
         height: 12px;
         border-radius: 50%;
 
-        &.red { background: #ff5f57; }
-        &.yellow { background: #febc2e; }
-        &.green { background: #28c840; }
+        &.red { background: var(--terminal-red); }
+        &.yellow { background: var(--terminal-yellow); }
+        &.green { background: var(--terminal-green); }
       }
     }
 
@@ -508,7 +508,7 @@ gsap.registerPlugin(ScrollTrigger);
     }
 
     .prompt {
-      color: #FF7A30;
+      color: var(--accent-cyan);
       user-select: none;
     }
 
@@ -521,11 +521,11 @@ gsap.registerPlugin(ScrollTrigger);
       color: var(--text-muted);
 
       &.success {
-        color: #4ade80;
+        color: var(--accent-green);
       }
 
       &.highlight {
-        color: #FF7A30;
+        color: var(--accent-cyan);
       }
     }
 
@@ -555,8 +555,8 @@ gsap.registerPlugin(ScrollTrigger);
 
       &.copied {
         opacity: 1;
-        color: #4ade80;
-        border-color: rgba(74, 222, 128, 0.3);
+        color: var(--accent-green);
+        border-color: var(--border-green);
       }
     }
 
@@ -564,7 +564,7 @@ gsap.registerPlugin(ScrollTrigger);
       display: inline-block;
       width: 10px;
       height: 20px;
-      background: #FF7A30;
+      background: var(--accent-cyan);
       margin-left: 4px;
       opacity: 0;
 
@@ -584,7 +584,7 @@ gsap.registerPlugin(ScrollTrigger);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #FF7A30;
+      color: var(--accent-cyan);
       box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.3);
 
       svg {

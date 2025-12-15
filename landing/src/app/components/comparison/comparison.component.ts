@@ -255,7 +255,7 @@ gsap.registerPlugin(ScrollTrigger);
     .section-tag {
       font-family: var(--font-mono);
       font-size: 13px;
-      color: #FF7A30;
+      color: var(--accent-cyan);
       letter-spacing: 0.05em;
       margin-bottom: 12px;
       display: block;
@@ -282,8 +282,8 @@ gsap.registerPlugin(ScrollTrigger);
       transition: color 0.5s, text-shadow 0.5s;
 
       &.secured {
-        color: #4ade80;
-        text-shadow: 0 0 40px rgba(74, 222, 128, 0.3);
+        color: var(--accent-green);
+        text-shadow: 0 0 40px var(--border-green);
       }
     }
 
@@ -390,7 +390,7 @@ gsap.registerPlugin(ScrollTrigger);
 
       &.success {
         background: rgba(74, 222, 128, 0.1);
-        color: #4ade80;
+        color: var(--accent-green);
         border: 1px solid rgba(74, 222, 128, 0.2);
       }
     }
@@ -411,7 +411,7 @@ gsap.registerPlugin(ScrollTrigger);
     }
 
     .success .pulse-ring {
-      background: rgba(74, 222, 128, 0.3);
+      background: var(--border-green);
     }
 
     @keyframes pulseRing {
@@ -451,7 +451,7 @@ gsap.registerPlugin(ScrollTrigger);
     }
 
     .protection-item {
-      border-left: 3px solid #4ade80;
+      border-left: 3px solid var(--accent-green);
       opacity: 0;
       transform: translateX(20px);
       transition: all 0.4s ease;
@@ -469,7 +469,7 @@ gsap.registerPlugin(ScrollTrigger);
     }
 
     .protection-icon {
-      color: #4ade80;
+      color: var(--accent-green);
       font-size: 18px;
     }
 
@@ -492,9 +492,9 @@ gsap.registerPlugin(ScrollTrigger);
       }
 
       .comment { color: var(--text-dim); }
-      .prompt { color: #FF7A30; }
+      .prompt { color: var(--accent-cyan); }
       .output-bad { color: var(--accent-red); }
-      .output-good { color: #4ade80; }
+      .output-good { color: var(--accent-green); }
     }
 
     /* Center divider */
@@ -531,7 +531,7 @@ gsap.registerPlugin(ScrollTrigger);
 
     .shield-container.active .shield-glow {
       opacity: 1;
-      background: radial-gradient(circle, rgba(74, 222, 128, 0.4) 0%, transparent 70%);
+      background: radial-gradient(circle, var(--border-green) 0%, transparent 70%);
     }
 
     .shield-icon {
@@ -555,8 +555,8 @@ gsap.registerPlugin(ScrollTrigger);
     }
 
     .shield-container.active .shield-icon {
-      border-color: #4ade80;
-      color: #4ade80;
+      border-color: var(--accent-green);
+      color: var(--accent-green);
       background: rgba(74, 222, 128, 0.1);
     }
 
@@ -571,7 +571,7 @@ gsap.registerPlugin(ScrollTrigger);
     }
 
     .shield-container.active .shield-ring {
-      border-top-color: #4ade80;
+      border-top-color: var(--accent-green);
     }
 
     @keyframes rotate {
@@ -616,11 +616,11 @@ gsap.registerPlugin(ScrollTrigger);
       }
 
       &.secured {
-        border-color: rgba(74, 222, 128, 0.4);
+        border-color: var(--border-green);
 
         .toggle-thumb {
           left: calc(100% - 56px);
-          background: #4ade80;
+          background: var(--accent-green);
           color: var(--bg-primary);
         }
 
@@ -630,7 +630,7 @@ gsap.registerPlugin(ScrollTrigger);
 
         .toggle-label-on {
           opacity: 1;
-          color: #4ade80;
+          color: var(--accent-green);
         }
       }
 

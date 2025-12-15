@@ -247,6 +247,7 @@ interface Stat {
       width: 80px;
       height: 80px;
       background: linear-gradient(135deg, transparent 50%, var(--stat-color, rgba(255, 122, 48, 0.1)) 50%);
+      opacity: 0.5;
       transition: transform 0.4s;
     }
 
@@ -367,7 +368,6 @@ export class StatsComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('container') containerRef!: ElementRef<HTMLElement>;
 
   private ngZone = inject(NgZone);
-  private el = inject(ElementRef);
   private scrollTrigger: ScrollTrigger | null = null;
   private counterAnimations: gsap.core.Tween[] = [];
 
@@ -421,8 +421,6 @@ export class StatsComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private initCounterAnimations() {
     this.ngZone.runOutsideAngular(() => {
-      const statBlocks = this.el.nativeElement.querySelectorAll('.stat-block');
-
       this.scrollTrigger = ScrollTrigger.create({
         trigger: this.containerRef.nativeElement,
         start: 'top 70%',
