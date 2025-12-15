@@ -236,10 +236,21 @@ interface Feature {
       left: 0;
       right: 0;
       height: 150px;
-      background: radial-gradient(ellipse at top, rgba(78, 205, 196, 0.1) 0%, transparent 70%);
+      background: radial-gradient(ellipse at top, rgba(255, 122, 48, 0.1) 0%, transparent 70%);
       opacity: 0;
       transition: opacity 0.4s;
       pointer-events: none;
+    }
+
+    // Alternate blue glow for visual variety
+    .bento-card[data-index="1"] .card-glow,
+    .bento-card[data-index="3"] .card-glow {
+      background: radial-gradient(ellipse at top, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+    }
+
+    .bento-card[data-index="1"]:hover,
+    .bento-card[data-index="3"]:hover {
+      border-color: var(--border-blue);
     }
 
     .card-header {
@@ -269,7 +280,7 @@ interface Feature {
       font-family: var(--font-mono);
       font-size: 11px;
       color: var(--accent-cyan);
-      background: rgba(78, 205, 196, 0.1);
+      background: rgba(255, 122, 48, 0.1);
       padding: 5px 10px;
       border-radius: 6px;
       letter-spacing: 0.02em;
@@ -308,11 +319,11 @@ interface Feature {
 
         :host ::ng-deep {
           .token-comment { color: #6a737d; font-style: italic; }
-          .token-section { color: #79c0ff; }
-          .token-key { color: #7ee787; }
+          .token-section { color: #3B82F6; font-weight: bold; }
+          .token-key { color: #FF7A30; }
           .token-operator { color: var(--text-muted); }
-          .token-string { color: #a5d6ff; }
-          .token-value { color: #ffa657; }
+          .token-string { color: #94a3b8; }
+          .token-value { color: #E9E3DF; }
         }
       }
     }
@@ -337,7 +348,7 @@ interface Feature {
 
     .size-fill {
       height: 40px;
-      background: rgba(78, 205, 196, 0.15);
+      background: rgba(255, 122, 48, 0.15);
       border: 1px solid var(--border-accent);
       border-radius: 8px;
       display: flex;

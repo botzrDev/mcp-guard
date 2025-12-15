@@ -353,9 +353,44 @@ import { CommonModule } from '@angular/common';
       text-decoration: none;
       color: var(--text-primary);
       transition: opacity 0.2s;
+      position: relative;
+
+      // Subtle orange glow under logo on hover
+      &::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        width: 42px;
+        height: 42px;
+        transform: translateY(-50%);
+        background: radial-gradient(circle, rgba(255, 122, 48, 0.4) 0%, transparent 70%);
+        border-radius: 50%;
+        opacity: 0;
+        filter: blur(8px);
+        transition: opacity 0.3s ease, filter 0.15s ease;
+        pointer-events: none;
+        z-index: -1;
+      }
 
       &:hover {
-        opacity: 0.9;
+        opacity: 1;
+
+        &::after {
+          opacity: 1;
+        }
+      }
+
+      &:active {
+        &::after {
+          opacity: 1;
+          background: radial-gradient(circle, rgba(255, 122, 48, 0.7) 0%, rgba(255, 122, 48, 0.2) 50%, transparent 70%);
+          filter: blur(12px);
+        }
+
+        .logo-img {
+          filter: drop-shadow(0 0 16px rgba(255, 122, 48, 0.6));
+        }
       }
     }
 
@@ -364,6 +399,7 @@ import { CommonModule } from '@angular/common';
       height: 42px;
       object-fit: contain;
       filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.3));
+      transition: filter 0.15s ease;
     }
 
     .logo-stack {

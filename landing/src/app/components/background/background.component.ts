@@ -41,9 +41,9 @@ interface Node {
       <svg class="node-network" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
         <defs>
           <linearGradient id="line-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#4ecdc4" stop-opacity="0"/>
-            <stop offset="50%" stop-color="#4ecdc4" stop-opacity="0.3"/>
-            <stop offset="100%" stop-color="#4ecdc4" stop-opacity="0"/>
+            <stop offset="0%" stop-color="#FF7A30" stop-opacity="0"/>
+            <stop offset="50%" stop-color="#FF7A30" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="#FF7A30" stop-opacity="0"/>
           </linearGradient>
           <filter id="glow">
             <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
@@ -75,7 +75,7 @@ interface Node {
               [attr.cx]="node.x"
               [attr.cy]="node.y"
               r="4"
-              fill="#4ecdc4"
+              fill="#FF7A30"
               [attr.opacity]="node.active ? 0.8 : 0.3"
               filter="url(#glow)"
             />
@@ -85,7 +85,7 @@ interface Node {
                 [attr.cy]="node.y"
                 r="12"
                 fill="none"
-                stroke="#4ecdc4"
+                stroke="#FF7A30"
                 stroke-width="1"
                 class="pulse-ring"
               />
@@ -155,7 +155,7 @@ interface Node {
     .orb-1 {
       width: 600px;
       height: 600px;
-      background: radial-gradient(circle, rgba(78, 205, 196, 0.15) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(255, 122, 48, 0.15) 0%, transparent 70%);
       top: -200px;
       right: -100px;
       animation-delay: 0s;
@@ -164,7 +164,7 @@ interface Node {
     .orb-2 {
       width: 500px;
       height: 500px;
-      background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%);
       bottom: -150px;
       left: -100px;
       animation-delay: -7s;
@@ -173,7 +173,7 @@ interface Node {
     .orb-3 {
       width: 400px;
       height: 400px;
-      background: radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
       top: 40%;
       left: 30%;
       animation-delay: -14s;
@@ -220,7 +220,7 @@ interface Node {
       bottom: -50px;
       width: 24px;
       height: 24px;
-      color: rgba(78, 205, 196, 0.3);
+      color: rgba(255, 122, 48, 0.3);
       animation: shield-rise 20s linear infinite;
 
       svg {
@@ -237,8 +237,8 @@ interface Node {
         0deg,
         transparent,
         transparent 2px,
-        rgba(78, 205, 196, 0.01) 2px,
-        rgba(78, 205, 196, 0.01) 4px
+        rgba(255, 122, 48, 0.01) 2px,
+        rgba(255, 122, 48, 0.01) 4px
       );
       animation: scan-drift 8s linear infinite;
     }
@@ -500,11 +500,11 @@ export class BackgroundComponent implements OnInit, OnDestroy, AfterViewInit {
       // Simple glowing dot
       this.ctx.beginPath();
       this.ctx.arc(0, 0, p.size, 0, Math.PI * 2);
-      this.ctx.fillStyle = '#4ecdc4';
+      this.ctx.fillStyle = '#FF7A30';
       this.ctx.fill();
     } else if (p.type === 'shield') {
       // Shield outline
-      this.ctx.strokeStyle = '#4ecdc4';
+      this.ctx.strokeStyle = '#FF7A30';
       this.ctx.lineWidth = 1;
       this.ctx.beginPath();
       const s = p.size * 2;
@@ -518,7 +518,7 @@ export class BackgroundComponent implements OnInit, OnDestroy, AfterViewInit {
       this.ctx.stroke();
     } else if (p.type === 'hex') {
       // Hexagon
-      this.ctx.strokeStyle = '#3b82f6';
+      this.ctx.strokeStyle = '#3B82F6';
       this.ctx.lineWidth = 1;
       this.ctx.beginPath();
       for (let i = 0; i < 6; i++) {

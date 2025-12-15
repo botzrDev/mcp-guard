@@ -1,37 +1,42 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
 :root {
-  // Core palette
-  --bg-void: #030305;
-  --bg-primary: #050508;
-  --bg-secondary: #0a0a0f;
-  --bg-elevated: #111118;
-  --bg-card: #16161f;
-  --bg-hover: #1c1c26;
+  // Core palette - Retro Space Theme
+  --bg-void: #000000;
+  --bg-primary: #0a0c10;
+  --bg-secondary: #0f1218;
+  --bg-elevated: #1a1e26;
+  --bg-card: #222630;
+  --bg-hover: #2d323e;
 
-  // Brand colors from logo
-  --accent-cyan: #4ecdc4;
-  --accent-cyan-dim: #3ba89f;
-  --accent-blue: #3b82f6;
+  // Brand colors from palette
+  --accent-cyan: #FF7A30; // Primary Pop (Orange)
+  --accent-cyan-dim: #cc6226;
+  --accent-blue: #3B82F6; // Logo Blue - vibrant accent
+  --accent-blue-dim: #2563EB; // Deeper logo blue
+  --accent-slate: #465C88; // Secondary (Slate Blue)
   --accent-red: #ef4444;
   --accent-purple: #8b5cf6;
   --accent-orange: #f97316;
 
   // Gradients
-  --gradient-brand: linear-gradient(135deg, #4ecdc4 0%, #3b82f6 50%, #8b5cf6 100%);
-  --gradient-glow: radial-gradient(ellipse at center, rgba(78, 205, 196, 0.12) 0%, transparent 70%);
+  --gradient-brand: linear-gradient(135deg, #FF7A30 0%, #ff4d00 50%, #3B82F6 100%);
+  --gradient-blue-glow: radial-gradient(ellipse at center, rgba(59, 130, 246, 0.12) 0%, transparent 70%);
+  --gradient-glow: radial-gradient(ellipse at center, rgba(255, 122, 48, 0.15) 0%, transparent 70%);
   --gradient-red-glow: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.08) 0%, transparent 70%);
+  --gradient-dual: linear-gradient(135deg, rgba(255, 122, 48, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
 
   // Text
-  --text-primary: #f8fafc;
+  --text-primary: #E9E3DF;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
   --text-dim: #475569;
 
   // Borders
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-medium: rgba(255, 255, 255, 0.1);
-  --border-accent: rgba(78, 205, 196, 0.3);
+  --border-subtle: rgba(233, 227, 223, 0.08);
+  --border-medium: rgba(233, 227, 223, 0.15);
+  --border-accent: rgba(255, 122, 48, 0.3);
+  --border-blue: rgba(59, 130, 246, 0.25);
   --border-red: rgba(239, 68, 68, 0.3);
 
   // Typography
@@ -62,7 +67,9 @@
   --duration-slow: 400ms;
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -85,8 +92,8 @@ body {
 
 // Selection
 ::selection {
-  background: rgba(78, 205, 196, 0.3);
-  color: var(--text-primary);
+  background: rgba(255, 122, 48, 0.3);
+  color: #ffffff;
 }
 
 // Scrollbar
@@ -114,6 +121,7 @@ body {
     opacity: 0;
     transform: translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -121,44 +129,94 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
 @keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 @keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+
+  0%,
+  50% {
+    opacity: 1;
+  }
+
+  51%,
+  100% {
+    opacity: 0;
+  }
 }
 
 @keyframes gradient-shift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 @keyframes radar-sweep {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes typing {
-  from { width: 0; }
-  to { width: 100%; }
+  from {
+    width: 0;
+  }
+
+  to {
+    width: 100%;
+  }
 }
 
 @keyframes slideInLeft {
@@ -166,6 +224,7 @@ body {
     opacity: 0;
     transform: translateX(-50px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -177,6 +236,7 @@ body {
     opacity: 0;
     transform: translateX(50px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -188,6 +248,7 @@ body {
     opacity: 0;
     transform: scale(0.9);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -198,14 +259,22 @@ body {
   from {
     stroke-dashoffset: 200;
   }
+
   to {
     stroke-dashoffset: 0;
   }
 }
 
 @keyframes wiggle {
-  0%, 100% { transform: rotate(-1deg); }
-  50% { transform: rotate(1deg); }
+
+  0%,
+  100% {
+    transform: rotate(-1deg);
+  }
+
+  50% {
+    transform: rotate(1deg);
+  }
 }
 
 // Scroll-triggered animation classes
@@ -262,6 +331,7 @@ body {
 
 // Reduced motion support
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {

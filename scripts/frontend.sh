@@ -85,6 +85,67 @@ get_pid() {
     echo ""
 }
 
+get_port_pid() {
+    # Get PID of any process using port 4200, regardless of PID file
+    # Try multiple methods since lsof may not have permissions
+    local port_pid=""
+
+    # Try lsof first (may need root on some systems)
+    if command -v lsof &> /dev/null; then
+        port_pid=$(lsof -ti:4200 2>/dev/null | head -1)
+    fi
+
+    # Fall back to ss if lsof didn't find anything
+    if [ -z "$port_pid" ] && command -v ss &> /dev/null; then
+        port_pid=$(ss -tlnp 'sport = :4200' 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1)
+    fi
+
+    # Fall back to netstat if ss didn't find anything
+    if [ -z "$port_pid" ] && command -v netstat &> /dev/null; then
+        port_pid=$(netstat -tlnp 2>/dev/null | grep ':4200 ' | grep -oP '\s\K[0-9]+(?=/)' | head -1)
+    fi
+
+    echo "$port_pid"
+}
+
+kill_port_process() {
+    # Kill any process using port 4200
+    local port_pid=$(get_port_pid)
+    if [ -n "$port_pid" ]; then
+        print_warning "Found process using port 4200 (PID: $port_pid)"
+        print_status "Stopping orphaned process..."
+
+        # Send SIGTERM first
+        kill "$port_pid" 2>/dev/null || true
+
+        # Wait up to 5 seconds for graceful shutdown
+        for i in {1..5}; do
+            if ! kill -0 "$port_pid" 2>/dev/null; then
+                print_success "Orphaned process stopped"
+                return 0
+            fi
+            sleep 1
+        done
+
+        # Force kill if still running
+        if kill -0 "$port_pid" 2>/dev/null; then
+            print_warning "Process didn't stop gracefully, forcing..."
+            kill -9 "$port_pid" 2>/dev/null || true
+            sleep 1
+        fi
+
+        # Verify it's gone
+        if ! kill -0 "$port_pid" 2>/dev/null; then
+            print_success "Orphaned process stopped"
+            return 0
+        else
+            print_error "Failed to stop process on port 4200"
+            return 1
+        fi
+    fi
+    return 0
+}
+
 cmd_start() {
     check_deps
 
@@ -93,6 +154,14 @@ cmd_start() {
         print_warning "Dev server already running (PID: $pid)"
         print_status "Access at http://localhost:4200"
         return
+    fi
+
+    # Check if port 4200 is already in use by an orphaned process
+    local port_pid=$(get_port_pid)
+    if [ -n "$port_pid" ]; then
+        print_warning "Port 4200 is already in use by another process (PID: $port_pid)"
+        print_status "Use './scripts/frontend.sh stop' to kill it, or './scripts/frontend.sh restart' to restart"
+        exit 1
     fi
 
     print_status "Starting development server..."
@@ -131,7 +200,14 @@ cmd_dev() {
 cmd_stop() {
     local pid=$(get_pid)
     if [ -z "$pid" ]; then
-        print_warning "Dev server is not running (no PID file found)"
+        # No PID file, but check if something is using port 4200 anyway
+        local port_pid=$(get_port_pid)
+        if [ -n "$port_pid" ]; then
+            print_warning "No PID file found, but port 4200 is in use (PID: $port_pid)"
+            kill_port_process
+            return
+        fi
+        print_warning "Dev server is not running"
         return
     fi
 
@@ -155,6 +231,14 @@ cmd_stop() {
     fi
 
     rm -f "$PID_FILE"
+
+    # Also check if there are any orphaned processes on the port
+    local port_pid=$(get_port_pid)
+    if [ -n "$port_pid" ]; then
+        print_warning "Found additional process on port 4200 (PID: $port_pid)"
+        kill_port_process
+    fi
+
     print_success "Dev server stopped"
 }
 
@@ -206,7 +290,14 @@ cmd_status() {
         print_success "Dev server is running (PID: $pid)"
         print_status "Access at http://localhost:4200"
     else
-        print_warning "Dev server is not running"
+        # Check if port is in use by orphaned process
+        local port_pid=$(get_port_pid)
+        if [ -n "$port_pid" ]; then
+            print_warning "Dev server not managed by this script, but port 4200 is in use (PID: $port_pid)"
+            print_status "Use './scripts/frontend.sh stop' to kill it"
+        else
+            print_warning "Dev server is not running"
+        fi
     fi
 }
 

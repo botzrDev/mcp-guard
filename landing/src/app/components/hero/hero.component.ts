@@ -44,9 +44,9 @@ import { CommonModule } from '@angular/common';
                   <path d="M2 8 Q 50 2, 100 6 T 198 4" stroke="url(#underline-gradient)" stroke-width="3" fill="none" stroke-linecap="round"/>
                   <defs>
                     <linearGradient id="underline-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stop-color="#4ecdc4"/>
-                      <stop offset="50%" stop-color="#3b82f6"/>
-                      <stop offset="100%" stop-color="#8b5cf6"/>
+                      <stop offset="0%" stop-color="#FF7A30"/>
+                      <stop offset="50%" stop-color="#ff4d00"/>
+                      <stop offset="100%" stop-color="#3B82F6"/>
                     </linearGradient>
                   </defs>
                 </svg>
@@ -164,7 +164,7 @@ import { CommonModule } from '@angular/common';
     .radar-sweep {
       position: absolute;
       inset: 0;
-      background: conic-gradient(from 0deg, transparent 0deg, rgba(78, 205, 196, 0.3) 30deg, transparent 60deg);
+      background: conic-gradient(from 0deg, transparent 0deg, rgba(255, 122, 48, 0.3) 30deg, transparent 60deg);
       border-radius: 50%;
       animation: radar-sweep 4s linear infinite;
     }
@@ -176,7 +176,7 @@ import { CommonModule } from '@angular/common';
 
     .radar-ring {
       position: absolute;
-      border: 1px solid rgba(78, 205, 196, 0.15);
+      border: 1px solid rgba(255, 122, 48, 0.15);
       border-radius: 50%;
     }
 
@@ -196,8 +196,8 @@ import { CommonModule } from '@angular/common';
       position: absolute;
       inset: 0;
       background-image:
-        linear-gradient(rgba(78, 205, 196, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(78, 205, 196, 0.03) 1px, transparent 1px);
+        linear-gradient(rgba(255, 122, 48, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 122, 48, 0.03) 1px, transparent 1px);
       background-size: 50px 50px;
     }
 
@@ -210,7 +210,7 @@ import { CommonModule } from '@angular/common';
     .orb-1 {
       width: 600px;
       height: 600px;
-      background: rgba(78, 205, 196, 0.15);
+      background: rgba(255, 122, 48, 0.15);
       top: -200px;
       left: -200px;
     }
@@ -218,7 +218,7 @@ import { CommonModule } from '@angular/common';
     .orb-2 {
       width: 400px;
       height: 400px;
-      background: rgba(139, 92, 246, 0.1);
+      background: rgba(59, 130, 246, 0.12);
       bottom: -100px;
       right: 10%;
     }
@@ -363,7 +363,7 @@ import { CommonModule } from '@angular/common';
       font-size: 15px;
       font-weight: 600;
       border-radius: 10px;
-      box-shadow: 0 0 30px rgba(78, 205, 196, 0.4);
+      box-shadow: 0 0 30px rgba(255, 122, 48, 0.4);
       transition: all 0.3s;
 
       svg {
@@ -373,7 +373,7 @@ import { CommonModule } from '@angular/common';
 
       &:hover {
         transform: translateY(-2px);
-        box-shadow: 0 0 40px rgba(78, 205, 196, 0.6);
+        box-shadow: 0 0 40px rgba(255, 122, 48, 0.6);
       }
     }
 
@@ -439,7 +439,7 @@ import { CommonModule } from '@angular/common';
       box-shadow:
         0 0 0 1px rgba(255, 255, 255, 0.05),
         0 25px 50px -12px rgba(0, 0, 0, 0.5),
-        0 0 80px -20px rgba(78, 205, 196, 0.3);
+        0 0 80px -20px rgba(255, 122, 48, 0.2);
     }
 
     .terminal-header {
@@ -606,7 +606,7 @@ import { CommonModule } from '@angular/common';
         content: '';
         position: absolute;
         inset: 0;
-        background: linear-gradient(90deg, transparent, rgba(78, 205, 196, 0.05), transparent);
+        background: linear-gradient(90deg, transparent, rgba(255, 122, 48, 0.05), transparent);
         animation: shimmer 3s infinite;
       }
 
