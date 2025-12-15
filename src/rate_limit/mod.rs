@@ -50,20 +50,32 @@ pub struct RateLimitResult {
     pub allowed: bool,
     /// Seconds until the client can retry (for 429 Retry-After header)
     pub retry_after_secs: Option<u64>,
+    /// The configured rate limit (requests per second)
+    pub limit: u32,
+    /// Approximate remaining requests in the current window
+    pub remaining: u32,
+    /// Unix timestamp when the rate limit resets
+    pub reset_at: u64,
 }
 
 impl RateLimitResult {
-    fn allowed() -> Self {
+    fn allowed(limit: u32, remaining: u32, reset_at: u64) -> Self {
         Self {
             allowed: true,
             retry_after_secs: None,
+            limit,
+            remaining,
+            reset_at,
         }
     }
 
-    fn denied(retry_after_secs: u64) -> Self {
+    fn denied(retry_after_secs: u64, limit: u32, reset_at: u64) -> Self {
         Self {
             allowed: false,
             retry_after_secs: Some(retry_after_secs),
+            limit,
+            remaining: 0,
+            reset_at,
         }
     }
 }
@@ -160,19 +172,37 @@ impl RateLimitService {
     /// # Returns
     /// A `RateLimitResult` indicating whether the request is allowed and retry-after time if denied
     pub fn check(&self, identity_id: &str, custom_limit: Option<u32>) -> RateLimitResult {
+        // Calculate the effective limit for this identity
+        let limit = custom_limit.unwrap_or(self.default_rps);
+        let burst = custom_limit
+            .map(|rps| (rps as f32 * 0.5).max(1.0) as u32)
+            .unwrap_or(self.default_burst);
+
+        // Calculate reset timestamp (1 second from now, since we use per-second limits)
+        let reset_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() + 1)
+            .unwrap_or(0);
+
         if !self.enabled {
-            return RateLimitResult::allowed();
+            // When disabled, report max capacity
+            return RateLimitResult::allowed(limit, burst, reset_at);
         }
 
         let limiter = self.get_identity_limiter(identity_id, custom_limit);
 
         match limiter.check() {
-            Ok(_) => RateLimitResult::allowed(),
+            Ok(_) => {
+                // Estimate remaining tokens (burst - 1 since we just consumed one)
+                // This is approximate since Governor doesn't expose exact token count
+                let remaining = burst.saturating_sub(1);
+                RateLimitResult::allowed(limit, remaining, reset_at)
+            }
             Err(not_until) => {
                 // Calculate retry-after in seconds
                 let wait_duration = not_until.wait_time_from(DefaultClock::default().now());
                 let retry_secs = wait_duration.as_secs().max(1);
-                RateLimitResult::denied(retry_secs)
+                RateLimitResult::denied(retry_secs, limit, reset_at)
             }
         }
     }

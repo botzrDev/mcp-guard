@@ -318,6 +318,172 @@ mcp-guard check-upstream [--timeout N]              # Test upstream connectivity
               └─────────┘   └──────────┘
 ```
 
+## Security Considerations
+
+### Credential Management
+
+- **API Keys**: Store only hashed keys in config files. Generate keys with `mcp-guard keygen`.
+- **OAuth Secrets**: Use environment variables or a secrets manager for `client_secret`.
+- **JWT Secrets**: For JWKS mode, no local secrets needed. For simple mode, use a strong random secret (32+ chars).
+
+### Network Security
+
+- **TLS**: Use a reverse proxy (nginx, Caddy) for TLS termination in production.
+- **mTLS**: For service-to-service auth, configure your reverse proxy to forward client cert headers.
+- **JWKS URLs**: Must use HTTPS in production builds (enforced by config validation).
+
+### Headers & Responses
+
+mcp-guard adds security headers to all responses:
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Content-Security-Policy: default-src 'none'`
+
+Error responses include a unique `error_id` for correlation but never expose:
+- Internal file paths or commands
+- Database connection strings
+- Stack traces or internal errors
+
+### Rate Limiting Headers
+
+Successful requests include standard rate limit headers:
+- `X-RateLimit-Limit`: Maximum requests per second
+- `X-RateLimit-Remaining`: Approximate remaining requests
+- `X-RateLimit-Reset`: Unix timestamp when limit resets
+
+## Performance Tuning
+
+### Targets
+
+mcp-guard is designed to meet these performance targets:
+
+| Metric | Target |
+|--------|--------|
+| Latency overhead | <2ms p99 |
+| Throughput | >5,000 RPS |
+| Memory | <50MB RSS |
+| Binary size | <15MB |
+
+### Rate Limiting
+
+```toml
+[rate_limit]
+requests_per_second = 100  # Global default RPS
+burst_size = 50            # Allows short traffic spikes
+```
+
+Per-identity limits can be set in API key config or JWT `scope_tool_mapping`.
+
+### Memory Management
+
+- Rate limiter entries expire after 1 hour of inactivity
+- OAuth token cache uses LRU eviction (max 500 entries)
+- Audit log batching reduces memory pressure
+
+### Tracing Overhead
+
+For high-throughput scenarios, reduce tracing overhead:
+
+```toml
+[tracing]
+sample_rate = 0.1  # Sample 10% of requests
+```
+
+### Connection Pooling
+
+For HTTP/SSE transports, mcp-guard uses connection pooling via `reqwest`. No additional configuration needed.
+
+## Troubleshooting
+
+### Common Issues
+
+**Authentication failures**
+
+```
+401 Unauthorized: Invalid API key
+```
+
+- Verify the key is correct (API keys are shown only once during generation)
+- Check the key hash in your config matches `mcp-guard hash-key <your-key>`
+- For JWT: verify issuer and audience match your token
+
+**Rate limit errors**
+
+```
+429 Too Many Requests
+```
+
+- Check `X-RateLimit-*` headers for current limits
+- Increase `burst_size` for bursty workloads
+- Set per-identity custom limits for high-volume clients
+
+**Upstream connection issues**
+
+```
+502 Bad Gateway: Upstream communication error
+```
+
+- Test connectivity: `mcp-guard check-upstream`
+- For stdio: ensure the command path is correct and executable
+- For HTTP/SSE: verify the URL is reachable
+
+**Server not ready**
+
+```
+503 Service Unavailable: Transport not initialized
+```
+
+- The upstream transport failed to initialize
+- Check logs for specific errors
+- Verify upstream server is running
+
+### Debugging
+
+Enable verbose logging:
+
+```bash
+mcp-guard run -v
+```
+
+Check server health:
+
+```bash
+curl http://localhost:3000/health
+curl http://localhost:3000/ready
+```
+
+View metrics:
+
+```bash
+curl http://localhost:3000/metrics
+```
+
+### Log Correlation
+
+All errors include an `error_id` field. Use this to correlate:
+- Client error responses
+- Server logs
+- Distributed traces (if tracing enabled)
+
+Example:
+```json
+{"error": "Rate limit exceeded", "error_id": "a1b2c3d4-..."}
+```
+
+Search logs: `grep a1b2c3d4 /var/log/mcp-guard.log`
+
+## Comparison with Alternatives
+
+| Feature | mcp-guard | DIY Proxy | Cloud Gateway |
+|---------|-----------|-----------|---------------|
+| Setup time | 5 minutes | Hours | Varies |
+| Infrastructure | Single binary | Containers/VMs | Cloud account |
+| Auth providers | 4 (API key, JWT, OAuth, mTLS) | Build yourself | Limited |
+| Cost | Free / $12-29/mo | Development time | Usage-based |
+| Latency overhead | <2ms | Variable | 10-50ms |
+| Self-hosted | Yes | Yes | No |
+| Audit logging | Built-in + SIEM export | Build yourself | Usually |
+
 ## License
 
 AGPL-3.0

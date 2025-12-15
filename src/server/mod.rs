@@ -476,6 +476,8 @@ async fn exchange_code_for_tokens(
     })
 }
 
+use crate::rate_limit::RateLimitResult;
+
 /// Authentication middleware with metrics
 ///
 /// Supports multiple authentication methods in order of preference:
@@ -502,11 +504,13 @@ pub async fn auth_middleware(
 
                         if !rate_limit_result.allowed {
                             state.audit_logger.log_rate_limited(&identity.id);
-                            return Err(AppError::rate_limited(rate_limit_result.retry_after_secs));
+                            return Err(AppError::rate_limited_with_info(rate_limit_result));
                         }
 
                         request.extensions_mut().insert(identity);
-                        return Ok(next.run(request).await);
+                        let mut response = next.run(request).await;
+                        add_rate_limit_headers_from_result(&mut response, &rate_limit_result);
+                        return Ok(response);
                     }
                     Err(e) => {
                         record_auth("mtls", false);
@@ -549,13 +553,36 @@ pub async fn auth_middleware(
 
     if !rate_limit_result.allowed {
         state.audit_logger.log_rate_limited(&identity.id);
-        return Err(AppError::rate_limited(rate_limit_result.retry_after_secs));
+        return Err(AppError::rate_limited_with_info(rate_limit_result));
     }
 
     // Add identity to request extensions
     request.extensions_mut().insert(identity);
 
-    Ok(next.run(request).await)
+    // Run the request and add rate limit headers to response
+    let mut response = next.run(request).await;
+    add_rate_limit_headers_from_result(&mut response, &rate_limit_result);
+    Ok(response)
+}
+
+/// Add rate limit headers to a response
+///
+/// Headers added (per RFC 6585 and draft-ietf-httpapi-ratelimit-headers):
+/// - `X-RateLimit-Limit`: The maximum number of requests allowed per second
+/// - `X-RateLimit-Remaining`: Approximate remaining requests in current window
+/// - `X-RateLimit-Reset`: Unix timestamp when the rate limit resets
+fn add_rate_limit_headers_from_result(response: &mut Response, rate_limit: &RateLimitResult) {
+    let headers = response.headers_mut();
+
+    if let Ok(limit) = HeaderValue::from_str(&rate_limit.limit.to_string()) {
+        headers.insert(HeaderName::from_static("x-ratelimit-limit"), limit);
+    }
+    if let Ok(remaining) = HeaderValue::from_str(&rate_limit.remaining.to_string()) {
+        headers.insert(HeaderName::from_static("x-ratelimit-remaining"), remaining);
+    }
+    if let Ok(reset) = HeaderValue::from_str(&rate_limit.reset_at.to_string()) {
+        headers.insert(HeaderName::from_static("x-ratelimit-reset"), reset);
+    }
 }
 
 /// Middleware for recording request duration metrics
@@ -695,7 +722,12 @@ pub enum AppErrorKind {
     Unauthorized(String),
     Forbidden(String),
     NotFound(String),
-    RateLimited { retry_after_secs: Option<u64> },
+    RateLimited {
+        retry_after_secs: Option<u64>,
+        limit: Option<u32>,
+        remaining: Option<u32>,
+        reset_at: Option<u64>,
+    },
     Transport(crate::transport::TransportError),
     Internal(String),
 }
@@ -724,7 +756,22 @@ impl AppError {
 
     /// Create a RateLimited error
     pub fn rate_limited(retry_after_secs: Option<u64>) -> Self {
-        Self::new(AppErrorKind::RateLimited { retry_after_secs })
+        Self::new(AppErrorKind::RateLimited {
+            retry_after_secs,
+            limit: None,
+            remaining: None,
+            reset_at: None,
+        })
+    }
+
+    /// Create a RateLimited error with full rate limit info
+    pub fn rate_limited_with_info(rate_limit: RateLimitResult) -> Self {
+        Self::new(AppErrorKind::RateLimited {
+            retry_after_secs: rate_limit.retry_after_secs,
+            limit: Some(rate_limit.limit),
+            remaining: Some(rate_limit.remaining),
+            reset_at: Some(rate_limit.reset_at),
+        })
     }
 
     /// Create a Transport error
@@ -773,7 +820,7 @@ impl IntoResponse for AppError {
                 });
                 (StatusCode::NOT_FOUND, Json(body)).into_response()
             }
-            AppErrorKind::RateLimited { retry_after_secs } => {
+            AppErrorKind::RateLimited { retry_after_secs, limit, remaining, reset_at } => {
                 let retry_after = retry_after_secs.unwrap_or(1);
                 tracing::debug!(error_id = %error_id, retry_after = retry_after, "Rate limit exceeded");
                 let body = serde_json::json!({
@@ -781,13 +828,34 @@ impl IntoResponse for AppError {
                     "retry_after": retry_after,
                     "error_id": error_id
                 });
-                // FR-RATE-05: Return 429 with Retry-After header
-                (
-                    StatusCode::TOO_MANY_REQUESTS,
-                    [(header::RETRY_AFTER, retry_after.to_string())],
-                    Json(body),
-                )
-                    .into_response()
+
+                // Build response with all rate limit headers (FR-RATE-05 + P1 enhancements)
+                let mut response = (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();
+                let headers = response.headers_mut();
+
+                // Retry-After header (required by RFC 6585)
+                if let Ok(val) = HeaderValue::from_str(&retry_after.to_string()) {
+                    headers.insert(header::RETRY_AFTER, val);
+                }
+
+                // X-RateLimit-* headers (draft-ietf-httpapi-ratelimit-headers)
+                if let Some(l) = limit {
+                    if let Ok(val) = HeaderValue::from_str(&l.to_string()) {
+                        headers.insert(HeaderName::from_static("x-ratelimit-limit"), val);
+                    }
+                }
+                if let Some(r) = remaining {
+                    if let Ok(val) = HeaderValue::from_str(&r.to_string()) {
+                        headers.insert(HeaderName::from_static("x-ratelimit-remaining"), val);
+                    }
+                }
+                if let Some(reset) = reset_at {
+                    if let Ok(val) = HeaderValue::from_str(&reset.to_string()) {
+                        headers.insert(HeaderName::from_static("x-ratelimit-reset"), val);
+                    }
+                }
+
+                response
             }
             AppErrorKind::Transport(e) => {
                 // Log the full error internally for debugging, but return sanitized message
@@ -900,4 +968,297 @@ pub async fn run(state: Arc<AppState>) -> Result<(), crate::Error> {
     axum::serve(listener, app)
         .await
         .map_err(|e| crate::Error::Server(e.to_string()))
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::{Request, StatusCode};
+    use opentelemetry::propagation::Extractor;
+    use tower::ServiceExt;
+
+    // ------------------------------------------------------------------------
+    // AppError Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_app_error_unauthorized() {
+        let err = AppError::unauthorized("Invalid token");
+        assert!(matches!(err.kind, AppErrorKind::Unauthorized(_)));
+        assert!(!err.error_id.is_empty());
+    }
+
+    #[test]
+    fn test_app_error_forbidden() {
+        let err = AppError::forbidden("Access denied");
+        assert!(matches!(err.kind, AppErrorKind::Forbidden(_)));
+    }
+
+    #[test]
+    fn test_app_error_not_found() {
+        let err = AppError::not_found("Route not found");
+        assert!(matches!(err.kind, AppErrorKind::NotFound(_)));
+    }
+
+    #[test]
+    fn test_app_error_rate_limited() {
+        let err = AppError::rate_limited(Some(5));
+        match err.kind {
+            AppErrorKind::RateLimited { retry_after_secs, .. } => {
+                assert_eq!(retry_after_secs, Some(5));
+            }
+            _ => panic!("Expected RateLimited"),
+        }
+    }
+
+    #[test]
+    fn test_app_error_internal() {
+        let err = AppError::internal("Something went wrong");
+        assert!(matches!(err.kind, AppErrorKind::Internal(_)));
+    }
+
+    #[tokio::test]
+    async fn test_app_error_unauthorized_response() {
+        let err = AppError::unauthorized("Test unauthorized");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_app_error_forbidden_response() {
+        let err = AppError::forbidden("Test forbidden");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn test_app_error_not_found_response() {
+        let err = AppError::not_found("Test not found");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_app_error_rate_limited_response() {
+        let err = AppError::rate_limited(Some(10));
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(response.headers().get(header::RETRY_AFTER).is_some());
+    }
+
+    #[tokio::test]
+    async fn test_app_error_internal_response() {
+        let err = AppError::internal("Internal error");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn test_app_error_transport_timeout_response() {
+        let err = AppError::transport(crate::transport::TransportError::Timeout);
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    }
+
+    #[tokio::test]
+    async fn test_app_error_transport_connection_closed_response() {
+        let err = AppError::transport(crate::transport::TransportError::ConnectionClosed);
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    }
+
+    // ------------------------------------------------------------------------
+    // PKCE & OAuth State Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_generate_random_string() {
+        let s1 = generate_random_string(32);
+        let s2 = generate_random_string(32);
+        assert_eq!(s1.len(), 32);
+        assert_eq!(s2.len(), 32);
+        assert_ne!(s1, s2); // Should be different each time
+    }
+
+    #[test]
+    fn test_generate_pkce() {
+        let (verifier, challenge) = generate_pkce();
+        assert_eq!(verifier.len(), 64);
+        assert!(!challenge.is_empty());
+        // Challenge should be base64url encoded SHA-256 (43 chars without padding)
+        assert_eq!(challenge.len(), 43);
+    }
+
+    #[test]
+    fn test_pkce_consistency() {
+        // Verify that verifier and challenge are correctly related
+        use sha2::{Digest, Sha256};
+        
+        let (verifier, challenge) = generate_pkce();
+        
+        // Manually compute expected challenge
+        let mut hasher = Sha256::new();
+        hasher.update(verifier.as_bytes());
+        let hash = hasher.finalize();
+        let expected_challenge = base64::Engine::encode(
+            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+            hash,
+        );
+        
+        assert_eq!(challenge, expected_challenge);
+    }
+
+    #[test]
+    fn test_new_oauth_state_store() {
+        let store = new_oauth_state_store();
+        assert!(store.is_empty());
+    }
+
+    #[test]
+    fn test_cleanup_expired_oauth_states() {
+        let store = new_oauth_state_store();
+        
+        // Add a fresh state
+        store.insert("fresh".to_string(), PkceState {
+            code_verifier: "verifier".to_string(),
+            created_at: Instant::now(),
+        });
+        
+        // Cleanup should keep fresh state
+        cleanup_expired_oauth_states(&store);
+        assert!(store.contains_key("fresh"));
+    }
+
+    // ------------------------------------------------------------------------
+    // Response Types Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_health_response_serialization() {
+        let response = HealthResponse {
+            status: "healthy",
+            version: "1.0.0",
+            uptime_secs: 100,
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("healthy"));
+        assert!(json.contains("1.0.0"));
+        assert!(json.contains("100"));
+    }
+
+    #[test]
+    fn test_live_response_serialization() {
+        let response = LiveResponse { status: "alive" };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("alive"));
+    }
+
+    #[test]
+    fn test_ready_response_ready() {
+        let response = ReadyResponse {
+            ready: true,
+            version: "1.0.0",
+            reason: None,
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("true"));
+        assert!(!json.contains("reason")); // Should be skipped when None
+    }
+
+    #[test]
+    fn test_ready_response_not_ready() {
+        let response = ReadyResponse {
+            ready: false,
+            version: "1.0.0",
+            reason: Some("Transport not initialized".to_string()),
+        };
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("false"));
+        assert!(json.contains("Transport not initialized"));
+    }
+
+    // ------------------------------------------------------------------------
+    // Security Headers Middleware Test
+    // ------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_security_headers_middleware() {
+        use axum::routing::get;
+
+        async fn dummy_handler() -> &'static str {
+            "OK"
+        }
+
+        let app = Router::new()
+            .route("/test", get(dummy_handler))
+            .layer(middleware::from_fn(security_headers_middleware));
+
+        let response = app
+            .oneshot(Request::builder().uri("/test").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        
+        // Check security headers are present
+        assert_eq!(
+            response.headers().get(header::X_CONTENT_TYPE_OPTIONS).unwrap(),
+            "nosniff"
+        );
+        assert_eq!(
+            response.headers().get(header::X_FRAME_OPTIONS).unwrap(),
+            "DENY"
+        );
+        assert_eq!(
+            response.headers().get("x-xss-protection").unwrap(),
+            "1; mode=block"
+        );
+        assert_eq!(
+            response.headers().get(header::CONTENT_SECURITY_POLICY).unwrap(),
+            "default-src 'none'"
+        );
+    }
+
+    // ------------------------------------------------------------------------
+    // Header Extractor/Injector Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_header_extractor() {
+        let mut headers = HeaderMap::new();
+        headers.insert("traceparent", HeaderValue::from_static("00-abc-def-01"));
+        
+        let extractor = HeaderExtractor(&headers);
+        assert_eq!(extractor.get("traceparent"), Some("00-abc-def-01"));
+        assert_eq!(extractor.get("missing"), None);
+    }
+
+    #[test]
+    fn test_header_extractor_keys() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-custom", HeaderValue::from_static("value"));
+        headers.insert("content-type", HeaderValue::from_static("application/json"));
+        
+        let extractor = HeaderExtractor(&headers);
+        let keys = extractor.keys();
+        assert!(keys.contains(&"x-custom"));
+        assert!(keys.contains(&"content-type"));
+    }
+
+    #[test]
+    fn test_header_injector() {
+        use opentelemetry::propagation::Injector;
+        
+        let mut headers = HeaderMap::new();
+        {
+            let mut injector = HeaderInjector(&mut headers);
+            injector.set("x-trace-id", "12345".to_string());
+        }
+        
+        assert_eq!(headers.get("x-trace-id").unwrap(), "12345");
+    }
 }

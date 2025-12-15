@@ -575,3 +575,311 @@ impl Transport for SseTransport {
         Ok(())
     }
 }
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ------------------------------------------------------------------------
+    // Message Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_message_request_construction() {
+        let msg = Message::request(1, "tools/list", None);
+        assert_eq!(msg.jsonrpc, "2.0");
+        assert_eq!(msg.id, Some(serde_json::json!(1)));
+        assert_eq!(msg.method, Some("tools/list".to_string()));
+        assert!(msg.params.is_none());
+        assert!(msg.result.is_none());
+        assert!(msg.error.is_none());
+    }
+
+    #[test]
+    fn test_message_request_with_params() {
+        let params = serde_json::json!({"name": "get_weather"});
+        let msg = Message::request("abc-123", "tools/call", Some(params.clone()));
+        assert_eq!(msg.id, Some(serde_json::json!("abc-123")));
+        assert_eq!(msg.params, Some(params));
+    }
+
+    #[test]
+    fn test_message_response_construction() {
+        let result = serde_json::json!({"tools": []});
+        let msg = Message::response(serde_json::json!(1), result.clone());
+        assert_eq!(msg.jsonrpc, "2.0");
+        assert_eq!(msg.id, Some(serde_json::json!(1)));
+        assert!(msg.method.is_none());
+        assert_eq!(msg.result, Some(result));
+        assert!(msg.error.is_none());
+    }
+
+    #[test]
+    fn test_message_error_response() {
+        let msg = Message::error_response(Some(serde_json::json!(1)), -32600, "Invalid Request");
+        assert_eq!(msg.id, Some(serde_json::json!(1)));
+        assert!(msg.result.is_none());
+        let error = msg.error.unwrap();
+        assert_eq!(error["code"], -32600);
+        assert_eq!(error["message"], "Invalid Request");
+    }
+
+    #[test]
+    fn test_message_is_request() {
+        let request = Message::request(1, "test", None);
+        assert!(request.is_request());
+        assert!(!request.is_notification());
+        assert!(!request.is_response());
+    }
+
+    #[test]
+    fn test_message_is_notification() {
+        let notification = Message {
+            jsonrpc: "2.0".to_string(),
+            id: None,
+            method: Some("cancelled".to_string()),
+            params: None,
+            result: None,
+            error: None,
+        };
+        assert!(notification.is_notification());
+        assert!(!notification.is_request());
+        assert!(!notification.is_response());
+    }
+
+    #[test]
+    fn test_message_is_response() {
+        let response = Message::response(serde_json::json!(1), serde_json::json!({}));
+        assert!(response.is_response());
+        assert!(!response.is_request());
+        assert!(!response.is_notification());
+    }
+
+    #[test]
+    fn test_message_serialization_roundtrip() {
+        let msg = Message::request(42, "tools/list", None);
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: Message = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.id, msg.id);
+        assert_eq!(parsed.method, msg.method);
+    }
+
+    // ------------------------------------------------------------------------
+    // HttpTransport Tests  
+    // ------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_http_transport_new() {
+        let transport = HttpTransport::new("http://localhost:8080/mcp".to_string());
+        assert_eq!(transport.url, "http://localhost:8080/mcp");
+        assert!(transport.headers.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_http_transport_with_config() {
+        let mut headers = HashMap::new();
+        headers.insert("X-Api-Key".to_string(), "secret".to_string());
+        let transport = HttpTransport::with_config(
+            "http://localhost:8080/mcp".to_string(),
+            headers,
+            60,
+        );
+        assert_eq!(transport.url, "http://localhost:8080/mcp");
+        assert_eq!(transport.headers.get("X-Api-Key"), Some(&"secret".to_string()));
+        assert_eq!(transport.timeout, std::time::Duration::from_secs(60));
+    }
+
+    #[tokio::test]
+    async fn test_http_transport_success() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+
+        let mock_server = MockServer::start().await;
+        
+        let response_json = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {"tools": []}
+        });
+
+        Mock::given(method("POST"))
+            .and(path("/mcp"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_json))
+            .mount(&mock_server)
+            .await;
+
+        let transport = HttpTransport::new(format!("{}/mcp", mock_server.uri()));
+        let request = Message::request(1, "tools/list", None);
+        
+        transport.send(request).await.unwrap();
+        let response = transport.receive().await.unwrap();
+        
+        assert!(response.result.is_some());
+        assert_eq!(response.id, Some(serde_json::json!(1)));
+    }
+
+    #[tokio::test]
+    async fn test_http_transport_server_error() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/mcp"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
+            .mount(&mock_server)
+            .await;
+
+        let transport = HttpTransport::new(format!("{}/mcp", mock_server.uri()));
+        let request = Message::request(1, "tools/list", None);
+        
+        let result = transport.send(request).await;
+        assert!(matches!(result, Err(TransportError::Http(_))));
+    }
+
+    #[tokio::test]
+    async fn test_http_transport_not_found() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/mcp"))
+            .respond_with(ResponseTemplate::new(404).set_body_string("Not Found"))
+            .mount(&mock_server)
+            .await;
+
+        let transport = HttpTransport::new(format!("{}/mcp", mock_server.uri()));
+        let request = Message::request(1, "tools/list", None);
+        
+        let result = transport.send(request).await;
+        assert!(matches!(result, Err(TransportError::Http(_))));
+        if let Err(TransportError::Http(msg)) = result {
+            assert!(msg.contains("404"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_http_transport_invalid_json_response() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/mcp"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("not valid json"))
+            .mount(&mock_server)
+            .await;
+
+        let transport = HttpTransport::new(format!("{}/mcp", mock_server.uri()));
+        let request = Message::request(1, "tools/list", None);
+        
+        let result = transport.send(request).await;
+        assert!(matches!(result, Err(TransportError::InvalidMessage(_))));
+    }
+
+    #[tokio::test]
+    async fn test_http_transport_receive_when_empty() {
+        let transport = HttpTransport::new("http://localhost:8080/mcp".to_string());
+        let result = transport.receive().await;
+        assert!(matches!(result, Err(TransportError::ConnectionClosed)));
+    }
+
+    #[tokio::test]
+    async fn test_http_transport_close() {
+        let transport = HttpTransport::new("http://localhost:8080/mcp".to_string());
+        let result = transport.close().await;
+        assert!(result.is_ok());
+    }
+
+    // ------------------------------------------------------------------------
+    // SseTransport Tests
+    // ------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_sse_transport_connect() {
+        let transport = SseTransport::connect("http://localhost:8080/sse".to_string()).await;
+        assert!(transport.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_sse_transport_connect_with_config() {
+        let mut headers = HashMap::new();
+        headers.insert("Authorization".to_string(), "Bearer token".to_string());
+        let transport = SseTransport::connect_with_config(
+            "http://localhost:8080/sse".to_string(),
+            headers,
+            60,
+        ).await;
+        assert!(transport.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_sse_transport_json_fallback() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+
+        let mock_server = MockServer::start().await;
+        
+        let response_json = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {"status": "ok"}
+        });
+
+        Mock::given(method("POST"))
+            .and(path("/sse"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(&response_json)
+                    .insert_header("Content-Type", "application/json")
+            )
+            .mount(&mock_server)
+            .await;
+
+        let transport = SseTransport::connect(format!("{}/sse", mock_server.uri())).await.unwrap();
+        let request = Message::request(1, "test/method", None);
+        
+        transport.send(request).await.unwrap();
+        let response = transport.receive().await.unwrap();
+        
+        assert!(response.result.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_sse_transport_close() {
+        let transport = SseTransport::connect("http://localhost:8080/sse".to_string()).await.unwrap();
+        let result = transport.close().await;
+        assert!(result.is_ok());
+    }
+
+    // ------------------------------------------------------------------------
+    // TransportError Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_transport_error_display() {
+        let err = TransportError::Timeout;
+        assert_eq!(format!("{}", err), "Timeout");
+
+        let err = TransportError::ConnectionClosed;
+        assert_eq!(format!("{}", err), "Connection closed");
+
+        let err = TransportError::Http("404 Not Found".to_string());
+        assert!(format!("{}", err).contains("404 Not Found"));
+    }
+
+    #[test]
+    fn test_transport_error_from_io() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let transport_err: TransportError = io_err.into();
+        assert!(matches!(transport_err, TransportError::Spawn(_)));
+    }
+}

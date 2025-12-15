@@ -93,7 +93,7 @@ interface Feature {
   styles: [`
     .features {
       position: relative;
-      padding: 100px 0;
+      padding: var(--section-py-sm) 0;
       background: var(--bg-secondary);
       overflow: hidden;
     }
@@ -105,44 +105,46 @@ interface Feature {
 
     /* Header */
     .section-header {
-      padding: 0 24px;
-      margin-bottom: 48px;
+      padding: 0 var(--container-px);
+      margin-bottom: var(--space-12);
     }
 
     .header-tag {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 12px;
+      gap: var(--space-2);
+      margin-bottom: var(--space-3);
     }
 
     .tag-dot {
-      width: 8px;
-      height: 8px;
-      background: #FF7A30;
-      border-radius: 50%;
+      width: var(--space-2);
+      height: var(--space-2);
+      background: var(--accent-cyan);
+      border-radius: var(--radius-full);
     }
 
     .tag-text {
       font-family: var(--font-mono);
-      font-size: 13px;
+      font-size: var(--text-sm);
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: var(--tracking-wider);
+      line-height: var(--leading-normal);
     }
 
     .section-title {
       font-family: var(--font-display);
-      font-size: clamp(28px, 4vw, 40px);
-      font-weight: 700;
-      letter-spacing: -0.02em;
+      font-size: var(--text-3xl);
+      font-weight: var(--weight-bold);
+      letter-spacing: var(--tracking-tight);
+      line-height: var(--leading-snug);
     }
 
     /* Cards viewport */
     .cards-viewport {
       overflow-x: auto;
       overflow-y: hidden;
-      padding: 20px 0 40px;
+      padding: var(--space-5) 0 var(--space-10);
       cursor: grab;
       scrollbar-width: none;
       -ms-overflow-style: none;
@@ -158,8 +160,8 @@ interface Feature {
 
     .cards-track {
       display: flex;
-      gap: 16px;
-      padding: 0 24px;
+      gap: var(--space-4);
+      padding: 0 var(--container-px);
       width: max-content;
     }
 
@@ -170,11 +172,11 @@ interface Feature {
       height: 400px;
       background: var(--bg-primary);
       border: 1px solid var(--border-subtle);
-      border-radius: 16px;
+      border-radius: var(--radius-2xl);
       cursor: pointer;
-      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
-                  border-color 0.2s ease,
-                  box-shadow 0.2s ease;
+      transition: width var(--duration-slow) var(--ease-in-out),
+                  border-color var(--duration-fast) var(--ease-out),
+                  box-shadow var(--duration-fast) var(--ease-out);
       overflow: hidden;
 
       &:hover {
@@ -183,8 +185,8 @@ interface Feature {
 
       &.active {
         width: 380px;
-        border-color: rgba(255, 122, 48, 0.3);
-        box-shadow: 0 8px 32px -8px rgba(255, 122, 48, 0.15);
+        border-color: var(--border-accent);
+        box-shadow: var(--shadow-glow-orange);
 
         .card-collapsed {
           opacity: 0;
@@ -221,31 +223,32 @@ interface Feature {
       flex-direction: column;
       align-items: center;
       justify-content: space-between;
-      padding: 24px 16px;
+      padding: var(--space-6) var(--space-4);
       opacity: 1;
-      transition: opacity 0.3s ease;
+      transition: opacity var(--duration-normal) var(--ease-out);
     }
 
     .card-icon {
-      width: 44px;
-      height: 44px;
+      width: var(--space-11);
+      height: var(--space-11);
       background: var(--bg-elevated);
-      border-radius: 12px;
+      border-radius: var(--radius-xl);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #FF7A30;
+      color: var(--accent-cyan);
 
       :host ::ng-deep svg {
-        width: 22px;
-        height: 22px;
+        width: var(--icon-lg);
+        height: var(--icon-lg);
       }
     }
 
     .card-number {
       font-family: var(--font-mono);
-      font-size: 14px;
+      font-size: var(--text-sm);
       color: var(--text-muted);
+      line-height: var(--leading-normal);
       writing-mode: vertical-rl;
       text-orientation: mixed;
       transform: rotate(180deg);
@@ -255,58 +258,60 @@ interface Feature {
     .card-expanded {
       position: absolute;
       inset: 0;
-      padding: 28px;
+      padding: var(--space-7);
       display: flex;
       flex-direction: column;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.3s ease 0.1s;
+      transition: opacity var(--duration-normal) var(--ease-out) 0.1s;
     }
 
     .expanded-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 20px;
+      margin-bottom: var(--space-5);
     }
 
     .card-tag {
       font-family: var(--font-mono);
-      font-size: 11px;
-      color: #FF7A30;
+      font-size: var(--text-xs);
+      color: var(--accent-cyan);
       background: rgba(255, 122, 48, 0.08);
-      padding: 5px 10px;
-      border-radius: 5px;
+      padding: var(--space-1) var(--space-2-5);
+      border-radius: var(--radius-md);
+      line-height: var(--leading-normal);
     }
 
     .card-title {
       font-family: var(--font-display);
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      margin-bottom: 10px;
+      font-size: var(--text-xl);
+      font-weight: var(--weight-bold);
+      letter-spacing: var(--tracking-tight);
+      line-height: var(--leading-snug);
+      margin-bottom: var(--space-2-5);
     }
 
     .card-description {
-      font-size: 14px;
+      font-size: var(--text-sm);
       color: var(--text-secondary);
-      line-height: 1.6;
+      line-height: var(--leading-relaxed);
       flex: 1;
     }
 
     .card-code {
-      margin-top: 16px;
+      margin-top: var(--space-4);
       background: var(--bg-secondary);
       border: 1px solid var(--border-subtle);
-      border-radius: 8px;
-      padding: 12px;
+      border-radius: var(--radius-lg);
+      padding: var(--space-3);
       overflow-x: auto;
 
       pre {
         margin: 0;
         font-family: var(--font-mono);
-        font-size: 11px;
-        line-height: 1.6;
+        font-size: var(--text-xs);
+        line-height: var(--leading-relaxed);
         color: var(--text-secondary);
       }
     }
@@ -316,22 +321,22 @@ interface Feature {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 24px;
+      padding: 0 var(--container-px);
     }
 
     .scroll-dots {
       display: flex;
-      gap: 8px;
+      gap: var(--space-2);
     }
 
     .scroll-dot {
-      width: 8px;
-      height: 8px;
+      width: var(--space-2);
+      height: var(--space-2);
       background: var(--bg-hover);
       border: none;
-      border-radius: 50%;
+      border-radius: var(--radius-full);
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all var(--duration-fast) var(--ease-out);
       padding: 0;
 
       &:hover {
@@ -339,22 +344,23 @@ interface Feature {
       }
 
       &.active {
-        width: 24px;
-        border-radius: 4px;
-        background: #FF7A30;
+        width: var(--space-6);
+        border-radius: var(--radius-sm);
+        background: var(--accent-cyan);
       }
     }
 
     .scroll-hint {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--space-2);
       color: var(--text-muted);
-      font-size: 12px;
+      font-size: var(--text-xs);
+      line-height: var(--leading-normal);
 
       svg {
-        width: 16px;
-        height: 16px;
+        width: var(--icon-sm);
+        height: var(--icon-sm);
       }
 
       @media (max-width: 600px) {
@@ -364,11 +370,11 @@ interface Feature {
 
     @media (max-width: 768px) {
       .features {
-        padding: 80px 0;
+        padding: var(--space-20) 0;
       }
 
       .section-header {
-        margin-bottom: 32px;
+        margin-bottom: var(--space-8);
       }
     }
   `]

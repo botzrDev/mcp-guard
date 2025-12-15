@@ -1,0 +1,40 @@
+# GitHub OAuth 2.1 Authentication Example
+# Uses GitHub OAuth for user authentication with PKCE
+
+[server]
+host = "127.0.0.1"
+port = 3000
+
+# Upstream MCP server
+[upstream]
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+
+# GitHub OAuth configuration
+# Create a GitHub OAuth App at: https://github.com/settings/developers
+[auth.oauth]
+provider = "github"
+client_id = "YOUR_GITHUB_CLIENT_ID"
+client_secret = "YOUR_GITHUB_CLIENT_SECRET"
+redirect_uri = "http://localhost:3000/oauth/callback"
+scopes = ["read:user", "repo"]
+
+# Map GitHub OAuth scopes to MCP tools
+[auth.oauth.scope_tool_mapping]
+# Users with 'repo' scope can access these tools
+"repo" = ["get_file_contents", "create_or_update_file", "list_files"]
+# Users with only 'read:user' scope get limited access
+"read:user" = ["search_repositories", "list_commits"]
+
+# Rate limiting
+[rate_limit]
+enabled = true
+requests_per_second = 50
+burst_size = 25
+
+# Audit logging
+[audit]
+enabled = true
+stdout = true
+file = "/var/log/mcp-guard-audit.log"

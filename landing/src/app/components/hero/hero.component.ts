@@ -104,13 +104,13 @@ import { CommonModule } from '@angular/common';
       min-height: 100vh;
       display: flex;
       align-items: center;
-      padding: 120px 0 80px;
+      padding: var(--space-28) 0 var(--space-20);
     }
 
     .hero-container {
       max-width: 900px;
       margin: 0 auto;
-      padding: 0 24px;
+      padding: 0 var(--container-px);
       width: 100%;
     }
 
@@ -122,27 +122,28 @@ import { CommonModule } from '@angular/common';
     .hero-badge {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
-      padding: 8px 16px 8px 12px;
+      gap: var(--space-2-5);
+      padding: var(--space-2) var(--space-4) var(--space-2) var(--space-3);
       background: rgba(255, 122, 48, 0.08);
       border: 1px solid rgba(255, 122, 48, 0.15);
-      border-radius: 100px;
-      margin-bottom: 32px;
+      border-radius: var(--radius-full);
+      margin-bottom: var(--space-8);
     }
 
     .badge-dot {
-      width: 8px;
-      height: 8px;
+      width: var(--space-2);
+      height: var(--space-2);
       background: var(--accent-cyan);
-      border-radius: 50%;
+      border-radius: var(--radius-full);
       animation: pulse 2s ease-in-out infinite;
     }
 
     .badge-text {
       font-family: var(--font-mono);
-      font-size: 13px;
+      font-size: var(--text-sm);
       color: var(--text-secondary);
-      letter-spacing: 0.01em;
+      letter-spacing: var(--tracking-wide);
+      line-height: var(--leading-normal);
     }
 
     @keyframes pulse {
@@ -152,16 +153,16 @@ import { CommonModule } from '@angular/common';
 
     /* Title */
     .hero-title {
-      margin-bottom: 24px;
+      margin-bottom: var(--space-6);
     }
 
     .title-line {
       display: block;
       font-family: var(--font-display);
-      font-size: clamp(40px, 7vw, 72px);
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
+      font-size: var(--text-5xl);
+      font-weight: var(--weight-bold);
+      letter-spacing: var(--tracking-tighter);
+      line-height: var(--leading-tight);
     }
 
     .gradient-text {
@@ -173,25 +174,25 @@ import { CommonModule } from '@angular/common';
 
     /* Subtitle */
     .hero-subtitle {
-      font-size: 18px;
+      font-size: var(--text-lg);
       color: var(--text-secondary);
-      line-height: 1.7;
+      line-height: var(--leading-relaxed);
       max-width: 600px;
-      margin: 0 auto 40px;
+      margin: 0 auto var(--space-10);
     }
 
     .no-wrap {
       display: block;
       color: var(--text-muted);
-      margin-top: 8px;
+      margin-top: var(--space-2);
     }
 
     /* CTAs */
     .hero-cta {
       display: flex;
       justify-content: center;
-      gap: 16px;
-      margin-bottom: 48px;
+      gap: var(--space-4);
+      margin-bottom: var(--space-12);
 
       @media (max-width: 480px) {
         flex-direction: column;
@@ -203,28 +204,29 @@ import { CommonModule } from '@angular/common';
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-      padding: 16px 32px;
+      gap: var(--space-2-5);
+      padding: var(--space-4) var(--space-8);
       background: var(--gradient-brand);
       color: var(--bg-primary);
       text-decoration: none;
-      font-size: 16px;
-      font-weight: 600;
-      border-radius: 12px;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      font-size: var(--text-base);
+      font-weight: var(--weight-semibold);
+      line-height: var(--leading-normal);
+      border-radius: var(--radius-xl);
+      transition: transform var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
 
       svg {
-        width: 18px;
-        height: 18px;
-        transition: transform 0.2s ease;
+        width: var(--icon-sm);
+        height: var(--icon-sm);
+        transition: transform var(--duration-fast) var(--ease-out);
       }
 
       &:hover {
         transform: translateY(-2px);
-        box-shadow: 0 12px 32px var(--border-accent);
+        box-shadow: var(--shadow-glow-orange);
 
         svg {
-          transform: translateX(4px);
+          transform: translateX(var(--space-1));
         }
       }
 
@@ -237,20 +239,21 @@ import { CommonModule } from '@angular/common';
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-      padding: 16px 28px;
+      gap: var(--space-2-5);
+      padding: var(--space-4) var(--space-7);
       background: transparent;
       color: var(--text-primary);
       text-decoration: none;
-      font-size: 16px;
-      font-weight: 500;
-      border-radius: 12px;
+      font-size: var(--text-base);
+      font-weight: var(--weight-medium);
+      line-height: var(--leading-normal);
+      border-radius: var(--radius-xl);
       border: 1px solid var(--border-medium);
-      transition: all 0.2s ease;
+      transition: all var(--duration-fast) var(--ease-out);
 
       svg {
-        width: 20px;
-        height: 20px;
+        width: var(--icon-md);
+        height: var(--icon-md);
       }
 
       &:hover {
@@ -268,18 +271,19 @@ import { CommonModule } from '@angular/common';
     .install-bar {
       display: inline-flex;
       align-items: center;
-      gap: 12px;
-      padding: 6px 6px 6px 20px;
+      gap: var(--space-3);
+      padding: var(--space-1-5) var(--space-1-5) var(--space-1-5) var(--space-5);
       background: var(--bg-secondary);
       border: 1px solid var(--border-subtle);
-      border-radius: 12px;
+      border-radius: var(--radius-xl);
     }
 
     .install-code {
       font-family: var(--font-mono);
-      font-size: 14px;
+      font-size: var(--text-sm);
+      line-height: var(--leading-normal);
       display: flex;
-      gap: 8px;
+      gap: var(--space-2);
     }
 
     .prompt {
@@ -293,20 +297,21 @@ import { CommonModule } from '@angular/common';
     .copy-btn {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 10px 16px;
+      gap: var(--space-1-5);
+      padding: var(--space-2-5) var(--space-4);
       background: var(--bg-elevated);
       border: 1px solid var(--border-subtle);
-      border-radius: 8px;
+      border-radius: var(--radius-lg);
       color: var(--text-muted);
-      font-size: 13px;
-      font-weight: 500;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      line-height: var(--leading-normal);
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: all var(--duration-fast) var(--ease-out);
 
       svg {
-        width: 16px;
-        height: 16px;
+        width: var(--icon-sm);
+        height: var(--icon-sm);
       }
 
       &:hover {
@@ -328,25 +333,25 @@ import { CommonModule } from '@angular/common';
     /* Scroll indicator */
     .scroll-indicator {
       position: absolute;
-      bottom: 40px;
+      bottom: var(--space-10);
       left: 50%;
       transform: translateX(-50%);
     }
 
     .scroll-line {
       width: 2px;
-      height: 48px;
+      height: var(--space-12);
       background: linear-gradient(to bottom, var(--accent-cyan), transparent);
-      border-radius: 1px;
+      border-radius: var(--radius-sm);
       animation: scrollPulse 2s ease-in-out infinite;
     }
 
     @keyframes scrollPulse {
-      0%, 100% { 
+      0%, 100% {
         opacity: 0.4;
         transform: scaleY(1);
       }
-      50% { 
+      50% {
         opacity: 1;
         transform: scaleY(1.2);
       }
@@ -354,22 +359,22 @@ import { CommonModule } from '@angular/common';
 
     @media (max-width: 640px) {
       .hero {
-        padding: 100px 0 60px;
+        padding: var(--space-24) 0 var(--space-16);
       }
 
       .hero-badge {
-        margin-bottom: 24px;
+        margin-bottom: var(--space-6);
       }
 
       .hero-subtitle {
-        font-size: 16px;
-        margin-bottom: 32px;
+        font-size: var(--text-base);
+        margin-bottom: var(--space-8);
       }
 
       .install-bar {
         flex-direction: column;
-        padding: 16px;
-        gap: 12px;
+        padding: var(--space-4);
+        gap: var(--space-3);
         width: 100%;
       }
 
@@ -379,7 +384,7 @@ import { CommonModule } from '@angular/common';
       }
 
       .scroll-indicator {
-        bottom: 24px;
+        bottom: var(--space-6);
       }
     }
   `]

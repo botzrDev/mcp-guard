@@ -223,7 +223,7 @@ interface ComparisonFeature {
   styles: [`
     .pricing {
       position: relative;
-      padding: 120px 0;
+      padding: var(--section-py-lg) 0;
       background: var(--bg-primary);
 
       &::before {
@@ -240,29 +240,31 @@ interface ComparisonFeature {
     .pricing-container {
       max-width: 1200px;
       margin: 0 auto;
-      padding: 0 24px;
+      padding: 0 var(--container-px);
     }
 
     .section-header {
       text-align: center;
-      margin-bottom: 48px;
+      margin-bottom: var(--space-12);
     }
 
     .section-tag {
       font-family: var(--font-mono);
-      font-size: 13px;
+      font-size: var(--text-sm);
       color: var(--accent-cyan);
-      letter-spacing: 0.05em;
-      margin-bottom: 16px;
+      letter-spacing: var(--tracking-wider);
+      line-height: var(--leading-normal);
+      margin-bottom: var(--space-4);
       display: block;
     }
 
     .section-title {
       font-family: var(--font-display);
-      font-size: clamp(32px, 5vw, 52px);
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 16px;
+      font-size: var(--text-4xl);
+      font-weight: var(--weight-bold);
+      letter-spacing: var(--tracking-tight);
+      line-height: var(--leading-snug);
+      margin-bottom: var(--space-4);
     }
 
     .gradient-text {
@@ -273,36 +275,37 @@ interface ComparisonFeature {
     }
 
     .section-subtitle {
-      font-size: 18px;
+      font-size: var(--text-lg);
       color: var(--text-secondary);
       max-width: 600px;
-      margin: 0 auto 24px;
-      line-height: 1.6;
+      margin: 0 auto var(--space-6);
+      line-height: var(--leading-relaxed);
     }
 
     .view-toggle {
       display: flex;
       justify-content: center;
-      gap: 8px;
+      gap: var(--space-2);
     }
 
     .view-toggle .toggle-btn {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 16px;
+      gap: var(--space-2);
+      padding: var(--space-2-5) var(--space-4);
       background: transparent;
       border: 1px solid var(--border-subtle);
-      border-radius: 8px;
+      border-radius: var(--radius-lg);
       color: var(--text-muted);
-      font-size: 13px;
-      font-weight: 500;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      line-height: var(--leading-normal);
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all var(--duration-fast) var(--ease-out);
 
       svg {
-        width: 16px;
-        height: 16px;
+        width: var(--icon-sm);
+        height: var(--icon-sm);
       }
 
       &.active {
@@ -321,43 +324,45 @@ interface ComparisonFeature {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 16px;
-      padding: 16px 24px;
+      gap: var(--space-4);
+      padding: var(--space-4) var(--space-6);
       background: linear-gradient(90deg, rgba(239, 68, 68, 0.1) 0%, rgba(249, 115, 22, 0.1) 100%);
       border: 1px solid rgba(239, 68, 68, 0.2);
-      border-radius: 12px;
-      margin-bottom: 48px;
+      border-radius: var(--radius-xl);
+      margin-bottom: var(--space-12);
     }
 
     .founder-icon {
-      width: 40px;
-      height: 40px;
+      width: var(--space-10);
+      height: var(--space-10);
       background: rgba(239, 68, 68, 0.15);
-      border-radius: 10px;
+      border-radius: var(--radius-lg);
       display: flex;
       align-items: center;
       justify-content: center;
       color: var(--accent-red);
 
       svg {
-        width: 22px;
-        height: 22px;
+        width: var(--icon-lg);
+        height: var(--icon-lg);
       }
     }
 
     .founder-text {
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: var(--space-0-5);
 
       strong {
         color: var(--text-primary);
-        font-size: 15px;
+        font-size: var(--text-base);
+        line-height: var(--leading-normal);
       }
 
       span {
         color: var(--text-muted);
-        font-size: 13px;
+        font-size: var(--text-sm);
+        line-height: var(--leading-normal);
       }
     }
 
@@ -368,8 +373,8 @@ interface ComparisonFeature {
     .pricing-levels {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-      margin-bottom: 64px;
+      gap: var(--space-6);
+      margin-bottom: var(--space-16);
 
       @media (max-width: 900px) {
         grid-template-columns: 1fr;
@@ -383,14 +388,14 @@ interface ComparisonFeature {
       position: relative;
       background: var(--bg-secondary);
       border: 1px solid var(--border-subtle);
-      border-radius: 24px;
+      border-radius: var(--radius-3xl);
       overflow: hidden;
-      transition: all 0.4s ease;
+      transition: all var(--duration-slow) var(--ease-out);
 
       // Staggered heights for visual progression
-      &:nth-child(1) { transform: translateY(20px); }
+      &:nth-child(1) { transform: translateY(var(--space-5)); }
       &:nth-child(2) { transform: translateY(0); }
-      &:nth-child(3) { transform: translateY(10px); }
+      &:nth-child(3) { transform: translateY(var(--space-2-5)); }
 
       @media (max-width: 900px) {
         transform: translateY(0) !important;
@@ -404,7 +409,7 @@ interface ComparisonFeature {
       &.featured {
         border-color: var(--accent-cyan);
         background: linear-gradient(180deg, rgba(78, 205, 196, 0.05) 0%, var(--bg-secondary) 30%);
-        box-shadow: 0 0 40px rgba(78, 205, 196, 0.15);
+        box-shadow: var(--shadow-glow-orange);
 
         &::before {
           content: '';
@@ -420,23 +425,24 @@ interface ComparisonFeature {
 
     .founder-badge {
       position: absolute;
-      top: 16px;
-      right: 16px;
+      top: var(--space-4);
+      right: var(--space-4);
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
+      gap: var(--space-1-5);
+      padding: var(--space-1-5) var(--space-3);
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid rgba(239, 68, 68, 0.2);
-      border-radius: 100px;
+      border-radius: var(--radius-full);
       color: var(--accent-red);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
+      font-size: var(--text-xs);
+      font-weight: var(--weight-bold);
+      letter-spacing: var(--tracking-wide);
+      line-height: var(--leading-normal);
 
       svg {
-        width: 14px;
-        height: 14px;
+        width: var(--icon-xs);
+        height: var(--icon-xs);
       }
     }
 
@@ -445,85 +451,92 @@ interface ComparisonFeature {
       top: -1px;
       left: 50%;
       transform: translateX(-50%);
-      padding: 6px 20px;
+      padding: var(--space-1-5) var(--space-5);
       background: var(--gradient-brand);
       color: var(--bg-primary);
-      font-size: 12px;
-      font-weight: 600;
-      border-radius: 0 0 10px 10px;
+      font-size: var(--text-xs);
+      font-weight: var(--weight-semibold);
+      line-height: var(--leading-normal);
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
     }
 
     .card-content {
-      padding: 32px;
+      padding: var(--space-8);
     }
 
     .tier-header {
-      margin-bottom: 24px;
+      margin-bottom: var(--space-6);
     }
 
     .tier-name {
-      font-size: 22px;
-      font-weight: 600;
-      margin-bottom: 6px;
+      font-size: var(--text-xl);
+      font-weight: var(--weight-semibold);
+      line-height: var(--leading-snug);
+      margin-bottom: var(--space-1-5);
     }
 
     .tier-description {
       color: var(--text-muted);
-      font-size: 14px;
+      font-size: var(--text-sm);
+      line-height: var(--leading-normal);
     }
 
     .tier-price {
       display: flex;
       align-items: baseline;
-      gap: 4px;
-      margin-bottom: 28px;
+      gap: var(--space-1);
+      margin-bottom: var(--space-7);
     }
 
     .currency {
-      font-size: 24px;
-      font-weight: 600;
+      font-size: var(--text-2xl);
+      font-weight: var(--weight-semibold);
       color: var(--text-secondary);
+      line-height: var(--leading-none);
     }
 
     .amount {
-      font-size: 56px;
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      line-height: 1;
+      font-size: var(--text-5xl);
+      font-weight: var(--weight-bold);
+      letter-spacing: var(--tracking-tighter);
+      line-height: var(--leading-none);
     }
 
     .period {
-      font-size: 16px;
+      font-size: var(--text-base);
       color: var(--text-muted);
-      margin-left: 4px;
+      margin-left: var(--space-1);
+      line-height: var(--leading-normal);
     }
 
     .original-price {
-      font-size: 20px;
+      font-size: var(--text-xl);
       color: var(--text-dim);
       text-decoration: line-through;
-      margin-left: 12px;
+      margin-left: var(--space-3);
+      line-height: var(--leading-normal);
     }
 
     .tier-features {
       list-style: none;
-      margin-bottom: 28px;
+      margin-bottom: var(--space-7);
 
       li {
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 10px 0;
-        font-size: 14px;
+        gap: var(--space-3);
+        padding: var(--space-2-5) 0;
+        font-size: var(--text-sm);
         color: var(--text-secondary);
+        line-height: var(--leading-normal);
 
         &:not(:last-child) {
           border-bottom: 1px solid var(--border-subtle);
         }
 
         svg {
-          width: 18px;
-          height: 18px;
+          width: var(--icon-sm);
+          height: var(--icon-sm);
           color: var(--accent-cyan);
           flex-shrink: 0;
         }
@@ -534,21 +547,22 @@ interface ComparisonFeature {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
+      gap: var(--space-2-5);
       width: 100%;
-      padding: 14px 24px;
+      padding: var(--space-3-5) var(--space-6);
       background: var(--bg-elevated);
       border: 1px solid var(--border-subtle);
-      border-radius: 12px;
+      border-radius: var(--radius-xl);
       color: var(--text-primary);
-      font-size: 15px;
-      font-weight: 600;
+      font-size: var(--text-base);
+      font-weight: var(--weight-semibold);
+      line-height: var(--leading-normal);
       text-decoration: none;
-      transition: all 0.3s;
+      transition: all var(--duration-normal) var(--ease-out);
 
       svg {
-        width: 18px;
-        height: 18px;
+        width: var(--icon-sm);
+        height: var(--icon-sm);
       }
 
       &:hover {
@@ -563,20 +577,20 @@ interface ComparisonFeature {
 
         &:hover {
           transform: translateY(-2px);
-          box-shadow: 0 8px 24px rgba(248, 250, 252, 0.2);
+          box-shadow: var(--shadow-lg);
         }
       }
     }
 
     .level-indicator {
       position: absolute;
-      bottom: 16px;
-      left: 16px;
-      width: 28px;
-      height: 28px;
+      bottom: var(--space-4);
+      left: var(--space-4);
+      width: var(--space-7);
+      height: var(--space-7);
       background: var(--bg-elevated);
       border: 1px solid var(--border-subtle);
-      border-radius: 8px;
+      border-radius: var(--radius-lg);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -584,17 +598,18 @@ interface ComparisonFeature {
 
     .level-number {
       font-family: var(--font-mono);
-      font-size: 12px;
+      font-size: var(--text-xs);
       color: var(--text-muted);
+      line-height: var(--leading-normal);
     }
 
     // Comparison table
     .comparison-table {
-      margin-bottom: 64px;
+      margin-bottom: var(--space-16);
       overflow-x: auto;
       background: var(--bg-secondary);
       border: 1px solid var(--border-subtle);
-      border-radius: 16px;
+      border-radius: var(--radius-2xl);
     }
 
     .comparison-table table {
@@ -604,7 +619,7 @@ interface ComparisonFeature {
     }
 
     .comparison-table thead th {
-      padding: 24px 20px;
+      padding: var(--space-6) var(--space-5);
       text-align: center;
       border-bottom: 1px solid var(--border-subtle);
       vertical-align: bottom;
@@ -613,10 +628,11 @@ interface ComparisonFeature {
         text-align: left;
         width: 200px;
         color: var(--text-muted);
-        font-size: 13px;
-        font-weight: 500;
+        font-size: var(--text-sm);
+        font-weight: var(--weight-medium);
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: var(--tracking-wider);
+        line-height: var(--leading-normal);
       }
 
       &.featured {
@@ -626,30 +642,33 @@ interface ComparisonFeature {
         &::before {
           content: 'Popular';
           position: absolute;
-          top: 8px;
+          top: var(--space-2);
           left: 50%;
           transform: translateX(-50%);
-          padding: 4px 10px;
+          padding: var(--space-1) var(--space-2-5);
           background: var(--gradient-brand);
           color: var(--bg-primary);
-          font-size: 10px;
-          font-weight: 600;
-          border-radius: 100px;
+          font-size: var(--text-xs);
+          font-weight: var(--weight-semibold);
+          line-height: var(--leading-normal);
+          border-radius: var(--radius-full);
         }
       }
     }
 
     .comparison-table .tier-name {
       display: block;
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 4px;
+      font-size: var(--text-lg);
+      font-weight: var(--weight-semibold);
+      line-height: var(--leading-snug);
+      margin-bottom: var(--space-1);
     }
 
     .comparison-table .tier-price {
       display: block;
-      font-size: 13px;
+      font-size: var(--text-sm);
       color: var(--text-muted);
+      line-height: var(--leading-normal);
     }
 
     .comparison-table tbody tr {
@@ -665,9 +684,10 @@ interface ComparisonFeature {
     }
 
     .comparison-table tbody td {
-      padding: 16px 20px;
+      padding: var(--space-4) var(--space-5);
       text-align: center;
-      font-size: 14px;
+      font-size: var(--text-sm);
+      line-height: var(--leading-normal);
 
       &.feature-name {
         text-align: left;
@@ -680,8 +700,8 @@ interface ComparisonFeature {
     }
 
     .comparison-table .check-icon {
-      width: 20px;
-      height: 20px;
+      width: var(--icon-md);
+      height: var(--icon-md);
       color: var(--accent-cyan);
       margin: 0 auto;
     }
@@ -692,42 +712,44 @@ interface ComparisonFeature {
 
     .comparison-table .value {
       color: var(--text-primary);
-      font-weight: 500;
+      font-weight: var(--weight-medium);
     }
 
     // Team calculator
     .team-calculator {
       background: var(--bg-secondary);
       border: 1px solid var(--border-subtle);
-      border-radius: 20px;
-      padding: 32px;
+      border-radius: var(--radius-2xl);
+      padding: var(--space-8);
     }
 
     .calculator-header {
       text-align: center;
-      margin-bottom: 32px;
+      margin-bottom: var(--space-8);
 
       h4 {
-        font-size: 20px;
-        font-weight: 600;
-        margin-bottom: 8px;
+        font-size: var(--text-xl);
+        font-weight: var(--weight-semibold);
+        line-height: var(--leading-snug);
+        margin-bottom: var(--space-2);
       }
 
       p {
         color: var(--text-muted);
-        font-size: 14px;
+        font-size: var(--text-sm);
+        line-height: var(--leading-normal);
       }
     }
 
     .calculator-body {
       display: grid;
       grid-template-columns: 1fr auto;
-      gap: 48px;
+      gap: var(--space-12);
       align-items: center;
 
       @media (max-width: 640px) {
         grid-template-columns: 1fr;
-        gap: 32px;
+        gap: var(--space-8);
       }
     }
 
@@ -737,22 +759,22 @@ interface ComparisonFeature {
 
     .team-slider {
       width: 100%;
-      height: 8px;
+      height: var(--space-2);
       background: var(--bg-elevated);
-      border-radius: 100px;
+      border-radius: var(--radius-full);
       outline: none;
       -webkit-appearance: none;
       cursor: pointer;
 
       &::-webkit-slider-thumb {
         -webkit-appearance: none;
-        width: 24px;
-        height: 24px;
+        width: var(--space-6);
+        height: var(--space-6);
         background: var(--gradient-brand);
-        border-radius: 50%;
+        border-radius: var(--radius-full);
         cursor: pointer;
-        box-shadow: 0 2px 10px rgba(78, 205, 196, 0.4);
-        transition: transform 0.2s;
+        box-shadow: var(--shadow-glow-orange);
+        transition: transform var(--duration-fast) var(--ease-out);
 
         &:hover {
           transform: scale(1.1);
@@ -763,59 +785,65 @@ interface ComparisonFeature {
     .slider-labels {
       display: flex;
       justify-content: space-between;
-      margin-top: 12px;
-      font-size: 12px;
+      margin-top: var(--space-3);
+      font-size: var(--text-xs);
       color: var(--text-muted);
+      line-height: var(--leading-normal);
     }
 
     .calculator-result {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
-      padding: 24px 32px;
+      gap: var(--space-2);
+      padding: var(--space-6) var(--space-8);
       background: var(--bg-primary);
       border: 1px solid var(--border-subtle);
-      border-radius: 16px;
+      border-radius: var(--radius-2xl);
       min-width: 200px;
     }
 
     .result-users {
       display: flex;
       align-items: baseline;
-      gap: 8px;
+      gap: var(--space-2);
     }
 
     .result-number {
-      font-size: 32px;
-      font-weight: 700;
+      font-size: var(--text-3xl);
+      font-weight: var(--weight-bold);
       color: var(--accent-cyan);
+      line-height: var(--leading-tight);
     }
 
     .result-label {
-      font-size: 14px;
+      font-size: var(--text-sm);
       color: var(--text-muted);
+      line-height: var(--leading-normal);
     }
 
     .result-price {
       display: flex;
       align-items: baseline;
-      gap: 2px;
+      gap: var(--space-0-5);
     }
 
     .result-currency {
-      font-size: 18px;
+      font-size: var(--text-lg);
       color: var(--text-secondary);
+      line-height: var(--leading-tight);
     }
 
     .result-amount {
-      font-size: 36px;
-      font-weight: 700;
+      font-size: var(--text-3xl);
+      font-weight: var(--weight-bold);
+      line-height: var(--leading-tight);
     }
 
     .result-period {
-      font-size: 14px;
+      font-size: var(--text-sm);
       color: var(--text-muted);
+      line-height: var(--leading-normal);
     }
   `]
 })

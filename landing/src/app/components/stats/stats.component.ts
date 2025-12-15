@@ -99,7 +99,7 @@ interface Stat {
   styles: [`
     .stats {
       position: relative;
-      padding: 100px 0 120px;
+      padding: var(--space-24) 0 var(--space-28);
       background: var(--bg-primary);
       overflow: hidden;
     }
@@ -112,11 +112,11 @@ interface Stat {
       transform: translate(-50%, -50%);
       font-family: var(--font-display);
       font-size: clamp(80px, 15vw, 200px);
-      font-weight: 800;
+      font-weight: var(--weight-extrabold);
       color: transparent;
       -webkit-text-stroke: 1px rgba(255, 122, 48, 0.02);
       white-space: nowrap;
-      letter-spacing: -0.05em;
+      letter-spacing: var(--tracking-tighter);
       pointer-events: none;
       user-select: none;
     }
@@ -127,7 +127,7 @@ interface Stat {
       top: -2px;
       left: -5%;
       right: -5%;
-      height: 60px;
+      height: var(--space-14);
       background: var(--bg-secondary);
       transform: skewY(-1deg);
       transform-origin: top left;
@@ -138,7 +138,7 @@ interface Stat {
       bottom: -2px;
       left: -5%;
       right: -5%;
-      height: 60px;
+      height: var(--space-14);
       background: var(--bg-secondary);
       transform: skewY(1deg);
       transform-origin: bottom right;
@@ -148,46 +148,48 @@ interface Stat {
       position: relative;
       max-width: 1400px;
       margin: 0 auto;
-      padding: 0 24px;
-      z-index: 1;
+      padding: 0 var(--container-px);
+      z-index: var(--z-base);
     }
 
     .section-label {
       display: flex;
       align-items: center;
-      gap: 16px;
-      margin-bottom: 48px;
+      gap: var(--space-4);
+      margin-bottom: var(--space-12);
     }
 
     .label-number {
       font-family: var(--font-mono);
-      font-size: 14px;
-      font-weight: 700;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-bold);
       color: var(--accent-cyan);
       background: rgba(255, 122, 48, 0.1);
-      padding: 8px 16px;
-      border-radius: 6px;
+      padding: var(--space-2) var(--space-4);
+      border-radius: var(--radius-md);
       border: 1px solid rgba(255, 122, 48, 0.2);
+      line-height: var(--leading-normal);
     }
 
     .label-line {
-      width: 60px;
+      width: var(--space-14);
       height: 2px;
       background: var(--gradient-brand);
     }
 
     .label-text {
       font-family: var(--font-mono);
-      font-size: 13px;
+      font-size: var(--text-xs);
       color: var(--text-muted);
-      letter-spacing: 0.05em;
+      letter-spacing: var(--tracking-wider);
+      line-height: var(--leading-normal);
     }
 
     /* Asymmetric grid - first item is larger */
     .stats-grid {
       display: grid;
       grid-template-columns: 1.5fr 1fr 1fr 1fr;
-      gap: 24px;
+      gap: var(--space-6);
 
       @media (max-width: 1024px) {
         grid-template-columns: 1fr 1fr;
@@ -202,15 +204,17 @@ interface Stat {
       position: relative;
       background: var(--bg-secondary);
       border: 1px solid var(--border-subtle);
-      border-radius: 16px;
-      padding: 28px;
+      border-radius: var(--radius-2xl);
+      padding: var(--space-7);
       overflow: hidden;
-      transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+      transition: transform var(--duration-normal) var(--ease-out),
+                  border-color var(--duration-normal) var(--ease-out),
+                  box-shadow var(--duration-normal) var(--ease-out);
 
       &:hover {
         transform: translateY(-4px);
         border-color: var(--stat-color, var(--accent-cyan));
-        box-shadow: 0 16px 40px -16px var(--stat-color, var(--border-accent));
+        box-shadow: 0 var(--space-4) var(--space-10) calc(var(--space-4) * -1) var(--stat-color, var(--border-accent));
 
         .stat-corner {
           transform: scale(1.2);
@@ -244,25 +248,25 @@ interface Stat {
       position: absolute;
       top: 0;
       right: 0;
-      width: 80px;
-      height: 80px;
+      width: var(--space-20);
+      height: var(--space-20);
       background: linear-gradient(135deg, transparent 50%, var(--stat-color, rgba(255, 122, 48, 0.1)) 50%);
       opacity: 0.5;
-      transition: transform 0.4s;
+      transition: transform var(--duration-slow) var(--ease-out);
     }
 
     .stat-value-wrapper {
       position: relative;
       display: inline-block;
-      margin-bottom: 16px;
+      margin-bottom: var(--space-4);
     }
 
     .stat-value {
       font-family: var(--font-display);
       font-size: clamp(48px, 8vw, 64px);
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      line-height: 1;
+      font-weight: var(--weight-extrabold);
+      letter-spacing: var(--tracking-tighter);
+      line-height: var(--leading-none);
       background: var(--gradient-brand);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -274,58 +278,59 @@ interface Stat {
       bottom: -4px;
       left: 0;
       width: 100%;
-      height: 4px;
+      height: var(--space-1);
       background: var(--gradient-brand);
-      border-radius: 2px;
+      border-radius: var(--radius-sm);
       transform: scaleX(0);
       transform-origin: left;
-      transition: transform 0.4s;
+      transition: transform var(--duration-slow) var(--ease-out);
     }
 
     .stat-metric {
-      margin-bottom: 12px;
+      margin-bottom: var(--space-3);
     }
 
     .metric-flag {
       display: inline-block;
       font-family: var(--font-mono);
-      font-size: 11px;
-      font-weight: 600;
+      font-size: var(--text-xs);
+      font-weight: var(--weight-semibold);
       color: var(--stat-color, var(--accent-cyan));
       background: rgba(255, 122, 48, 0.1);
-      padding: 6px 12px;
-      border-radius: 4px;
-      letter-spacing: 0.05em;
+      padding: var(--space-1-5) var(--space-3);
+      border-radius: var(--radius-sm);
+      letter-spacing: var(--tracking-wider);
+      line-height: var(--leading-normal);
     }
 
     .stat-label {
       color: var(--text-secondary);
-      font-size: 14px;
-      line-height: 1.5;
+      font-size: var(--text-sm);
+      line-height: var(--leading-normal);
     }
 
     .stat-glyph {
       position: absolute;
-      bottom: -20px;
-      right: 10px;
+      bottom: calc(var(--space-5) * -1);
+      right: var(--space-2-5);
       font-family: var(--font-display);
       font-size: 160px;
-      font-weight: 800;
+      font-weight: var(--weight-extrabold);
       color: transparent;
       -webkit-text-stroke: 1px var(--border-subtle);
       opacity: 0.3;
-      line-height: 1;
+      line-height: var(--leading-none);
       pointer-events: none;
       user-select: none;
     }
 
     .connector-visual {
-      margin-top: 64px;
+      margin-top: var(--space-16);
       overflow: visible;
 
       svg {
         width: 100%;
-        height: 60px;
+        height: var(--space-14);
       }
 
       .connector-path {
@@ -346,16 +351,16 @@ interface Stat {
 
     @media (max-width: 768px) {
       .stats {
-        padding: 100px 0 120px;
+        padding: var(--space-24) 0 var(--space-28);
       }
 
       .diagonal-top,
       .diagonal-bottom {
-        height: 40px;
+        height: var(--space-10);
       }
 
       .stat-block {
-        padding: 24px;
+        padding: var(--space-6);
       }
 
       .stat-glyph {

@@ -223,9 +223,9 @@ import { CommonModule } from '@angular/common';
     .utility-bar {
       background: var(--bg-void);
       border-bottom: 1px solid var(--border-subtle);
-      padding: 8px 0;
-      font-size: 12px;
-      transition: transform 0.3s var(--ease-out), opacity 0.3s var(--ease-out);
+      padding: var(--space-2) 0;
+      font-size: var(--text-xs);
+      transition: transform var(--duration-normal) var(--ease-out), opacity var(--duration-normal) var(--ease-out);
 
       @media (max-width: 768px) {
         display: none;
@@ -241,7 +241,7 @@ import { CommonModule } from '@angular/common';
     .utility-content {
       max-width: 1280px;
       margin: 0 auto;
-      padding: 0 24px;
+      padding: 0 var(--container-px);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -250,42 +250,44 @@ import { CommonModule } from '@angular/common';
     .status-cluster {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--space-2);
       color: var(--text-muted);
     }
 
     .status-dot {
-      width: 6px;
-      height: 6px;
-      background: #22c55e;
-      border-radius: 50%;
-      box-shadow: 0 0 8px #22c55e;
+      width: var(--space-1-5);
+      height: var(--space-1-5);
+      background: var(--accent-green);
+      border-radius: var(--radius-full);
+      box-shadow: 0 0 8px var(--accent-green);
       animation: pulse-glow 2s ease-in-out infinite;
     }
 
     @keyframes pulse-glow {
-      0%, 100% { opacity: 1; box-shadow: 0 0 8px #22c55e; }
-      50% { opacity: 0.7; box-shadow: 0 0 12px #22c55e; }
+      0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--accent-green); }
+      50% { opacity: 0.7; box-shadow: 0 0 12px var(--accent-green); }
     }
 
     .status-text {
       font-family: var(--font-mono);
-      letter-spacing: 0.02em;
+      letter-spacing: var(--tracking-wide);
+      line-height: var(--leading-normal);
     }
 
     .utility-links {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: var(--space-3);
     }
 
     .utility-link {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--space-1-5);
       color: var(--text-muted);
       text-decoration: none;
-      transition: color 0.2s;
+      line-height: var(--leading-normal);
+      transition: color var(--duration-fast) var(--ease-out);
 
       &:hover {
         color: var(--text-primary);
@@ -298,12 +300,13 @@ import { CommonModule } from '@angular/common';
 
     .version-tag {
       font-family: var(--font-mono);
-      font-size: 10px;
-      padding: 2px 6px;
+      font-size: var(--text-xs);
+      padding: var(--space-0-5) var(--space-1-5);
       background: var(--bg-elevated);
       border: 1px solid var(--border-subtle);
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       color: var(--accent-cyan);
+      line-height: var(--leading-normal);
     }
 
     .utility-divider {
@@ -318,14 +321,14 @@ import { CommonModule } from '@angular/common';
       top: 0;
       left: 0;
       right: 0;
-      z-index: 1000;
+      z-index: var(--z-modal);
     }
 
     .main-nav {
       background: rgba(5, 5, 8, 0.6);
       backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border-subtle);
-      transition: background 0.3s;
+      transition: background var(--duration-normal) var(--ease-out);
     }
 
     header.scrolled .main-nav {
@@ -335,12 +338,12 @@ import { CommonModule } from '@angular/common';
     .nav-content {
       max-width: 1280px;
       margin: 0 auto;
-      padding: 0 24px;
-      height: 64px;
+      padding: 0 var(--container-px);
+      height: var(--navbar-height);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 32px;
+      gap: var(--space-8);
     }
 
     /* ============================================
@@ -349,10 +352,10 @@ import { CommonModule } from '@angular/common';
     .logo-block {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: var(--space-3);
       text-decoration: none;
       color: var(--text-primary);
-      transition: opacity 0.2s;
+      transition: opacity var(--duration-fast) var(--ease-out);
       position: relative;
 
       // Subtle orange glow under logo on hover
@@ -361,14 +364,14 @@ import { CommonModule } from '@angular/common';
         position: absolute;
         left: 0;
         top: 50%;
-        width: 42px;
-        height: 42px;
+        width: var(--space-11);
+        height: var(--space-11);
         transform: translateY(-50%);
         background: radial-gradient(circle, rgba(255, 122, 48, 0.4) 0%, transparent 70%);
-        border-radius: 50%;
+        border-radius: var(--radius-full);
         opacity: 0;
         filter: blur(8px);
-        transition: opacity 0.3s ease, filter 0.15s ease;
+        transition: opacity var(--duration-normal) var(--ease-out), filter var(--duration-fast) var(--ease-out);
         pointer-events: none;
         z-index: -1;
       }
@@ -395,17 +398,17 @@ import { CommonModule } from '@angular/common';
     }
 
     .logo-img {
-      width: 42px;
-      height: 42px;
+      width: var(--space-11);
+      height: var(--space-11);
       object-fit: contain;
       filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.3));
-      transition: filter 0.15s ease;
+      transition: filter var(--duration-fast) var(--ease-out);
     }
 
     .logo-stack {
       display: flex;
       flex-direction: column;
-      gap: 1px;
+      gap: var(--space-px);
 
       @media (max-width: 500px) {
         display: none;
@@ -414,17 +417,18 @@ import { CommonModule } from '@angular/common';
 
     .logo-name {
       font-family: var(--font-mono);
-      font-weight: 700;
-      font-size: 15px;
-      letter-spacing: -0.02em;
-      line-height: 1.2;
+      font-weight: var(--weight-bold);
+      font-size: var(--text-base);
+      letter-spacing: var(--tracking-tight);
+      line-height: var(--leading-snug);
     }
 
     .logo-tagline {
-      font-size: 11px;
+      font-size: var(--text-xs);
       color: var(--text-muted);
-      letter-spacing: 0.04em;
+      letter-spacing: var(--tracking-wider);
       text-transform: uppercase;
+      line-height: var(--leading-normal);
     }
 
     /* ============================================
@@ -433,7 +437,7 @@ import { CommonModule } from '@angular/common';
     .nav-keys {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: var(--space-1);
 
       @media (max-width: 900px) {
         display: none;
@@ -443,12 +447,12 @@ import { CommonModule } from '@angular/common';
     .nav-key {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 8px 14px;
+      gap: var(--space-2-5);
+      padding: var(--space-2) var(--space-3-5);
       text-decoration: none;
       color: var(--text-secondary);
-      border-radius: 8px;
-      transition: all 0.2s;
+      border-radius: var(--radius-lg);
+      transition: all var(--duration-fast) var(--ease-out);
       position: relative;
 
       &::before {
@@ -456,9 +460,9 @@ import { CommonModule } from '@angular/common';
         position: absolute;
         inset: 0;
         background: var(--bg-elevated);
-        border-radius: 8px;
+        border-radius: var(--radius-lg);
         opacity: 0;
-        transition: opacity 0.2s;
+        transition: opacity var(--duration-fast) var(--ease-out);
       }
 
       &:hover {
@@ -477,20 +481,22 @@ import { CommonModule } from '@angular/common';
 
       .key-label {
         position: relative;
-        font-size: 13px;
-        font-weight: 500;
+        font-size: var(--text-sm);
+        font-weight: var(--weight-medium);
+        line-height: var(--leading-normal);
       }
 
       kbd {
         position: relative;
         font-family: var(--font-mono);
-        font-size: 10px;
-        padding: 3px 6px;
+        font-size: var(--text-xs);
+        padding: var(--space-0-5) var(--space-1-5);
         background: var(--bg-secondary);
         border: 1px solid var(--border-medium);
-        border-radius: 4px;
+        border-radius: var(--radius-sm);
         color: var(--text-muted);
-        transition: all 0.2s;
+        line-height: var(--leading-normal);
+        transition: all var(--duration-fast) var(--ease-out);
       }
     }
 
@@ -500,19 +506,19 @@ import { CommonModule } from '@angular/common';
     .nav-actions {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: var(--space-3);
     }
 
     .cmd-trigger {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 8px 12px;
+      gap: var(--space-2-5);
+      padding: var(--space-2) var(--space-3);
       background: var(--bg-secondary);
       border: 1px solid var(--border-subtle);
-      border-radius: 8px;
+      border-radius: var(--radius-lg);
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all var(--duration-fast) var(--ease-out);
       color: var(--text-secondary);
 
       &:hover {
@@ -529,8 +535,8 @@ import { CommonModule } from '@angular/common';
     }
 
     .cmd-icon {
-      width: 18px;
-      height: 18px;
+      width: var(--icon-sm);
+      height: var(--icon-sm);
 
       svg {
         width: 100%;
@@ -538,7 +544,7 @@ import { CommonModule } from '@angular/common';
       }
 
       path {
-        transition: opacity 0.2s;
+        transition: opacity var(--duration-fast) var(--ease-out);
 
         &.hidden {
           opacity: 0;
@@ -548,30 +554,32 @@ import { CommonModule } from '@angular/common';
 
     .cmd-shortcut {
       display: flex;
-      gap: 2px;
+      gap: var(--space-0-5);
 
       kbd {
         font-family: var(--font-mono);
-        font-size: 11px;
-        padding: 2px 5px;
+        font-size: var(--text-xs);
+        padding: var(--space-0-5) var(--space-1);
         background: var(--bg-elevated);
         border: 1px solid var(--border-subtle);
-        border-radius: 3px;
+        border-radius: var(--radius-sm);
+        line-height: var(--leading-normal);
       }
     }
 
     .cta-block {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 18px;
+      gap: var(--space-2);
+      padding: var(--space-2-5) var(--space-5);
       background: var(--text-primary);
       color: var(--bg-primary);
       text-decoration: none;
-      font-size: 13px;
-      font-weight: 600;
-      border-radius: 8px;
-      transition: all 0.2s;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-semibold);
+      line-height: var(--leading-normal);
+      border-radius: var(--radius-lg);
+      transition: all var(--duration-fast) var(--ease-out);
       overflow: hidden;
       position: relative;
 
@@ -581,12 +589,12 @@ import { CommonModule } from '@angular/common';
         inset: 0;
         background: linear-gradient(90deg, transparent, rgba(78, 205, 196, 0.3), transparent);
         transform: translateX(-100%);
-        transition: transform 0.5s;
+        transition: transform var(--duration-slower) var(--ease-out);
       }
 
       &:hover {
         transform: translateY(-1px);
-        box-shadow: 0 8px 20px -8px rgba(248, 250, 252, 0.4);
+        box-shadow: var(--shadow-lg);
 
         &::before {
           transform: translateX(100%);
@@ -608,11 +616,11 @@ import { CommonModule } from '@angular/common';
 
     .cta-arrow {
       display: flex;
-      transition: transform 0.2s;
+      transition: transform var(--duration-fast) var(--ease-out);
 
       svg {
-        width: 16px;
-        height: 16px;
+        width: var(--icon-sm);
+        height: var(--icon-sm);
       }
     }
 
@@ -636,15 +644,15 @@ import { CommonModule } from '@angular/common';
     .cmd-overlay {
       position: fixed;
       inset: 0;
-      z-index: 1100;
+      z-index: var(--z-modal);
       background: rgba(3, 3, 5, 0.8);
       backdrop-filter: blur(8px);
       display: flex;
       justify-content: center;
-      padding-top: 120px;
+      padding-top: var(--space-28);
       opacity: 0;
       visibility: hidden;
-      transition: all 0.25s var(--ease-out);
+      transition: all var(--duration-normal) var(--ease-out);
 
       &.active {
         opacity: 1;
@@ -659,87 +667,87 @@ import { CommonModule } from '@angular/common';
 
     .cmd-panel {
       width: 520px;
-      max-width: calc(100vw - 32px);
+      max-width: calc(100vw - var(--space-8));
       max-height: 480px;
       background: var(--bg-secondary);
       border: 1px solid var(--border-medium);
-      border-radius: 16px;
+      border-radius: var(--radius-2xl);
       overflow: hidden;
-      box-shadow:
-        0 0 0 1px rgba(255, 255, 255, 0.05),
-        0 24px 48px -12px rgba(0, 0, 0, 0.5),
-        0 0 120px -40px rgba(78, 205, 196, 0.2);
+      box-shadow: var(--shadow-xl);
       transform: translateY(-20px) scale(0.98);
       opacity: 0;
-      transition: all 0.25s var(--ease-out);
+      transition: all var(--duration-normal) var(--ease-out);
     }
 
     .cmd-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 16px 20px;
+      padding: var(--space-4) var(--space-5);
       border-bottom: 1px solid var(--border-subtle);
     }
 
     .cmd-search {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: var(--space-3);
       color: var(--text-muted);
 
       svg {
-        width: 18px;
-        height: 18px;
+        width: var(--icon-sm);
+        height: var(--icon-sm);
         opacity: 0.6;
       }
     }
 
     .cmd-placeholder {
-      font-size: 15px;
+      font-size: var(--text-base);
+      line-height: var(--leading-normal);
     }
 
     .cmd-esc {
       font-family: var(--font-mono);
-      font-size: 11px;
-      padding: 4px 8px;
+      font-size: var(--text-xs);
+      padding: var(--space-1) var(--space-2);
       background: var(--bg-elevated);
       border: 1px solid var(--border-subtle);
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       color: var(--text-muted);
+      line-height: var(--leading-normal);
     }
 
     .cmd-list {
-      padding: 12px;
+      padding: var(--space-3);
       max-height: 340px;
       overflow-y: auto;
     }
 
     .cmd-group {
       &:not(:last-child) {
-        margin-bottom: 16px;
+        margin-bottom: var(--space-4);
       }
     }
 
     .cmd-group-label {
       display: block;
-      font-size: 11px;
-      font-weight: 600;
+      font-size: var(--text-xs);
+      font-weight: var(--weight-semibold);
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: var(--tracking-widest);
       color: var(--text-muted);
-      padding: 8px 12px 8px;
+      padding: var(--space-2) var(--space-3);
+      line-height: var(--leading-normal);
     }
 
     .cmd-item {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 12px;
+      gap: var(--space-3);
+      padding: var(--space-3);
       text-decoration: none;
       color: var(--text-secondary);
-      border-radius: 10px;
-      transition: all 0.15s;
+      border-radius: var(--radius-lg);
+      transition: all var(--duration-fast) var(--ease-out);
 
       &:hover {
         background: var(--bg-elevated);
@@ -755,28 +763,29 @@ import { CommonModule } from '@angular/common';
       kbd {
         margin-left: auto;
         font-family: var(--font-mono);
-        font-size: 11px;
-        padding: 3px 7px;
+        font-size: var(--text-xs);
+        padding: var(--space-0-5) var(--space-2);
         background: var(--bg-card);
         border: 1px solid var(--border-subtle);
-        border-radius: 4px;
+        border-radius: var(--radius-sm);
         color: var(--text-muted);
-        transition: all 0.15s;
+        line-height: var(--leading-normal);
+        transition: all var(--duration-fast) var(--ease-out);
       }
     }
 
     .cmd-item-icon {
-      width: 32px;
-      height: 32px;
+      width: var(--space-8);
+      height: var(--space-8);
       display: flex;
       align-items: center;
       justify-content: center;
       background: var(--bg-card);
-      border-radius: 8px;
+      border-radius: var(--radius-lg);
 
       svg {
-        width: 16px;
-        height: 16px;
+        width: var(--icon-sm);
+        height: var(--icon-sm);
       }
 
       &.accent {
@@ -789,23 +798,25 @@ import { CommonModule } from '@angular/common';
     }
 
     .cmd-item-text {
-      font-size: 14px;
-      font-weight: 500;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      line-height: var(--leading-normal);
     }
 
     .cmd-item-badge {
       margin-left: auto;
-      font-size: 11px;
-      padding: 3px 8px;
+      font-size: var(--text-xs);
+      padding: var(--space-0-5) var(--space-2);
       background: rgba(78, 205, 196, 0.1);
       border: 1px solid rgba(78, 205, 196, 0.2);
-      border-radius: 100px;
+      border-radius: var(--radius-full);
       color: var(--accent-cyan);
+      line-height: var(--leading-normal);
     }
 
     .cmd-item-external {
       margin-left: auto;
-      font-size: 14px;
+      font-size: var(--text-sm);
       color: var(--text-muted);
     }
 
@@ -813,8 +824,8 @@ import { CommonModule } from '@angular/common';
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 24px;
-      padding: 12px 20px;
+      gap: var(--space-6);
+      padding: var(--space-3) var(--space-5);
       border-top: 1px solid var(--border-subtle);
       background: var(--bg-elevated);
     }
@@ -822,17 +833,19 @@ import { CommonModule } from '@angular/common';
     .cmd-hint {
       display: flex;
       align-items: center;
-      gap: 4px;
-      font-size: 12px;
+      gap: var(--space-1);
+      font-size: var(--text-xs);
       color: var(--text-muted);
+      line-height: var(--leading-normal);
 
       kbd {
         font-family: var(--font-mono);
-        font-size: 10px;
-        padding: 2px 5px;
+        font-size: var(--text-xs);
+        padding: var(--space-0-5) var(--space-1);
         background: var(--bg-card);
         border: 1px solid var(--border-subtle);
-        border-radius: 3px;
+        border-radius: var(--radius-sm);
+        line-height: var(--leading-normal);
       }
     }
 
@@ -845,13 +858,13 @@ import { CommonModule } from '@angular/common';
       bottom: 0;
       left: 0;
       right: 0;
-      z-index: 999;
+      z-index: var(--z-fixed);
       background: rgba(5, 5, 8, 0.95);
       backdrop-filter: blur(20px);
       border-top: 1px solid var(--border-subtle);
-      padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+      padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom));
       justify-content: space-around;
-      transition: transform 0.3s var(--ease-out);
+      transition: transform var(--duration-normal) var(--ease-out);
 
       @media (max-width: 900px) {
         display: flex;
@@ -866,18 +879,19 @@ import { CommonModule } from '@angular/common';
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 4px;
-      padding: 8px 16px;
+      gap: var(--space-1);
+      padding: var(--space-2) var(--space-4);
       text-decoration: none;
       color: var(--text-muted);
-      font-size: 11px;
-      font-weight: 500;
-      border-radius: 10px;
-      transition: all 0.2s;
+      font-size: var(--text-xs);
+      font-weight: var(--weight-medium);
+      line-height: var(--leading-normal);
+      border-radius: var(--radius-lg);
+      transition: all var(--duration-fast) var(--ease-out);
 
       svg {
-        width: 22px;
-        height: 22px;
+        width: var(--icon-lg);
+        height: var(--icon-lg);
       }
 
       &:hover, &:active {

@@ -261,4 +261,119 @@ mod tests {
         invalid.name = "".to_string();
         assert!(invalid.validate().is_err());
     }
+
+    // ------------------------------------------------------------------------
+    // Additional RouteMatcher Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_route_matcher_empty() {
+        let routes: Vec<ServerRouteConfig> = vec![];
+        let matcher = RouteMatcher::new(&routes);
+        assert_eq!(matcher.match_path("/any/path"), None);
+    }
+
+    #[test]
+    fn test_route_matcher_root_path() {
+        let routes = vec![
+            create_test_route("root", "/", false),
+            create_test_route("api", "/api", false),
+        ];
+        let matcher = RouteMatcher::new(&routes);
+
+        // More specific should win
+        assert_eq!(matcher.match_path("/api/users"), Some("api"));
+        // Root should match everything else
+        assert_eq!(matcher.match_path("/other"), Some("root"));
+    }
+
+    #[test]
+    fn test_route_matcher_exact_match() {
+        let routes = vec![
+            create_test_route("exact", "/exact", false),
+        ];
+        let matcher = RouteMatcher::new(&routes);
+
+        assert_eq!(matcher.match_path("/exact"), Some("exact"));
+        assert_eq!(matcher.match_path("/exact/sub"), Some("exact"));
+        // Note: /exactnot starts with /exact, so it matches (prefix-based routing)
+        assert_eq!(matcher.match_path("/exactnot"), Some("exact"));
+        // This one doesn't match
+        assert_eq!(matcher.match_path("/other"), None);
+    }
+
+    // ------------------------------------------------------------------------
+    // RouterError Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_router_error_no_route() {
+        let err = RouterError::NoRoute("/unknown".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("/unknown"));
+    }
+
+    #[test]
+    fn test_router_error_transport_init() {
+        let err = RouterError::TransportInit("server1".to_string(), "connection failed".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("server1"));
+        assert!(msg.contains("connection failed"));
+    }
+
+    #[test]
+    fn test_router_error_from_transport() {
+        let transport_err = TransportError::Timeout;
+        let router_err: RouterError = transport_err.into();
+        assert!(matches!(router_err, RouterError::Transport(_)));
+    }
+
+    // ------------------------------------------------------------------------
+    // ServerRouteConfig Transport Type Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_config_validation_stdio_missing_command() {
+        let mut config = ServerRouteConfig {
+            name: "stdio".to_string(),
+            path_prefix: "/stdio".to_string(),
+            transport: TransportType::Stdio,
+            command: None,
+            args: vec![],
+            url: None,
+            strip_prefix: false,
+        };
+        assert!(config.validate().is_err());
+        
+        config.command = Some("node".to_string());
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_config_validation_http_missing_url() {
+        let config = ServerRouteConfig {
+            name: "http".to_string(),
+            path_prefix: "/http".to_string(),
+            transport: TransportType::Http,
+            command: None,
+            args: vec![],
+            url: None,
+            strip_prefix: false,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_sse_missing_url() {
+        let config = ServerRouteConfig {
+            name: "sse".to_string(),
+            path_prefix: "/sse".to_string(),
+            transport: TransportType::Sse,
+            command: None,
+            args: vec![],
+            url: None,
+            strip_prefix: false,
+        };
+        assert!(config.validate().is_err());
+    }
 }

@@ -93,7 +93,7 @@ import { CommonModule } from '@angular/common';
   styles: [`
     .footer {
       position: relative;
-      padding: 80px 0 40px;
+      padding: var(--space-20) 0 var(--space-10);
       background: var(--bg-primary);
       border-top: 1px solid var(--border-subtle);
     }
@@ -101,18 +101,18 @@ import { CommonModule } from '@angular/common';
     .footer-container {
       max-width: 1280px;
       margin: 0 auto;
-      padding: 0 24px;
+      padding: 0 var(--container-px);
     }
 
     .footer-main {
       display: grid;
       grid-template-columns: 1.5fr 2fr;
-      gap: 64px;
-      margin-bottom: 48px;
+      gap: var(--space-16);
+      margin-bottom: var(--space-12);
 
       @media (max-width: 900px) {
         grid-template-columns: 1fr;
-        gap: 48px;
+        gap: var(--space-12);
       }
     }
 
@@ -120,47 +120,48 @@ import { CommonModule } from '@angular/common';
       .logo {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: var(--space-2-5);
         text-decoration: none;
         color: var(--text-primary);
-        margin-bottom: 16px;
+        margin-bottom: var(--space-4);
       }
 
       .logo-icon {
-        width: 36px;
-        height: 36px;
+        width: var(--space-9);
+        height: var(--space-9);
         background: var(--gradient-brand);
-        border-radius: 10px;
+        border-radius: var(--radius-lg);
         display: flex;
         align-items: center;
         justify-content: center;
 
         svg {
-          width: 20px;
-          height: 20px;
+          width: var(--icon-md);
+          height: var(--icon-md);
           color: var(--bg-primary);
         }
       }
 
       .logo-text {
         font-family: var(--font-mono);
-        font-weight: 600;
-        font-size: 18px;
-        letter-spacing: -0.02em;
+        font-weight: var(--weight-semibold);
+        font-size: var(--text-lg);
+        letter-spacing: var(--tracking-tight);
+        line-height: var(--leading-normal);
       }
     }
 
     .brand-tagline {
       color: var(--text-muted);
-      font-size: 14px;
-      line-height: 1.7;
+      font-size: var(--text-sm);
+      line-height: var(--leading-relaxed);
       max-width: 280px;
     }
 
     .footer-links {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 32px;
+      gap: var(--space-8);
 
       @media (max-width: 768px) {
         grid-template-columns: repeat(2, 1fr);
@@ -173,27 +174,29 @@ import { CommonModule } from '@angular/common';
 
     .link-group {
       h4 {
-        font-size: 13px;
-        font-weight: 600;
+        font-size: var(--text-xs);
+        font-weight: var(--weight-semibold);
         color: var(--text-primary);
-        margin-bottom: 16px;
+        margin-bottom: var(--space-4);
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: var(--tracking-wider);
+        line-height: var(--leading-normal);
       }
 
       a {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--space-2);
         color: var(--text-muted);
         text-decoration: none;
-        font-size: 14px;
-        padding: 6px 0;
-        transition: color 0.2s;
+        font-size: var(--text-sm);
+        line-height: var(--leading-normal);
+        padding: var(--space-1-5) 0;
+        transition: color var(--duration-fast) var(--ease-out);
 
         svg {
-          width: 16px;
-          height: 16px;
+          width: var(--icon-sm);
+          height: var(--icon-sm);
         }
 
         &:hover {
@@ -206,42 +209,44 @@ import { CommonModule } from '@angular/common';
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding-top: 32px;
+      padding-top: var(--space-8);
       border-top: 1px solid var(--border-subtle);
 
       @media (max-width: 640px) {
         flex-direction: column;
-        gap: 16px;
+        gap: var(--space-4);
         text-align: center;
       }
     }
 
     .copyright {
       color: var(--text-muted);
-      font-size: 13px;
+      font-size: var(--text-xs);
+      line-height: var(--leading-normal);
     }
 
     .footer-badges {
       display: flex;
-      gap: 12px;
+      gap: var(--space-3);
     }
 
     .badge {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
+      gap: var(--space-1-5);
+      padding: var(--space-1-5) var(--space-3);
       background: var(--bg-elevated);
       border: 1px solid var(--border-subtle);
-      border-radius: 6px;
+      border-radius: var(--radius-md);
       color: var(--text-muted);
       text-decoration: none;
-      font-size: 12px;
-      transition: all 0.2s;
+      font-size: var(--text-xs);
+      line-height: var(--leading-normal);
+      transition: all var(--duration-fast) var(--ease-out);
 
       svg {
-        width: 14px;
-        height: 14px;
+        width: var(--icon-xs);
+        height: var(--icon-xs);
       }
 
       &:hover {

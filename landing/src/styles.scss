@@ -48,32 +48,134 @@
   --terminal-yellow: #febc2e;
   --terminal-green: #28c840;
 
-  // Typography
+  // Typography - Font Families
   --font-mono: 'JetBrains Mono', monospace;
   --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: 'Syne', -apple-system, BlinkMacSystemFont, sans-serif;
 
-  // Spacing scale
+  // Typography - Font Sizes (fluid scale)
+  --text-xs: clamp(0.6875rem, 0.65rem + 0.1vw, 0.75rem);      // 11-12px
+  --text-sm: clamp(0.8125rem, 0.775rem + 0.15vw, 0.875rem);   // 13-14px
+  --text-base: clamp(0.9375rem, 0.9rem + 0.15vw, 1rem);       // 15-16px
+  --text-md: clamp(1rem, 0.95rem + 0.2vw, 1.125rem);          // 16-18px
+  --text-lg: clamp(1.125rem, 1.05rem + 0.3vw, 1.25rem);       // 18-20px
+  --text-xl: clamp(1.25rem, 1.15rem + 0.4vw, 1.5rem);         // 20-24px
+  --text-2xl: clamp(1.5rem, 1.35rem + 0.6vw, 1.875rem);       // 24-30px
+  --text-3xl: clamp(1.875rem, 1.65rem + 0.9vw, 2.5rem);       // 30-40px
+  --text-4xl: clamp(2.25rem, 1.9rem + 1.4vw, 3.25rem);        // 36-52px
+  --text-5xl: clamp(2.75rem, 2.2rem + 2.2vw, 4.5rem);         // 44-72px
+  --text-6xl: clamp(3.25rem, 2.5rem + 3vw, 6rem);             // 52-96px
+
+  // Typography - Font Weights
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-extrabold: 800;
+
+  // Typography - Line Heights (generous for descenders like 'g', 'y', 'p')
+  --leading-none: 1;
+  --leading-tight: 1.15;      // For large display text
+  --leading-snug: 1.3;        // For headings
+  --leading-normal: 1.5;      // For body text - ensures descenders aren't cut
+  --leading-relaxed: 1.625;   // For comfortable reading
+  --leading-loose: 1.8;       // For spacious text blocks
+
+  // Typography - Letter Spacing
+  --tracking-tighter: -0.03em;
+  --tracking-tight: -0.015em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.015em;
+  --tracking-wider: 0.03em;
+  --tracking-widest: 0.08em;
+
+  // Spacing scale (8px base, with half steps)
+  --space-0: 0;
+  --space-px: 1px;
+  --space-0-5: 2px;
   --space-1: 4px;
+  --space-1-5: 6px;
   --space-2: 8px;
+  --space-2-5: 10px;
   --space-3: 12px;
+  --space-3-5: 14px;
   --space-4: 16px;
   --space-5: 20px;
   --space-6: 24px;
+  --space-7: 28px;
   --space-8: 32px;
+  --space-9: 36px;
   --space-10: 40px;
+  --space-11: 44px;
   --space-12: 48px;
+  --space-14: 56px;
   --space-16: 64px;
+  --space-18: 72px;
   --space-20: 80px;
   --space-24: 96px;
+  --space-28: 112px;
   --space-32: 128px;
+
+  // Section spacing (responsive)
+  --section-py: clamp(var(--space-16), 10vw, var(--space-24));
+  --section-py-sm: clamp(var(--space-12), 8vw, var(--space-20));
+  --section-py-lg: clamp(var(--space-20), 12vw, var(--space-32));
+
+  // Container padding (responsive)
+  --container-px: clamp(var(--space-4), 5vw, var(--space-6));
+
+  // Border radius scale
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
+  --radius-full: 9999px;
+
+  // Shadows
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  --shadow-glow-orange: 0 0 20px rgba(255, 122, 48, 0.3);
+  --shadow-glow-blue: 0 0 20px rgba(59, 130, 246, 0.3);
+
+  // Z-index scale
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-modal-backdrop: 400;
+  --z-modal: 500;
+  --z-popover: 600;
+  --z-tooltip: 700;
+
+  // Icon sizes
+  --icon-xs: 12px;
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-lg: 24px;
+  --icon-xl: 32px;
+  --icon-2xl: 40px;
+  --icon-3xl: 48px;
+
+  // Component sizes
+  --btn-height-sm: 32px;
+  --btn-height-md: 40px;
+  --btn-height-lg: 48px;
+  --input-height: 44px;
+  --navbar-height: 64px;
 
   // Timing
   --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-instant: 50ms;
   --duration-fast: 150ms;
   --duration-normal: 250ms;
   --duration-slow: 400ms;
+  --duration-slower: 600ms;
 }
 
 *,
@@ -93,7 +195,8 @@ body {
   font-family: var(--font-sans);
   background: var(--bg-void);
   color: var(--text-primary);
-  line-height: 1.6;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

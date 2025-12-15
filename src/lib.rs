@@ -14,6 +14,9 @@ pub mod router;
 pub mod server;
 pub mod transport;
 
+#[cfg(test)]
+pub mod mocks;
+
 pub use config::Config;
 
 /// Result type alias for mcp-guard operations

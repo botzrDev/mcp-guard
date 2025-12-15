@@ -215,17 +215,17 @@ interface Step {
       transform: translate(-50%, -50%) rotate(-10deg);
       font-family: var(--font-display);
       font-size: clamp(100px, 16vw, 220px);
-      font-weight: 800;
+      font-weight: var(--weight-extrabold);
       color: rgba(255, 122, 48, 0.015);
       white-space: nowrap;
       pointer-events: none;
       user-select: none;
-      letter-spacing: -0.05em;
+      letter-spacing: var(--tracking-tighter);
     }
 
     .hiw-header {
       position: relative;
-      padding: 64px 24px 32px;
+      padding: var(--space-16) var(--container-px) var(--space-8);
       max-width: 1400px;
       margin: 0 auto;
       display: flex;
@@ -235,27 +235,28 @@ interface Step {
 
     .section-number {
       font-family: var(--font-mono);
-      font-size: 80px;
-      font-weight: 800;
+      font-size: var(--text-6xl);
+      font-weight: var(--weight-extrabold);
       color: transparent;
       -webkit-text-stroke: 1px var(--border-subtle);
-      line-height: 0.8;
-      margin-bottom: 20px;
+      line-height: var(--leading-none);
+      margin-bottom: var(--space-5);
       display: block;
     }
 
     .section-tag-wrapper {
       display: flex;
       align-items: center;
-      gap: 16px;
-      margin-bottom: 16px;
+      gap: var(--space-4);
+      margin-bottom: var(--space-4);
     }
 
     .section-tag {
       font-family: var(--font-mono);
-      font-size: 13px;
+      font-size: var(--text-sm);
       color: var(--accent-cyan);
-      letter-spacing: 0.05em;
+      letter-spacing: var(--tracking-wider);
+      line-height: var(--leading-normal);
     }
 
     .tag-line {
@@ -271,18 +272,19 @@ interface Step {
 
     .title-small {
       font-family: var(--font-sans);
-      font-size: clamp(18px, 3vw, 24px);
-      font-weight: 400;
+      font-size: var(--text-xl);
+      font-weight: var(--weight-normal);
       color: var(--text-secondary);
-      margin-bottom: 8px;
+      line-height: var(--leading-normal);
+      margin-bottom: var(--space-2);
     }
 
     .title-big {
       font-family: var(--font-display);
-      font-size: clamp(48px, 8vw, 96px);
-      font-weight: 800;
-      letter-spacing: -0.04em;
-      line-height: 0.9;
+      font-size: var(--text-6xl);
+      font-weight: var(--weight-extrabold);
+      letter-spacing: var(--tracking-tighter);
+      line-height: var(--leading-none);
     }
 
     .gradient-text {
@@ -296,11 +298,12 @@ interface Step {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
+      gap: var(--space-3);
       color: var(--text-muted);
-      font-size: 12px;
+      font-size: var(--text-xs);
       text-transform: uppercase;
-      letter-spacing: 0.1em;
+      letter-spacing: var(--tracking-widest);
+      line-height: var(--leading-normal);
 
       @media (max-width: 768px) {
         display: none;
@@ -308,42 +311,42 @@ interface Step {
     }
 
     .scroll-arrow {
-      width: 24px;
-      height: 40px;
+      width: var(--space-6);
+      height: var(--space-10);
       border: 2px solid var(--border-subtle);
-      border-radius: 12px;
+      border-radius: var(--radius-xl);
       position: relative;
 
       &::after {
         content: '';
         position: absolute;
-        top: 8px;
+        top: var(--space-2);
         left: 50%;
         transform: translateX(-50%);
-        width: 4px;
-        height: 8px;
+        width: var(--space-1);
+        height: var(--space-2);
         background: var(--accent-cyan);
-        border-radius: 2px;
+        border-radius: var(--radius-sm);
         animation: scrollBounce 1.5s infinite;
       }
     }
 
     @keyframes scrollBounce {
       0%, 100% { transform: translateX(-50%) translateY(0); opacity: 1; }
-      50% { transform: translateX(-50%) translateY(12px); opacity: 0.3; }
+      50% { transform: translateX(-50%) translateY(var(--space-3)); opacity: 0.3; }
     }
 
     /* Horizontal scroll panels */
     .panels-container {
       position: relative;
       overflow: hidden;
-      padding: 40px 0 100px;
+      padding: var(--space-10) 0 var(--space-24);
     }
 
     .panels-track {
       display: flex;
-      gap: 40px;
-      padding: 0 max(24px, calc((100vw - 1400px) / 2));
+      gap: var(--space-10);
+      padding: 0 max(var(--space-6), calc((100vw - 1400px) / 2));
       width: max-content;
     }
 
@@ -353,15 +356,15 @@ interface Step {
       min-height: 500px;
       background: var(--bg-secondary);
       border: 1px solid var(--border-subtle);
-      border-radius: 24px;
-      padding: 40px;
+      border-radius: var(--radius-3xl);
+      padding: var(--space-10);
       flex-shrink: 0;
       overflow: hidden;
-      transition: border-color 0.4s, box-shadow 0.4s;
+      transition: border-color var(--duration-slow) var(--ease-out), box-shadow var(--duration-slow) var(--ease-out);
 
       &:hover {
         border-color: var(--brand-color, #FF7A30);
-        box-shadow: 0 0 60px -20px var(--brand-color, rgba(255, 122, 48, 0.3));
+        box-shadow: var(--shadow-glow-orange);
       }
     }
 
@@ -371,11 +374,11 @@ interface Step {
       right: -20px;
       font-family: var(--font-display);
       font-size: 280px;
-      font-weight: 800;
+      font-weight: var(--weight-extrabold);
       color: transparent;
       -webkit-text-stroke: 1px var(--border-subtle);
       opacity: 0.3;
-      line-height: 1;
+      line-height: var(--leading-none);
       user-select: none;
       pointer-events: none;
     }
@@ -401,19 +404,19 @@ interface Step {
     .step-indicator {
       display: flex;
       align-items: center;
-      gap: 12px;
-      margin-bottom: 32px;
+      gap: var(--space-3);
+      margin-bottom: var(--space-8);
     }
 
     .indicator-ring {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
+      width: var(--space-10);
+      height: var(--space-10);
+      border-radius: var(--radius-full);
       border: 2px solid var(--border-subtle);
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.4s;
+      transition: all var(--duration-slow) var(--ease-out);
 
       &.active {
         border-color: var(--accent-cyan);
@@ -425,20 +428,21 @@ interface Step {
     }
 
     .indicator-fill {
-      width: 16px;
-      height: 16px;
+      width: var(--space-4);
+      height: var(--space-4);
       background: var(--gradient-brand);
-      border-radius: 50%;
+      border-radius: var(--radius-full);
       transform: scale(0);
-      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transition: transform var(--duration-slow) var(--ease-bounce);
     }
 
     .indicator-label {
       font-family: var(--font-mono);
-      font-size: 12px;
+      font-size: var(--text-xs);
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.1em;
+      letter-spacing: var(--tracking-widest);
+      line-height: var(--leading-normal);
     }
 
     .step-main {
@@ -447,9 +451,9 @@ interface Step {
 
     .step-icon-wrapper {
       position: relative;
-      width: 72px;
-      height: 72px;
-      margin-bottom: 24px;
+      width: var(--space-18);
+      height: var(--space-18);
+      margin-bottom: var(--space-6);
     }
 
     .icon-glow {
@@ -457,7 +461,7 @@ interface Step {
       inset: -20px;
       background: radial-gradient(circle, var(--brand-color, rgba(255, 122, 48, 0.2)) 0%, transparent 70%);
       opacity: 0;
-      transition: opacity 0.4s;
+      transition: opacity var(--duration-slow) var(--ease-out);
     }
 
     .step-panel:hover .icon-glow {
@@ -465,11 +469,11 @@ interface Step {
     }
 
     .step-icon {
-      width: 72px;
-      height: 72px;
+      width: var(--space-18);
+      height: var(--space-18);
       background: var(--bg-elevated);
       border: 1px solid var(--border-subtle);
-      border-radius: 18px;
+      border-radius: var(--radius-2xl);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -478,64 +482,66 @@ interface Step {
 
     .step-title {
       font-family: var(--font-display);
-      font-size: 32px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 12px;
+      font-size: var(--text-3xl);
+      font-weight: var(--weight-bold);
+      letter-spacing: var(--tracking-tight);
+      line-height: var(--leading-snug);
+      margin-bottom: var(--space-3);
     }
 
     .step-description {
       color: var(--text-secondary);
-      font-size: 16px;
-      line-height: 1.6;
-      margin-bottom: 32px;
+      font-size: var(--text-base);
+      line-height: var(--leading-relaxed);
+      margin-bottom: var(--space-8);
     }
 
     .step-terminal {
       background: var(--bg-primary);
       border: 1px solid var(--border-subtle);
-      border-radius: 12px;
+      border-radius: var(--radius-xl);
       overflow: hidden;
     }
 
     .terminal-chrome {
       display: flex;
       align-items: center;
-      padding: 12px 16px;
+      padding: var(--space-3) var(--space-4);
       background: var(--bg-elevated);
       border-bottom: 1px solid var(--border-subtle);
     }
 
     .terminal-dots {
       display: flex;
-      gap: 6px;
-      margin-right: 16px;
+      gap: var(--space-1-5);
+      margin-right: var(--space-4);
 
       span {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
+        width: var(--space-2-5);
+        height: var(--space-2-5);
+        border-radius: var(--radius-full);
         background: var(--bg-hover);
       }
     }
 
     .terminal-path {
       font-family: var(--font-mono);
-      font-size: 12px;
+      font-size: var(--text-xs);
       color: var(--text-muted);
+      line-height: var(--leading-normal);
     }
 
     .terminal-body {
-      padding: 16px;
+      padding: var(--space-4);
       font-family: var(--font-mono);
-      font-size: 14px;
-      line-height: 1.8;
+      font-size: var(--text-sm);
+      line-height: var(--leading-loose);
     }
 
     .terminal-line {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--space-2);
     }
 
     .prompt {
@@ -547,8 +553,8 @@ interface Step {
     }
 
     .cursor {
-      width: 8px;
-      height: 18px;
+      width: var(--space-2);
+      height: var(--icon-sm);
       background: var(--accent-cyan);
       animation: blink 1s step-end infinite;
     }
@@ -560,18 +566,20 @@ interface Step {
     .terminal-output {
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      margin-top: 12px;
-      padding-top: 12px;
+      gap: var(--space-1);
+      margin-top: var(--space-3);
+      padding-top: var(--space-3);
       border-top: 1px dashed var(--border-subtle);
     }
 
     .output-success {
       color: var(--accent-green);
+      line-height: var(--leading-normal);
     }
 
     .output-highlight {
       color: var(--accent-cyan);
+      line-height: var(--leading-normal);
     }
 
     @keyframes blink {
@@ -581,20 +589,20 @@ interface Step {
 
     .panel-connector {
       position: absolute;
-      right: -40px;
+      right: calc(var(--space-10) * -1);
       top: 50%;
       transform: translateY(-50%);
-      width: 40px;
+      width: var(--space-10);
       z-index: 2;
 
       svg {
         width: 100%;
-        height: 4px;
+        height: var(--space-1);
       }
 
       line {
         stroke-dashoffset: 200;
-        transition: stroke-dashoffset 1s ease;
+        transition: stroke-dashoffset 1s var(--ease-out);
 
         &.animated {
           stroke-dashoffset: 0;
@@ -616,74 +624,77 @@ interface Step {
     }
 
     .success-icon {
-      width: 80px;
-      height: 80px;
-      margin: 0 auto 24px;
+      width: var(--space-20);
+      height: var(--space-20);
+      margin: 0 auto var(--space-6);
       background: rgba(74, 222, 128, 0.1);
       border: 2px solid var(--border-green);
-      border-radius: 50%;
+      border-radius: var(--radius-full);
       display: flex;
       align-items: center;
       justify-content: center;
       color: var(--accent-green);
 
       svg {
-        width: 40px;
-        height: 40px;
+        width: var(--space-10);
+        height: var(--space-10);
       }
     }
 
     .success-title {
       font-family: var(--font-display);
-      font-size: 36px;
-      font-weight: 700;
-      margin-bottom: 12px;
+      font-size: var(--text-3xl);
+      font-weight: var(--weight-bold);
+      line-height: var(--leading-snug);
+      margin-bottom: var(--space-3);
     }
 
     .success-subtitle {
       color: var(--text-secondary);
-      font-size: 16px;
-      margin-bottom: 32px;
+      font-size: var(--text-base);
+      line-height: var(--leading-relaxed);
+      margin-bottom: var(--space-8);
     }
 
     .success-cta {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
-      padding: 14px 28px;
+      gap: var(--space-2-5);
+      padding: var(--space-3-5) var(--space-7);
       background: var(--gradient-brand);
       color: var(--bg-primary);
       text-decoration: none;
-      font-size: 15px;
-      font-weight: 600;
-      border-radius: 10px;
-      transition: all 0.3s;
+      font-size: var(--text-base);
+      font-weight: var(--weight-semibold);
+      line-height: var(--leading-normal);
+      border-radius: var(--radius-lg);
+      transition: all var(--duration-normal) var(--ease-out);
 
       svg {
-        width: 18px;
-        height: 18px;
+        width: var(--icon-sm);
+        height: var(--icon-sm);
       }
 
       &:hover {
         transform: translateY(-2px);
-        box-shadow: 0 12px 32px rgba(255, 122, 48, 0.4);
+        box-shadow: var(--shadow-glow-orange);
       }
     }
 
     /* Progress track */
     .progress-track {
       position: fixed;
-      bottom: 40px;
+      bottom: var(--space-10);
       left: 50%;
       transform: translateX(-50%);
       width: min(600px, 90vw);
-      height: 4px;
+      height: var(--space-1);
       background: var(--bg-elevated);
-      border-radius: 2px;
-      z-index: 100;
+      border-radius: var(--radius-sm);
+      z-index: var(--z-fixed);
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.3s;
+      transition: opacity var(--duration-normal) var(--ease-out);
 
       &.visible {
         opacity: 1;
@@ -693,13 +704,13 @@ interface Step {
     .progress-fill {
       height: 100%;
       background: var(--gradient-brand);
-      border-radius: 2px;
+      border-radius: var(--radius-sm);
       transition: width 0.1s linear;
     }
 
     .progress-markers {
       position: absolute;
-      top: -30px;
+      top: calc(var(--space-8) * -1);
       left: 0;
       right: 0;
       display: flex;
@@ -710,30 +721,31 @@ interface Step {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
+      gap: var(--space-2);
     }
 
     .marker-dot {
-      width: 12px;
-      height: 12px;
+      width: var(--space-3);
+      height: var(--space-3);
       background: var(--bg-elevated);
       border: 2px solid var(--border-subtle);
-      border-radius: 50%;
-      transition: all 0.3s;
+      border-radius: var(--radius-full);
+      transition: all var(--duration-normal) var(--ease-out);
     }
 
     .progress-marker.active .marker-dot {
       background: var(--accent-cyan);
       border-color: var(--accent-cyan);
-      box-shadow: 0 0 12px var(--border-accent);
+      box-shadow: var(--shadow-glow-orange);
     }
 
     .marker-label {
       font-family: var(--font-mono);
-      font-size: 10px;
+      font-size: var(--text-xs);
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: var(--tracking-wider);
+      line-height: var(--leading-normal);
       white-space: nowrap;
 
       @media (max-width: 640px) {
@@ -743,17 +755,17 @@ interface Step {
 
     @media (max-width: 768px) {
       .hiw-header {
-        padding: 60px 24px 24px;
+        padding: var(--space-16) var(--container-px) var(--space-6);
       }
 
       .section-number {
-        font-size: 80px;
+        font-size: var(--text-6xl);
       }
 
       .step-panel {
         width: 85vw;
         min-height: 450px;
-        padding: 24px;
+        padding: var(--space-6);
       }
 
       .panel-bg-number {

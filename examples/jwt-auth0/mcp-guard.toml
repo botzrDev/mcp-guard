@@ -1,0 +1,51 @@
+# Auth0 JWT Authentication Example
+# Uses Auth0 JWKS for JWT token validation
+
+[server]
+host = "127.0.0.1"
+port = 3000
+
+# Upstream MCP server
+[upstream]
+transport = "http"
+url = "http://localhost:8080/mcp"
+
+# JWT authentication with Auth0 JWKS
+[auth.jwt]
+mode = "jwks"
+# Replace YOUR_AUTH0_DOMAIN with your Auth0 domain
+jwks_url = "https://YOUR_AUTH0_DOMAIN.auth0.com/.well-known/jwks.json"
+algorithms = ["RS256"]
+issuer = "https://YOUR_AUTH0_DOMAIN.auth0.com/"
+audience = "mcp-guard"  # Must match your Auth0 API identifier
+user_id_claim = "sub"
+scopes_claim = "permissions"  # Auth0 uses 'permissions' for RBAC
+cache_duration_secs = 3600
+
+# Map Auth0 permissions to MCP tools
+[auth.jwt.scope_tool_mapping]
+# Admins can use all tools
+"admin" = ["*"]
+# Regular users have limited access
+"read:files" = ["read_file", "list_directory", "search_files"]
+"write:files" = ["write_file", "create_directory"]
+"delete:files" = ["delete_file", "delete_directory"]
+
+# Rate limiting (higher for authenticated users)
+[rate_limit]
+enabled = true
+requests_per_second = 200
+burst_size = 100
+
+# Audit logging with file output
+[audit]
+enabled = true
+stdout = false
+file = "/var/log/mcp-guard-audit.log"
+
+# OpenTelemetry tracing (for debugging)
+[tracing]
+enabled = true
+service_name = "mcp-guard-auth0"
+otlp_endpoint = "http://localhost:4317"
+sample_rate = 1.0

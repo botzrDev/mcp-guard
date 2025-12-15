@@ -2,12 +2,38 @@
 name = "mcp-guard"
 version = "1.0.0"
 edition = "2021"
-authors = ["Austin Green"]
+rust-version = "1.75"
+authors = ["Austin Green <austin@botzr.dev>"]
 description = "A lightweight, high-performance security gateway for MCP servers"
 license = "AGPL-3.0"
 repository = "https://github.com/botzrdev/mcp-guard"
+homepage = "https://github.com/botzrdev/mcp-guard"
+documentation = "https://docs.rs/mcp-guard"
+readme = "README.md"
 keywords = ["mcp", "security", "gateway", "proxy", "authentication"]
 categories = ["authentication", "web-programming"]
+exclude = [
+    "landing/",
+    "context/",
+    ".github/",
+    "scripts/",
+    "Makefile",
+    "RELEASE_CHECKLIST.md",
+    "CLAUDE.md",
+]
+include = [
+    "src/**/*",
+    "benches/**/*",
+    "examples/**/*",
+    "templates/**/*",
+    "docs/**/*",
+    "Cargo.toml",
+    "Cargo.lock",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "deny.toml",
+]
 
 [dependencies]
 # Async runtime
@@ -82,6 +108,7 @@ tempfile = "3.13"
 assert_cmd = "2.0"
 predicates = "3.1"
 criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
+wiremock = "0.6"
 
 [[bench]]
 name = "performance"

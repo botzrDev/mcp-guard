@@ -1,0 +1,69 @@
+# Multi-Server Routing Example
+# Routes requests to different MCP servers based on path prefix
+
+[server]
+host = "127.0.0.1"
+port = 3000
+
+# Default transport (required but ignored when servers are configured)
+[upstream]
+transport = "stdio"
+command = "echo"
+
+# Multiple upstream MCP servers
+# Requests are routed based on path prefix
+
+# Filesystem server - access local files
+[[upstream.servers]]
+name = "filesystem"
+path_prefix = "/fs"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/documents"]
+
+# GitHub server - interact with GitHub
+[[upstream.servers]]
+name = "github"
+path_prefix = "/github"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+
+# Database server (HTTP transport)
+[[upstream.servers]]
+name = "database"
+path_prefix = "/db"
+transport = "http"
+url = "http://localhost:8080/mcp"
+
+# Search server (SSE transport for streaming)
+[[upstream.servers]]
+name = "search"
+path_prefix = "/search"
+transport = "sse"
+url = "http://localhost:8081/mcp/stream"
+
+# Default server - catch-all for unmatched paths
+[[upstream.servers]]
+name = "default"
+path_prefix = "/"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-everything"]
+
+# API Key authentication
+[[auth.api_keys]]
+id = "multi-user"
+key_hash = "REPLACE_WITH_YOUR_KEY_HASH"
+allowed_tools = []  # All tools
+
+# Rate limiting
+[rate_limit]
+enabled = true
+requests_per_second = 100
+burst_size = 50
+
+# Audit logging
+[audit]
+enabled = true
+stdout = true

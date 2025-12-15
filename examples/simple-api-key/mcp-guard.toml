@@ -1,0 +1,41 @@
+# Simple API Key Authentication Example
+# This is the simplest way to secure an MCP server
+
+[server]
+host = "127.0.0.1"
+port = 3000
+
+# Upstream MCP server (stdio transport)
+[upstream]
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+
+# API Key authentication
+# Generate keys with: mcp-guard keygen --user-id my-agent
+[[auth.api_keys]]
+id = "my-agent"
+# Replace with output from: mcp-guard hash-key <your-key>
+key_hash = "REPLACE_WITH_YOUR_KEY_HASH"
+# Restrict which tools this key can access (empty = all tools)
+allowed_tools = ["read_file", "list_directory"]
+# Optional: override default rate limit
+rate_limit = 100
+
+# Add more API keys as needed
+[[auth.api_keys]]
+id = "admin-agent"
+key_hash = "REPLACE_WITH_ADMIN_KEY_HASH"
+allowed_tools = []  # Empty = all tools allowed
+rate_limit = 1000   # Higher limit for admin
+
+# Rate limiting
+[rate_limit]
+enabled = true
+requests_per_second = 100
+burst_size = 50
+
+# Audit logging to stdout (good for development)
+[audit]
+enabled = true
+stdout = true
