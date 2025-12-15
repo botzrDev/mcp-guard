@@ -1,0 +1,443 @@
+info: cargo-llvm-cov currently setting cfg(coverage); you can opt-out it by passing --no-cfg-coverage
+   Compiling mcp-guard v1.0.0 (/home/austingreen/Documents/botzr/projects/mcp-guard)
+warning: unused import: `Stdio`
+ --> tests/common/mod.rs:2:29
+  |
+2 | use std::process::{Command, Stdio};
+  |                             ^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `name`
+  --> tests/common/mod.rs:37:18
+   |
+37 | pub fn cargo_bin(name: &str) -> Command {
+   |                  ^^^^ help: if this is intentional, prefix it with an underscore: `_name`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `TestContext` is never constructed
+ --> tests/common/mod.rs:6:12
+  |
+6 | pub struct TestContext {
+  |            ^^^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `setup_test_context` is never used
+  --> tests/common/mod.rs:11:14
+   |
+11 | pub async fn setup_test_context() -> TestContext {
+   |              ^^^^^^^^^^^^^^^^^^
+
+warning: function `get_free_port` is never used
+  --> tests/common/mod.rs:21:14
+   |
+21 | pub async fn get_free_port() -> u16 {
+   |              ^^^^^^^^^^^^^
+
+warning: function `wait_for_server` is never used
+  --> tests/common/mod.rs:26:14
+   |
+26 | pub async fn wait_for_server(port: u16) -> bool {
+   |              ^^^^^^^^^^^^^^^
+
+warning: function `cargo_bin` is never used
+  --> tests/common/mod.rs:37:8
+   |
+37 | pub fn cargo_bin(name: &str) -> Command {
+   |        ^^^^^^^^^
+
+warning: use of deprecated associated function `assert_cmd::Command::cargo_bin`: incompatible with a custom cargo build-dir, see instead `cargo::cargo_bin_cmd!`
+   --> tests/integration_tests.rs:996:28
+    |
+996 |     let mut cmd = Command::cargo_bin("mcp-guard").unwrap();
+    |                            ^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated associated function `assert_cmd::Command::cargo_bin`: incompatible with a custom cargo build-dir, see instead `cargo::cargo_bin_cmd!`
+    --> tests/integration_tests.rs:1013:28
+     |
+1013 |     let mut cmd = Command::cargo_bin("mcp-guard").unwrap();
+     |                            ^^^^^^^^^
+
+warning: use of deprecated associated function `assert_cmd::Command::cargo_bin`: incompatible with a custom cargo build-dir, see instead `cargo::cargo_bin_cmd!`
+    --> tests/integration_tests.rs:1029:28
+     |
+1029 |     let mut cmd = Command::cargo_bin("mcp-guard").unwrap();
+     |                            ^^^^^^^^^
+
+warning: use of deprecated associated function `assert_cmd::Command::cargo_bin`: incompatible with a custom cargo build-dir, see instead `cargo::cargo_bin_cmd!`
+    --> tests/integration_tests.rs:1043:28
+     |
+1043 |     let mut cmd = Command::cargo_bin("mcp-guard").unwrap();
+     |                            ^^^^^^^^^
+
+warning: unused import: `std::time::Duration`
+ --> tests/server_tests.rs:1:5
+  |
+1 | use std::time::Duration;
+  |     ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `tokio::time::sleep`
+ --> tests/server_tests.rs:2:5
+  |
+2 | use tokio::time::sleep;
+  |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Stdio`
+ --> tests/common/mod.rs:2:29
+  |
+2 | use std::process::{Command, Stdio};
+  |                             ^^^^^
+
+warning: `mcp-guard` (test "auth_integration_tests") generated 4 warnings (run `cargo fix --test "auth_integration_tests"` to apply 1 suggestion)
+warning: `mcp-guard` (test "transport_integration_tests") generated 7 warnings (4 duplicates)
+warning: `mcp-guard` (test "server_tests") generated 6 warnings (3 duplicates) (run `cargo fix --test "server_tests"` to apply 3 suggestions)
+warning: unused import: `assert_cmd::Command`
+ --> tests/cli_tests.rs:1:5
+  |
+1 | use assert_cmd::Command;
+  |     ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `mcp-guard` (test "integration_tests") generated 4 warnings
+warning: `mcp-guard` (test "cli_tests") generated 7 warnings (6 duplicates) (run `cargo fix --test "cli_tests"` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.05s
+     Running unittests src/lib.rs (target/llvm-cov-target/debug/deps/mcp_guard-7c487f4079c88acc)
+
+running 158 tests
+test audit::tests::test_audit_entry_creation ... ok
+test audit::tests::test_audit_batch_serialization ... ok
+test audit::tests::test_audit_entry_serialization ... ok
+test audit::tests::test_audit_logger_default_is_disabled ... ok
+test audit::tests::test_audit_entry_all_fields ... ok
+test audit::tests::test_audit_logger_disabled ... ok
+test audit::tests::test_audit_logger_new_disabled_config ... ok
+test audit::tests::test_audit_logger_with_export_legacy_api ... ok
+test audit::tests::test_audit_logger_with_tasks_disabled ... ok
+test audit::tests::test_audit_logger_log_method_with_entry ... ok
+test audit::tests::test_audit_logger_with_tasks_stdout_only ... ok
+test audit::tests::test_audit_shipper_with_headers ... ok
+test audit::tests::test_audit_shipper_creation ... ok
+test audit::tests::test_default_audit_path ... ok
+test audit::tests::test_event_type_serialization ... ok
+test auth::jwt::tests::test_expired_token ... ok
+test auth::jwt::tests::test_invalid_audience ... ok
+test auth::jwt::tests::test_invalid_issuer ... ok
+test auth::jwt::tests::test_invalid_signature ... ok
+test auth::jwt::tests::test_missing_sub_claim ... ok
+test auth::jwt::tests::test_name_extraction ... ok
+test auth::jwt::tests::test_scope_extraction_array ... ok
+test auth::jwt::tests::test_scope_extraction_string ... ok
+test auth::jwt::tests::test_unknown_scope ... ok
+test auth::jwt::tests::test_valid_token ... ok
+test auth::mtls::tests::test_authenticate_empty_token ... ok
+test auth::mtls::tests::test_authenticate_with_cn_token ... ok
+test auth::mtls::tests::test_client_cert_info_from_headers_not_verified ... ok
+test auth::mtls::tests::test_client_cert_info_from_headers ... ok
+test auth::mtls::tests::test_extract_identity_from_cn ... ok
+test auth::mtls::tests::test_extract_identity_from_san_dns ... ok
+test auth::mtls::tests::test_extract_identity_missing_cn ... ok
+test auth::mtls::tests::test_mtls_provider_creation ... ok
+test auth::oauth::tests::test_authorization_url_generation ... ok
+test auth::oauth::tests::test_authorization_url_with_pkce ... ok
+test auth::oauth::tests::test_custom_provider_requires_urls ... ok
+test auth::oauth::tests::test_github_endpoints ... ok
+test auth::oauth::tests::test_parse_token_info_github_userinfo ... ok
+test auth::oauth::tests::test_parse_token_info_introspection ... ok
+test auth::oauth::tests::test_parse_token_info_inactive ... ok
+test auth::oauth::tests::test_scope_to_tool_mapping ... ok
+test auth::oauth::tests::test_provider_creation ... ok
+test auth::oauth::tests::test_scope_to_tool_mapping_wildcard ... ok
+test auth::oauth::tests::test_token_hash ... ok
+test authz::tests::test_authorize_tool_restricted ... ok
+test authz::tests::test_authorize_tool_unrestricted ... ok
+test authz::tests::test_authorize_tool_wildcard ... ok
+test authz::tests::test_filter_tools_list_multiple_allowed ... ok
+test authz::tests::test_filter_tools_list_restricted ... ok
+test authz::tests::test_filter_tools_list_unrestricted ... ok
+test authz::tests::test_is_tools_list_request ... ok
+test authz::tests::test_filter_tools_list_wildcard ... ok
+test config::tests::test_audit_config_defaults ... ok
+test config::tests::test_config_error_display ... ok
+test config::tests::test_config_is_multi_server ... ok
+test config::tests::test_config_validation_audit_batch_size_too_large ... ok
+test config::tests::test_config_validation_audit_batch_size_zero ... ok
+test config::tests::test_config_validation_audit_interval_zero ... ok
+test config::tests::test_config_validation_audit_invalid_export_url ... ok
+test config::tests::test_config_validation_http_missing_url ... ok
+test config::tests::test_config_validation_invalid_port ... ok
+test config::tests::test_config_validation_jwt_invalid_jwks_url ... ok
+test config::tests::test_config_validation_oauth_invalid_redirect_uri ... ok
+test config::tests::test_config_validation_rate_limit_zero_burst ... ok
+test config::tests::test_config_validation_rate_limit_zero_rps ... ok
+test config::tests::test_config_validation_sse_missing_url ... ok
+test config::tests::test_config_validation_stdio_missing_command ... ok
+test config::tests::test_config_validation_success ... ok
+test config::tests::test_config_validation_tracing_invalid_sample_rate ... ok
+test config::tests::test_mtls_config_defaults ... ok
+test config::tests::test_oauth_provider_serialization ... ok
+test config::tests::test_rate_limit_config_defaults ... ok
+test config::tests::test_server_config_defaults ... ok
+test config::tests::test_tracing_config_defaults ... ok
+test config::tests::test_transport_type_serialization ... ok
+test mocks::tests::test_mock_auth_provider_accepting ... ok
+test mocks::tests::test_mock_auth_provider_rejecting ... ok
+test mocks::tests::test_mock_transport_connection_closed ... ok
+test mocks::tests::test_mock_transport_error_response ... ok
+test mocks::tests::test_mock_transport_send_receive ... ok
+test observability::tests::test_current_trace_id_without_otel ... ok
+test observability::tests::test_record_auth_various_providers ... ok
+test observability::tests::test_record_functions_dont_panic ... ok
+test observability::tests::test_record_request_various_methods ... ok
+test observability::tests::test_set_active_identities_various_counts ... ok
+test observability::tests::test_tracing_config_defaults ... ok
+test observability::tests::test_create_metrics_handle ... ok
+test observability::tests::test_tracing_guard_drop ... ok
+test rate_limit::tests::test_check_allowed_backwards_compat ... ok
+test rate_limit::tests::test_clear_identity ... ok
+test rate_limit::tests::test_custom_rate_limit ... ok
+test rate_limit::tests::test_per_identity_isolation ... ok
+test rate_limit::tests::test_rate_limit_disabled ... ok
+test rate_limit::tests::test_rate_limit_enabled ... ok
+test rate_limit::tests::test_ttl_cleanup ... ok
+test rate_limit::tests::test_retry_after_populated ... ok
+test router::tests::test_config_validation ... ok
+test rate_limit::tests::test_ttl_preserves_active_entries ... ok
+test router::tests::test_config_validation_http_missing_url ... ok
+test router::tests::test_config_validation_sse_missing_url ... ok
+test router::tests::test_config_validation_stdio_missing_command ... ok
+test router::tests::test_route_matcher_empty ... ok
+test router::tests::test_route_matcher_exact ... ok
+test router::tests::test_route_matcher_exact_match ... ok
+test router::tests::test_route_matcher_longest_prefix ... ok
+test router::tests::test_route_matcher_root_path ... ok
+test router::tests::test_router_error_from_transport ... ok
+test router::tests::test_router_error_no_route ... ok
+test router::tests::test_router_error_transport_init ... ok
+test server::tests::test_app_error_forbidden ... ok
+test server::tests::test_app_error_internal ... ok
+test server::tests::test_app_error_forbidden_response ... ok
+test server::tests::test_app_error_not_found ... ok
+test server::tests::test_app_error_internal_response ... ok
+test server::tests::test_app_error_rate_limited ... ok
+test server::tests::test_app_error_not_found_response ... ok
+test server::tests::test_app_error_rate_limited_response ... ok
+test server::tests::test_app_error_transport_connection_closed_response ... ok
+test server::tests::test_app_error_unauthorized ... ok
+test server::tests::test_app_error_transport_timeout_response ... ok
+test server::tests::test_cleanup_expired_oauth_states ... ok
+test server::tests::test_app_error_unauthorized_response ... ok
+test server::tests::test_generate_pkce ... ok
+test server::tests::test_generate_random_string ... ok
+test server::tests::test_header_extractor ... ok
+test server::tests::test_header_extractor_keys ... ok
+test server::tests::test_header_injector ... ok
+test server::tests::test_health_response_serialization ... ok
+test server::tests::test_live_response_serialization ... ok
+test server::tests::test_new_oauth_state_store ... ok
+test server::tests::test_pkce_consistency ... ok
+test server::tests::test_ready_response_not_ready ... ok
+test server::tests::test_ready_response_ready ... ok
+test transport::tests::test_http_transport_close ... ok
+test server::tests::test_security_headers_middleware ... ok
+test transport::tests::test_http_transport_new ... ok
+test transport::tests::test_http_transport_invalid_json_response ... ok
+test transport::tests::test_http_transport_not_found ... ok
+test transport::tests::test_http_transport_receive_when_empty ... ok
+test transport::tests::test_http_transport_server_error ... ok
+test transport::tests::test_http_transport_with_config ... ok
+test transport::tests::test_http_transport_success ... ok
+test transport::tests::test_message_is_notification ... ok
+test transport::tests::test_message_error_response ... ok
+test transport::tests::test_message_is_request ... ok
+test transport::tests::test_message_is_response ... ok
+test transport::tests::test_message_request_construction ... ok
+test transport::tests::test_message_request_with_params ... ok
+test transport::tests::test_message_response_construction ... ok
+test transport::tests::test_message_serialization_roundtrip ... ok
+test transport::tests::test_sse_transport_close ... ok
+test transport::tests::test_sse_transport_connect ... ok
+test transport::tests::test_sse_transport_connect_with_config ... ok
+test transport::tests::test_transport_error_display ... ok
+test transport::tests::test_transport_error_from_io ... ok
+test transport::tests::test_sse_transport_json_fallback ... ok
+test audit::tests::test_audit_logger_with_tasks_file_output ... ok
+test audit::tests::test_audit_logger_channel_full_behavior ... ok
+
+test result: ok. 158 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running unittests src/main.rs (target/llvm-cov-target/debug/deps/mcp_guard-e5ed699b0f8c4512)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/auth_integration_tests.rs (target/llvm-cov-target/debug/deps/auth_integration_tests-c0a8b68adc759b5a)
+
+running 2 tests
+[2m2025-12-15T18:47:43.748160Z[0m [32m INFO[0m [2mmcp_guard[0m[2m:[0m Enabling API key authentication (1 keys)
+[2m2025-12-15T18:47:43.748217Z[0m [32m INFO[0m [2mmcp_guard[0m[2m:[0m Enabling JWT authentication
+[2m2025-12-15T18:47:43.748387Z[0m [32m INFO[0m [2mmcp_guard[0m[2m:[0m Using stdio transport [3mcommand[0m[2m=[0m/bin/sh
+[2m2025-12-15T18:47:43.748393Z[0m [32m INFO[0m [2mmcp_guard[0m[2m:[0m Using stdio transport [3mcommand[0m[2m=[0m/bin/sh
+[2m2025-12-15T18:47:43.748681Z[0m [32m INFO[0m [2mmcp_guard::server[0m[2m:[0m MCP Guard listening on 127.0.0.1:36211
+[2m2025-12-15T18:47:43.748749Z[0m [32m INFO[0m [2mmcp_guard::server[0m[2m:[0m MCP Guard listening on 127.0.0.1:41429
+[2m2025-12-15T18:47:43.849034Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/health [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:43.849035Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/health [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:43.849535Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/health [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m200
+[2m2025-12-15T18:47:43.849561Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/health [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m200
+[2m2025-12-15T18:47:43.850962Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:43.850960Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:43.851151Z[0m [33m WARN[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m[1mhttp_request[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp[1m}[0m[2m:[0m [2mmcp_guard::server[0m[2m:[0m Authentication failed [3merror_id[0m[2m=[0mf00935ba-e435-47a8-9ddf-bdb381631a15 [3merror[0m[2m=[0mMissing authorization header
+[2m2025-12-15T18:47:43.851353Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m401
+{"timestamp":"2025-12-15T18:47:43.851419619Z","event_type":"auth_success","identity_id":"user123","method":null,"tool":null,"success":true,"message":null,"duration_ms":null,"request_id":null}
+[2m2025-12-15T18:47:43.851976Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:43.852030Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m1 ms [3mstatus[0m[2m=[0m200
+[2m2025-12-15T18:47:43.852242Z[0m [33m WARN[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m[1mhttp_request[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp[1m}[0m[2m:[0m [2mmcp_guard::server[0m[2m:[0m Authentication failed [3merror_id[0m[2m=[0m7330807f-b24d-415f-a1f3-996d968d5cab [3merror[0m[2m=[0mInvalid API key
+[2m2025-12-15T18:47:43.852386Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m401
+{"timestamp":"2025-12-15T18:47:43.852202333Z","event_type":"auth_failure","identity_id":null,"method":null,"tool":null,"success":false,"message":"Invalid API key","duration_ms":null,"request_id":null}
+[2m2025-12-15T18:47:43.852676Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:43.852872Z[0m [33m WARN[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m[1mhttp_request[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp[1m}[0m[2m:[0m [2mmcp_guard::server[0m[2m:[0m Authentication failed [3merror_id[0m[2m=[0ma87b8d9b-a88a-4c8c-92da-1c8c158be5ac [3merror[0m[2m=[0mInvalid JWT: JWT validation failed: InvalidSignature
+[2m2025-12-15T18:47:43.852950Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m401
+{"timestamp":"2025-12-15T18:47:43.852828442Z","event_type":"auth_failure","identity_id":null,"method":null,"tool":null,"success":false,"message":"Invalid JWT: JWT validation failed: InvalidSignature","duration_ms":null,"request_id":null}
+test test_api_key_auth_failures ... ok
+test test_jwt_auth_hs256 ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/cli_tests.rs (target/llvm-cov-target/debug/deps/cli_tests-f601e24a6552add1)
+
+running 7 tests
+test test_init_creates_config ... ok
+test test_keygen ... ok
+test test_init_fails_if_exists_without_force ... ok
+test test_validate_invalid_config ... ok
+test test_hash_key ... ok
+test test_validate_valid_config ... ok
+test test_version ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/integration_tests.rs (target/llvm-cov-target/debug/deps/integration_tests-1591f8701d8cdf11)
+
+running 46 tests
+test test_api_key_different_inputs ... ok
+test test_api_key_generation ... ok
+test test_api_key_hashing ... ok
+test test_authz_tool_authorization ... ok
+test test_auth_provider_invalid_key ... ok
+test test_auth_provider_api_key ... ok
+test test_cli_check_upstream_help ... ok
+test test_cli_help_includes_new_commands ... ok
+test test_cli_version_command ... ok
+test test_config_validation_audit_invalid_export_url ... ok
+test test_config_validation_http_missing_url ... ok
+test test_config_validation_audit_zero_batch_size ... ok
+test test_config_validation_http_valid ... ok
+test test_config_validation_port_zero ... ok
+test test_config_validation_rate_limit_zero_burst ... ok
+test test_config_validation_rate_limit_zero_rps ... ok
+test test_config_validation_sse_missing_url ... ok
+test test_cli_check_upstream_missing_config ... ok
+test test_config_validation_sse_valid ... ok
+test test_config_validation_stdio ... ok
+test test_config_validation_stdio_missing_command ... ok
+test test_config_validation_tracing_invalid_sample_rate ... ok
+test test_http_transport_instantiation ... ok
+test test_mcp_message_types ... ok
+test test_metrics_prometheus_format ... ok
+test test_live_endpoint ... ok
+test test_health_endpoint_response_structure ... ok
+test test_metrics_initialization_and_rendering ... ok
+test test_oauth_authorize_generates_redirect ... ok
+test test_oauth_callback_rejects_missing_state ... ok
+test test_oauth_callback_handles_provider_error ... ok
+test test_rate_limit_config_defaults ... ok
+test test_oauth_authorize_not_configured ... ok
+test test_rate_limiter ... ok
+test test_rate_limiter_disabled ... ok
+test test_oauth_callback_rejects_invalid_state ... ok
+test test_route_matcher_longest_prefix ... ok
+test test_route_matcher_basic ... ok
+test test_routes_endpoint_lists_servers ... ok
+test test_ready_endpoint_when_not_ready ... ok
+test test_ready_endpoint_when_ready ... ok
+test test_server_route_config_validation ... ok
+test test_tools_list_request_detection ... ok
+test test_tools_list_filtering_integration ... ok
+test test_sse_transport_instantiation ... ok
+test test_routes_endpoint_unavailable_when_single_server ... ok
+
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/server_tests.rs (target/llvm-cov-target/debug/deps/server_tests-c61e5d6f102ff9a1)
+
+running 3 tests
+[2m2025-12-15T18:47:43.908401Z[0m [32m INFO[0m [2mmcp_guard[0m[2m:[0m Enabling API key authentication (1 keys)
+[2m2025-12-15T18:47:43.908456Z[0m [32m INFO[0m [2mmcp_guard[0m[2m:[0m Enabling API key authentication (1 keys)
+[2m2025-12-15T18:47:43.908704Z[0m [32m INFO[0m [2mmcp_guard[0m[2m:[0m Using stdio transport [3mcommand[0m[2m=[0m/bin/sh
+[2m2025-12-15T18:47:43.908786Z[0m [32m INFO[0m [2mmcp_guard[0m[2m:[0m Using stdio transport [3mcommand[0m[2m=[0m/bin/sh
+[2m2025-12-15T18:47:43.909137Z[0m [32m INFO[0m [2mmcp_guard::server[0m[2m:[0m MCP Guard listening on 127.0.0.1:34697
+[2m2025-12-15T18:47:43.909357Z[0m [32m INFO[0m [2mmcp_guard::server[0m[2m:[0m MCP Guard listening on 127.0.0.1:45825
+[2m2025-12-15T18:47:43.910521Z[0m [32m INFO[0m [2mmcp_guard[0m[2m:[0m Enabling API key authentication (1 keys)
+[2m2025-12-15T18:47:43.910895Z[0m [32m INFO[0m [2mmcp_guard[0m[2m:[0m Using stdio transport [3mcommand[0m[2m=[0m/bin/sh
+[2m2025-12-15T18:47:43.911225Z[0m [32m INFO[0m [2mmcp_guard::server[0m[2m:[0m MCP Guard listening on 127.0.0.1:42571
+[2m2025-12-15T18:47:44.007191Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/health [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:44.007771Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/health [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m200
+[2m2025-12-15T18:47:44.008035Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/health [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:44.008330Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/health [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m200
+[2m2025-12-15T18:47:44.008463Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/health [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:44.008766Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/health [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m200
+[2m2025-12-15T18:47:44.008935Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:44.009306Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:44.009462Z[0m [33m WARN[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m[1mhttp_request[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp[1m}[0m[2m:[0m [2mmcp_guard::server[0m[2m:[0m Authentication failed [3merror_id[0m[2m=[0m407c8459-d4e1-4059-8dde-33bf346e582a [3merror[0m[2m=[0mMissing authorization header
+{"timestamp":"2025-12-15T18:47:44.009189232Z","event_type":"auth_success","identity_id":"test-client","method":null,"tool":null,"success":true,"message":null,"duration_ms":null,"request_id":null}
+[2m2025-12-15T18:47:44.009592Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m401
+[2m2025-12-15T18:47:44.009771Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mPOST [3muri[0m[2m=[0m/mcp [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m200
+[2m2025-12-15T18:47:44.009969Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/health [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+test test_mcp_auth_rejection ... ok
+[2m2025-12-15T18:47:44.010104Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/health [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m200
+test test_mcp_auth_success ... ok
+[2m2025-12-15T18:47:44.011087Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/live [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:44.011337Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/live [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m200
+[2m2025-12-15T18:47:44.011910Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/ready [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:44.012075Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/ready [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m200
+[2m2025-12-15T18:47:44.012670Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/metrics [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_request[0m[2m:[0m started processing request
+[2m2025-12-15T18:47:44.013264Z[0m [34mDEBUG[0m [1mrequest[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3muri[0m[2m=[0m/metrics [3mversion[0m[2m=[0mHTTP/1.1[1m}[0m[2m:[0m [2mtower_http::trace::on_response[0m[2m:[0m finished processing request [3mlatency[0m[2m=[0m0 ms [3mstatus[0m[2m=[0m200
+test test_health_endpoints ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/transport_integration_tests.rs (target/llvm-cov-target/debug/deps/transport_integration_tests-415a6523478e2d6e)
+
+running 2 tests
+test test_stdio_transport_bad_command ... ok
+test test_stdio_transport_echo ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+warning: 4 functions have mismatched data
+Filename                      Regions    Missed Regions     Cover   Functions  Missed Functions  Executed       Lines      Missed Lines     Cover    Branches   Missed Branches     Cover
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+audit/mod.rs                      750               163    78.27%          59                10    83.05%         526                94    82.13%           0                 0         -
+auth/jwt.rs                       872               240    72.48%          58                25    56.90%         408               138    66.18%           0                 0         -
+auth/mod.rs                        76                12    84.21%          10                 4    60.00%          55                12    78.18%           0                 0         -
+auth/mtls.rs                      278                22    92.09%          28                 5    82.14%         189                10    94.71%           0                 0         -
+auth/oauth.rs                     679               249    63.33%          71                32    54.93%         434               171    60.60%           0                 0         -
+authz/mod.rs                      310                31    90.00%          19                 3    84.21%         227                27    88.11%           0                 0         -
+cli/mod.rs                         37                 2    94.59%           4                 0   100.00%          77                32    58.44%           0                 0         -
+config/mod.rs                     503                46    90.85%          52                 7    86.54%         411                33    91.97%           0                 0         -
+main.rs                           601               481    19.97%          23                21     8.70%         756               275    63.62%           0                 0         -
+mocks.rs                          165                26    84.24%          26                 7    73.08%         110                20    81.82%           0                 0         -
+observability/mod.rs              269                97    63.94%          22                 4    81.82%         169                61    63.91%           0                 0         -
+rate_limit/mod.rs                 395                20    94.94%          26                 3    88.46%         229                14    93.89%           0                 0         -
+router/mod.rs                     421               133    68.41%          44                20    54.55%         243                85    65.02%           0                 0         -
+server/mod.rs                    1194               420    64.82%         110                31    71.82%         759               259    65.88%           0                 0         -
+transport/mod.rs                  859               150    82.54%          75                11    85.33%         520                92    82.31%           0                 0         -
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+TOTAL                            7409              2092    71.76%         627               183    70.81%        5113              1323    74.12%           0                 0         -
