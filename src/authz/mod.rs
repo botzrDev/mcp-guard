@@ -1,8 +1,24 @@
 //! Authorization logic for mcp-guard
+//!
+//! This module implements tool-level authorization for MCP requests.
+//!
+//! Authorization model:
+//! - Each identity can have an optional `allowed_tools` list
+//! - `None` = unrestricted access to all tools
+//! - `Some(["*"])` = wildcard, equivalent to unrestricted
+//! - `Some(["tool1", "tool2"])` = only these specific tools
+//!
+//! Key functions:
+//! - [`authorize_tool_call`] - Check if identity can call a specific tool
+//! - [`filter_tools_list_response`] - Filter `tools/list` to show only authorized tools (FR-AUTHZ-03)
 
 use crate::auth::Identity;
 use crate::transport::Message;
 use serde_json::Value;
+
+// ============================================================================
+// Authorization Functions
+// ============================================================================
 
 /// Check if an identity is authorized to call a specific tool
 pub fn authorize_tool_call(identity: &Identity, tool_name: &str) -> bool {
@@ -23,6 +39,10 @@ pub fn extract_tool_name(message: &Message) -> Option<&str> {
     }
     None
 }
+
+// ============================================================================
+// Types
+// ============================================================================
 
 /// Authorization decision
 #[derive(Debug, Clone)]
@@ -45,6 +65,10 @@ pub fn authorize_request(identity: &Identity, message: &Message) -> AuthzDecisio
 
     AuthzDecision::Allow
 }
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
 
 /// Check if a request is a tools/list request
 pub fn is_tools_list_request(message: &Message) -> bool {
@@ -107,8 +131,17 @@ pub fn filter_tools_list_response(mut response: Message, identity: &Identity) ->
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for authorization logic.
+    //!
+    //! Tests cover:
+    //! - Unrestricted access (allowed_tools = None)
+    //! - Restricted access to specific tools
+    //! - Wildcard tool permissions
+    //! - tools/list response filtering (FR-AUTHZ-03)
+
     use super::*;
 
+    /// Verify unrestricted identity can call any tool
     #[test]
     fn test_authorize_tool_unrestricted() {
         let identity = Identity {
@@ -122,6 +155,7 @@ mod tests {
         assert!(authorize_tool_call(&identity, "any_tool"));
     }
 
+    /// Verify restricted identity can only call allowed tools
     #[test]
     fn test_authorize_tool_restricted() {
         let identity = Identity {
@@ -137,6 +171,7 @@ mod tests {
         assert!(!authorize_tool_call(&identity, "write"));
     }
 
+    /// Verify wildcard "*" grants access to all tools
     #[test]
     fn test_authorize_tool_wildcard() {
         let identity = Identity {
@@ -150,6 +185,7 @@ mod tests {
         assert!(authorize_tool_call(&identity, "any_tool"));
     }
 
+    /// Verify tools/list request detection
     #[test]
     fn test_is_tools_list_request() {
         let request = Message {
@@ -173,6 +209,7 @@ mod tests {
         assert!(!is_tools_list_request(&other_request));
     }
 
+    /// Verify unrestricted identity sees all tools in list response
     #[test]
     fn test_filter_tools_list_unrestricted() {
         let identity = Identity {
@@ -203,6 +240,7 @@ mod tests {
         assert_eq!(tools.len(), 2);
     }
 
+    /// Verify restricted identity only sees allowed tools in list response (FR-AUTHZ-03)
     #[test]
     fn test_filter_tools_list_restricted() {
         let identity = Identity {

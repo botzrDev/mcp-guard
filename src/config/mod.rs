@@ -1,8 +1,22 @@
 //! Configuration types and parsing for mcp-guard
+//!
+//! This module provides strongly-typed configuration for all mcp-guard features:
+//! - Server settings (host, port, TLS)
+//! - Authentication (API keys, JWT, OAuth 2.1, mTLS)
+//! - Rate limiting (per-identity token bucket)
+//! - Audit logging (file, stdout, HTTP export)
+//! - Tracing (OpenTelemetry/OTLP)
+//! - Upstream routing (single server or multi-server)
+//!
+//! Configuration can be loaded from TOML or YAML files via [`Config::from_file`].
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+// ============================================================================
+// Error Types
+// ============================================================================
 
 /// Configuration error type
 #[derive(Debug, thiserror::Error)]
@@ -16,6 +30,10 @@ pub enum ConfigError {
     #[error("Validation error: {0}")]
     Validation(String),
 }
+
+// ============================================================================
+// Core Configuration
+// ============================================================================
 
 /// Main configuration struct
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -134,6 +152,10 @@ pub enum MtlsIdentitySource {
 fn default_mtls_identity_source() -> MtlsIdentitySource {
     MtlsIdentitySource::Cn
 }
+
+// ============================================================================
+// Authentication Configuration
+// ============================================================================
 
 /// Authentication configuration
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -305,6 +327,10 @@ fn default_oauth_scopes() -> Vec<String> {
     vec!["openid".to_string(), "profile".to_string()]
 }
 
+// ============================================================================
+// Rate Limiting Configuration
+// ============================================================================
+
 /// Rate limiting configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RateLimitConfig {
@@ -342,6 +368,10 @@ fn default_rps() -> u32 {
 fn default_burst() -> u32 {
     50
 }
+
+// ============================================================================
+// Audit Configuration
+// ============================================================================
 
 /// Audit logging configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -398,6 +428,10 @@ impl Default for AuditConfig {
     }
 }
 
+// ============================================================================
+// Tracing Configuration
+// ============================================================================
+
 /// OpenTelemetry tracing configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TracingConfig {
@@ -441,6 +475,10 @@ fn default_service_name() -> String {
 fn default_sample_rate() -> f64 {
     1.0
 }
+
+// ============================================================================
+// Upstream Configuration
+// ============================================================================
 
 /// Upstream MCP server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -502,6 +540,10 @@ pub enum TransportType {
     Sse,
 }
 
+// ============================================================================
+// Implementation
+// ============================================================================
+
 impl Config {
     /// Load configuration from a file
     pub fn from_file(path: &PathBuf) -> Result<Self, ConfigError> {
@@ -519,6 +561,93 @@ impl Config {
 
     /// Validate the configuration
     pub fn validate(&self) -> Result<(), ConfigError> {
+        // Validate server port (must be 1-65535, not 0)
+        if self.server.port == 0 {
+            return Err(ConfigError::Validation(
+                "server.port must be between 1 and 65535".to_string(),
+            ));
+        }
+
+        // Validate rate limit settings
+        if self.rate_limit.enabled {
+            if self.rate_limit.requests_per_second == 0 {
+                return Err(ConfigError::Validation(
+                    "rate_limit.requests_per_second must be greater than 0".to_string(),
+                ));
+            }
+            if self.rate_limit.burst_size == 0 {
+                return Err(ConfigError::Validation(
+                    "rate_limit.burst_size must be greater than 0".to_string(),
+                ));
+            }
+        }
+
+        // Validate JWT configuration
+        if let Some(ref jwt_config) = self.auth.jwt {
+            if let JwtMode::Jwks { ref jwks_url, .. } = jwt_config.mode {
+                // JWKS URL must use HTTPS in production (allow HTTP in debug builds for local testing)
+                #[cfg(not(debug_assertions))]
+                if !jwks_url.starts_with("https://") {
+                    return Err(ConfigError::Validation(
+                        "jwt.jwks_url must use HTTPS in production".to_string(),
+                    ));
+                }
+                // Validate URL format
+                if !jwks_url.starts_with("http://") && !jwks_url.starts_with("https://") {
+                    return Err(ConfigError::Validation(
+                        "jwt.jwks_url must be a valid HTTP(S) URL".to_string(),
+                    ));
+                }
+            }
+        }
+
+        // Validate OAuth configuration
+        if let Some(ref oauth_config) = self.auth.oauth {
+            // Validate redirect_uri is a valid URL
+            if !oauth_config.redirect_uri.starts_with("http://")
+                && !oauth_config.redirect_uri.starts_with("https://") {
+                return Err(ConfigError::Validation(
+                    "oauth.redirect_uri must be a valid HTTP(S) URL".to_string(),
+                ));
+            }
+        }
+
+        // Validate audit export configuration
+        if let Some(ref export_url) = self.audit.export_url {
+            // Validate URL format
+            if !export_url.starts_with("http://") && !export_url.starts_with("https://") {
+                return Err(ConfigError::Validation(
+                    "audit.export_url must be a valid HTTP(S) URL".to_string(),
+                ));
+            }
+            // Validate batch size
+            if self.audit.export_batch_size == 0 {
+                return Err(ConfigError::Validation(
+                    "audit.export_batch_size must be greater than 0".to_string(),
+                ));
+            }
+            if self.audit.export_batch_size > 10000 {
+                return Err(ConfigError::Validation(
+                    "audit.export_batch_size must be less than or equal to 10000".to_string(),
+                ));
+            }
+            // Validate flush interval
+            if self.audit.export_interval_secs == 0 {
+                return Err(ConfigError::Validation(
+                    "audit.export_interval_secs must be greater than 0".to_string(),
+                ));
+            }
+        }
+
+        // Validate tracing sample rate
+        if self.tracing.enabled
+            && (self.tracing.sample_rate < 0.0 || self.tracing.sample_rate > 1.0)
+        {
+            return Err(ConfigError::Validation(
+                "tracing.sample_rate must be between 0.0 and 1.0".to_string(),
+            ));
+        }
+
         // If multi-server routing is configured, validate each server
         if !self.upstream.servers.is_empty() {
             for server in &self.upstream.servers {

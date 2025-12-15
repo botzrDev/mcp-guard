@@ -1,18 +1,24 @@
 //! Observability: metrics, tracing, and logging for mcp-guard
 //!
-//! Provides Prometheus metrics for monitoring mcp-guard performance and health.
+//! This module provides comprehensive observability for monitoring and debugging.
 //!
-//! Metrics exposed:
+//! ## Prometheus Metrics (FR-OBS-01, FR-OBS-02)
+//!
 //! - `mcp_guard_requests_total` (counter) - labels: method, status
 //! - `mcp_guard_request_duration_seconds` (histogram) - labels: method
 //! - `mcp_guard_auth_total` (counter) - labels: provider, result
 //! - `mcp_guard_rate_limit_total` (counter) - labels: allowed
 //! - `mcp_guard_active_identities` (gauge)
 //!
-//! OpenTelemetry tracing (FR-OBS-03):
+//! ## OpenTelemetry Tracing (FR-OBS-03)
+//!
 //! - W3C trace context propagation (traceparent, tracestate headers)
-//! - OTLP export to Jaeger/Tempo/etc
-//! - Trace ID in all log messages (FR-AUDIT-06)
+//! - OTLP export to Jaeger, Tempo, or other collectors
+//! - Configurable sampling rates (0.0-1.0)
+//!
+//! ## Audit Correlation (FR-AUDIT-06)
+//!
+//! - Trace ID included in all log messages for request correlation
 
 use metrics::{counter, gauge, histogram};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
@@ -62,7 +68,8 @@ pub fn init_tracing(verbose: bool, tracing_config: Option<&TracingConfig>) -> Tr
     let otel_enabled = tracing_config.map(|c| c.enabled).unwrap_or(false);
 
     if otel_enabled {
-        let config = tracing_config.unwrap();
+        // Safe: otel_enabled is true only if tracing_config was Some with enabled=true
+        let config = tracing_config.expect("tracing_config must be Some when otel_enabled is true");
         match init_opentelemetry_tracing(verbose, config) {
             Ok(guard) => return guard,
             Err(e) => {

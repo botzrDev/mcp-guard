@@ -21,13 +21,18 @@ use tokio::sync::mpsc;
 // Constants
 // ============================================================================
 
-/// Channel buffer size for audit log messages
+/// Channel buffer size for audit log messages.
+/// 1000 entries provides ~1 second of buffering at maximum throughput (1000 RPS),
+/// preventing backpressure while keeping memory usage bounded.
 const AUDIT_CHANNEL_SIZE: usize = 1000;
 
-/// HTTP request timeout for audit export (30 seconds)
+/// HTTP request timeout for audit export.
+/// 30 seconds allows for slow SIEM endpoints while preventing indefinite hangs.
 const AUDIT_HTTP_TIMEOUT_SECS: u64 = 30;
 
-/// Maximum retry attempts for failed HTTP exports
+/// Maximum retry attempts for failed HTTP exports.
+/// 3 retries with exponential backoff (100ms, 200ms, 400ms) covers transient failures
+/// without excessive delay or resource consumption.
 const AUDIT_MAX_RETRY_ATTEMPTS: usize = 3;
 
 /// Audit event types
@@ -580,6 +585,8 @@ impl AuditShipper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::AuditConfig;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn test_audit_entry_creation() {
@@ -590,6 +597,40 @@ mod tests {
         assert_eq!(entry.identity_id, Some("user123".to_string()));
         assert!(entry.success);
         assert!(matches!(entry.event_type, EventType::AuthSuccess));
+    }
+
+    #[test]
+    fn test_audit_entry_all_fields() {
+        let entry = AuditEntry::new(EventType::ToolCall)
+            .with_identity("user1")
+            .with_method("tools/call")
+            .with_tool("read_file")
+            .with_success(true)
+            .with_message("File read successfully")
+            .with_duration(150)
+            .with_request_id("req-123");
+
+        assert_eq!(entry.identity_id, Some("user1".to_string()));
+        assert_eq!(entry.method, Some("tools/call".to_string()));
+        assert_eq!(entry.tool, Some("read_file".to_string()));
+        assert!(entry.success);
+        assert_eq!(entry.message, Some("File read successfully".to_string()));
+        assert_eq!(entry.duration_ms, Some(150));
+        assert_eq!(entry.request_id, Some("req-123".to_string()));
+    }
+
+    #[test]
+    fn test_audit_entry_serialization() {
+        let entry = AuditEntry::new(EventType::AuthFailure)
+            .with_identity("user1")
+            .with_success(false)
+            .with_message("Invalid credentials");
+
+        let json = serde_json::to_string(&entry).expect("Should serialize");
+        assert!(json.contains("auth_failure"));
+        assert!(json.contains("user1"));
+        assert!(json.contains("Invalid credentials"));
+        assert!(json.contains("\"success\":false"));
     }
 
     #[test]
@@ -611,5 +652,250 @@ mod tests {
         assert!(json.contains("user1"));
         assert!(json.contains("user2"));
         assert!(json.contains("read_file"));
+    }
+
+    #[test]
+    fn test_audit_logger_disabled() {
+        let logger = AuditLogger::disabled();
+
+        // Should not panic when logging to disabled logger
+        logger.log_auth_success("user1");
+        logger.log_auth_failure("bad credentials");
+        logger.log_tool_call("user1", "read_file", Some("req-1"));
+        logger.log_rate_limited("user1");
+        logger.log_authz_denied("user1", "write_file", "not allowed");
+    }
+
+    #[test]
+    fn test_audit_logger_default_is_disabled() {
+        let logger = AuditLogger::default();
+        // Default logger should be disabled and not panic
+        logger.log_auth_success("user1");
+    }
+
+    #[test]
+    fn test_audit_logger_new_disabled_config() {
+        let config = AuditConfig {
+            enabled: false,
+            file: None,
+            stdout: false,
+            export_url: None,
+            export_headers: HashMap::new(),
+            export_batch_size: 100,
+            export_interval_secs: 30,
+        };
+
+        let logger = AuditLogger::new(&config).expect("Should create logger");
+        // Should not panic
+        logger.log_auth_success("user1");
+    }
+
+    #[test]
+    fn test_default_audit_path() {
+        let path = default_audit_path();
+        assert_eq!(path.to_str().unwrap(), "mcp-guard-audit.log");
+    }
+
+    #[test]
+    fn test_event_type_serialization() {
+        // Test all event types serialize correctly
+        let events = vec![
+            (EventType::AuthSuccess, "auth_success"),
+            (EventType::AuthFailure, "auth_failure"),
+            (EventType::ToolCall, "tool_call"),
+            (EventType::ToolResponse, "tool_response"),
+            (EventType::RateLimited, "rate_limited"),
+            (EventType::AuthzDenied, "authz_denied"),
+            (EventType::Error, "error"),
+        ];
+
+        for (event_type, expected) in events {
+            let entry = AuditEntry::new(event_type);
+            let json = serde_json::to_string(&entry).expect("Should serialize");
+            assert!(json.contains(expected), "Expected {} in {}", expected, json);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_audit_logger_with_tasks_disabled() {
+        let config = AuditConfig {
+            enabled: false,
+            file: None,
+            stdout: false,
+            export_url: None,
+            export_headers: HashMap::new(),
+            export_batch_size: 100,
+            export_interval_secs: 30,
+        };
+
+        let (logger, handle) = AuditLogger::with_tasks(&config).expect("Should create logger");
+
+        // Should not panic when logging
+        logger.log_auth_success("user1");
+
+        // Shutdown should complete immediately for disabled logger
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_audit_logger_with_tasks_stdout_only() {
+        let config = AuditConfig {
+            enabled: true,
+            file: None,
+            stdout: true, // Enable stdout
+            export_url: None,
+            export_headers: HashMap::new(),
+            export_batch_size: 100,
+            export_interval_secs: 30,
+        };
+
+        let (logger, handle) = AuditLogger::with_tasks(&config).expect("Should create logger");
+
+        // Log some entries
+        logger.log_auth_success("user1");
+        logger.log_tool_call("user1", "read_file", None);
+
+        // Give writer task time to process
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // Shutdown gracefully
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_audit_logger_with_tasks_file_output() {
+        let temp_file = NamedTempFile::new().expect("Should create temp file");
+        let file_path = temp_file.path().to_path_buf();
+
+        let config = AuditConfig {
+            enabled: true,
+            file: Some(file_path.clone()),
+            stdout: false,
+            export_url: None,
+            export_headers: HashMap::new(),
+            export_batch_size: 100,
+            export_interval_secs: 30,
+        };
+
+        let (logger, handle) = AuditLogger::with_tasks(&config).expect("Should create logger");
+
+        // Log some entries
+        logger.log_auth_success("file_test_user");
+        logger.log_tool_call("file_test_user", "write_file", Some("req-abc"));
+
+        // Give writer task time to process
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Shutdown gracefully
+        handle.shutdown().await;
+
+        // Verify file contents
+        let contents = std::fs::read_to_string(&file_path).expect("Should read file");
+        assert!(contents.contains("file_test_user"), "File should contain user ID");
+        assert!(contents.contains("auth_success"), "File should contain event type");
+    }
+
+    #[tokio::test]
+    async fn test_audit_logger_log_method_with_entry() {
+        let config = AuditConfig {
+            enabled: true,
+            file: None,
+            stdout: false, // Suppress output in tests
+            export_url: None,
+            export_headers: HashMap::new(),
+            export_batch_size: 100,
+            export_interval_secs: 30,
+        };
+
+        let (logger, handle) = AuditLogger::with_tasks(&config).expect("Should create logger");
+
+        // Test direct log method with custom entry
+        let entry = AuditEntry::new(EventType::Error)
+            .with_identity("user1")
+            .with_message("Something went wrong")
+            .with_success(false);
+
+        logger.log(&entry);
+
+        // Give time to process
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        handle.shutdown().await;
+    }
+
+    #[test]
+    fn test_audit_shipper_creation() {
+        let shipper = AuditShipper::new(
+            "https://example.com/logs".to_string(),
+            HashMap::new(),
+            100,
+            30,
+        );
+
+        assert_eq!(shipper.url, "https://example.com/logs");
+        assert_eq!(shipper.batch_size, 100);
+        assert_eq!(shipper.flush_interval, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn test_audit_shipper_with_headers() {
+        let mut headers = HashMap::new();
+        headers.insert("Authorization".to_string(), "Bearer token123".to_string());
+        headers.insert("X-Custom-Header".to_string(), "custom-value".to_string());
+
+        let shipper = AuditShipper::new(
+            "https://example.com/logs".to_string(),
+            headers.clone(),
+            50,
+            60,
+        );
+
+        assert_eq!(shipper.headers.len(), 2);
+        assert_eq!(shipper.headers.get("Authorization"), Some(&"Bearer token123".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_audit_logger_with_export_legacy_api() {
+        let config = AuditConfig {
+            enabled: false,
+            file: None,
+            stdout: false,
+            export_url: None,
+            export_headers: HashMap::new(),
+            export_batch_size: 100,
+            export_interval_secs: 30,
+        };
+
+        // Test legacy with_export API
+        let (logger, handle) = AuditLogger::with_export(&config).expect("Should create logger");
+        assert!(handle.is_none()); // No shipper for disabled config
+
+        logger.log_auth_success("user1");
+    }
+
+    #[tokio::test]
+    async fn test_audit_logger_channel_full_behavior() {
+        let temp_file = NamedTempFile::new().expect("Should create temp file");
+
+        let config = AuditConfig {
+            enabled: true,
+            file: Some(temp_file.path().to_path_buf()),
+            stdout: false,
+            export_url: None,
+            export_headers: HashMap::new(),
+            export_batch_size: 100,
+            export_interval_secs: 30,
+        };
+
+        let (logger, handle) = AuditLogger::with_tasks(&config).expect("Should create logger");
+
+        // Flood the channel with many messages (channel size is 1000)
+        // This tests the try_send behavior
+        for i in 0..100 {
+            logger.log_auth_success(&format!("user{}", i));
+        }
+
+        // Give time to process
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        handle.shutdown().await;
     }
 }

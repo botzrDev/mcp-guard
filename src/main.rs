@@ -3,6 +3,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
+use tokio_util::sync::CancellationToken;
 
 use mcp_guard::{
     audit::AuditLogger,
@@ -245,6 +246,9 @@ async fn main() -> anyhow::Result<()> {
                 );
             }
 
+            // Create shutdown token for graceful shutdown coordination
+            let shutdown_token = CancellationToken::new();
+
             // Initialize Prometheus metrics
             let metrics_handle = init_metrics();
 
@@ -277,8 +281,8 @@ async fn main() -> anyhow::Result<()> {
                         JwtProvider::new(jwt_config.clone())
                             .map_err(|e| anyhow::anyhow!("Failed to initialize JWT provider: {}", e))?
                     );
-                    // Start background refresh for JWKS mode
-                    jwt_provider.start_background_refresh();
+                    // Start background refresh for JWKS mode with shutdown coordination
+                    jwt_provider.start_background_refresh(shutdown_token.clone());
                     providers.push(jwt_provider);
                 }
 
@@ -322,7 +326,7 @@ async fn main() -> anyhow::Result<()> {
             let rate_limiter = RateLimitService::new(&config.rate_limit);
 
             // Set up audit logger with background tasks for non-blocking I/O
-            let (audit_logger, _audit_handle) = AuditLogger::with_tasks(&config.audit)?;
+            let (audit_logger, audit_handle) = AuditLogger::with_tasks(&config.audit)?;
             let audit_logger = Arc::new(audit_logger);
 
             // Set up transport/router based on configuration
@@ -401,8 +405,25 @@ async fn main() -> anyhow::Result<()> {
                 mtls_provider,
             });
 
-            // Run server
-            server::run(state).await?;
+            // Run server with graceful shutdown handling
+            tokio::select! {
+                result = server::run(state) => {
+                    // Server exited (error or normal termination)
+                    result?;
+                }
+                _ = tokio::signal::ctrl_c() => {
+                    tracing::info!("Received SIGINT, initiating graceful shutdown...");
+                }
+            }
+
+            // Trigger shutdown for all background tasks
+            shutdown_token.cancel();
+
+            // Give background tasks time to complete (e.g., flush audit logs)
+            tracing::info!("Shutting down background tasks...");
+            audit_handle.shutdown().await;
+
+            tracing::info!("Shutdown complete");
         }
     }
 

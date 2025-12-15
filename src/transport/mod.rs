@@ -10,10 +10,14 @@ use tokio::sync::mpsc;
 // Constants
 // ============================================================================
 
-/// Channel buffer size for transport messages
+/// Channel buffer size for transport messages.
+/// 32 messages provides headroom for burst traffic while keeping memory bounded.
+/// Stdio transports typically process messages sequentially, so large buffers aren't needed.
 const TRANSPORT_CHANNEL_SIZE: usize = 32;
 
-/// Default HTTP request timeout (30 seconds)
+/// Default HTTP request timeout.
+/// 30 seconds balances allowing time for slow MCP operations (like file searches)
+/// while preventing indefinite hangs on unresponsive servers.
 const HTTP_REQUEST_TIMEOUT_SECS: u64 = 30;
 
 /// Transport error type
@@ -48,17 +52,28 @@ pub enum TransportError {
 }
 
 /// MCP JSON-RPC message
+///
+/// Represents a JSON-RPC 2.0 message used in the Model Context Protocol.
+/// Can be a request (has method + id), notification (has method, no id),
+/// or response (has result or error + id).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Message {
+    /// JSON-RPC version, always "2.0"
     pub jsonrpc: String,
+    /// Request/response ID for correlating requests with responses.
+    /// Present in requests and responses, absent in notifications.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<serde_json::Value>,
+    /// Method name for requests/notifications (e.g., "tools/call", "tools/list")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub method: Option<String>,
+    /// Method parameters for requests/notifications
     #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<serde_json::Value>,
+    /// Successful response data (mutually exclusive with error)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<serde_json::Value>,
+    /// Error response data with code and message (mutually exclusive with result)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<serde_json::Value>,
 }
@@ -127,13 +142,20 @@ pub trait Transport: Send + Sync {
 }
 
 /// Stdio transport for communicating with a subprocess
+///
+/// Spawns an MCP server process and communicates via stdin/stdout using
+/// newline-delimited JSON. Background tasks handle reading and writing
+/// to avoid blocking the async runtime.
 pub struct StdioTransport {
+    /// Sender for outbound messages to the subprocess
     tx: mpsc::Sender<Message>,
+    /// Receiver for inbound messages from the subprocess (mutex for shared access)
     rx: tokio::sync::Mutex<mpsc::Receiver<Message>>,
+    /// Child process handle (kept alive for process lifetime)
     _child: tokio::sync::Mutex<Child>,
-    /// Handle to the writer task
+    /// Background task writing messages to subprocess stdin
     writer_task: tokio::task::JoinHandle<()>,
-    /// Handle to the reader task
+    /// Background task reading messages from subprocess stdout
     reader_task: tokio::task::JoinHandle<()>,
 }
 
@@ -273,15 +295,15 @@ impl Transport for StdioTransport {
 /// responses in the HTTP response body. It implements a request-response pattern
 /// suitable for standard HTTP endpoints.
 pub struct HttpTransport {
-    /// HTTP client
+    /// Reusable HTTP client with connection pooling
     client: reqwest::Client,
-    /// Base URL of the upstream MCP server
+    /// Base URL of the upstream MCP server (e.g., "http://localhost:8080/mcp")
     url: String,
-    /// Additional headers to include in requests
+    /// Additional headers to include in requests (e.g., for upstream auth)
     headers: HashMap<String, String>,
-    /// Request timeout
+    /// Request timeout (default: 30 seconds)
     timeout: std::time::Duration,
-    /// Pending responses (for async receive pattern)
+    /// Queue of responses waiting to be retrieved via `receive()`
     pending_responses: tokio::sync::Mutex<Vec<Message>>,
 }
 
@@ -396,17 +418,17 @@ impl Transport for HttpTransport {
 /// data: {"jsonrpc": "2.0", "id": 1, "result": {...}}
 /// ```
 pub struct SseTransport {
-    /// HTTP client
+    /// Reusable HTTP client with connection pooling
     client: reqwest::Client,
-    /// Base URL of the upstream MCP server
+    /// Base URL of the upstream MCP server SSE endpoint
     url: String,
-    /// Additional headers to include in requests
+    /// Additional headers to include in requests (e.g., for upstream auth)
     headers: HashMap<String, String>,
-    /// Request timeout for the initial connection
+    /// Initial connection timeout (default: 30 seconds)
     timeout: std::time::Duration,
-    /// Channel for receiving SSE messages
+    /// Receiver for messages parsed from the SSE stream
     rx: tokio::sync::Mutex<mpsc::Receiver<Message>>,
-    /// Channel for sending messages to SSE stream handler
+    /// Sender used by SSE stream handler to deliver parsed messages
     tx: mpsc::Sender<Message>,
 }
 

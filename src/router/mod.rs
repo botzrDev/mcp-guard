@@ -197,7 +197,7 @@ impl RouteMatcher {
         let mut best_match: Option<(&str, &String)> = None;
         for (prefix, name) in &self.prefixes {
             if path.starts_with(prefix)
-                && (best_match.is_none() || prefix.len() > best_match.unwrap().0.len())
+                && best_match.is_none_or(|(best_prefix, _)| prefix.len() > best_prefix.len())
             {
                 best_match = Some((prefix, name));
             }

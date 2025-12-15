@@ -1,0 +1,59 @@
+# Configuration for cargo-deny
+# See: https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+
+[advisories]
+# Security vulnerability advisory database
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+vulnerability = "deny"
+unmaintained = "warn"
+yanked = "warn"
+notice = "warn"
+ignore = []
+
+[licenses]
+# License policy
+unlicensed = "deny"
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "CC0-1.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "MPL-2.0",
+]
+copyleft = "warn"
+default = "deny"
+confidence-threshold = 0.8
+exceptions = [
+    # ring uses ISC which is fine
+    { name = "ring", allow = ["ISC"] },
+]
+
+[bans]
+# Dependency banning rules
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+skip = []
+skip-tree = []
+
+[sources]
+# Where to get crates from
+unknown-registry = "warn"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

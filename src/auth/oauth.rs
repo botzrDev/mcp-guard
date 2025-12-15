@@ -53,16 +53,23 @@ struct TokenInfo {
     claims: HashMap<String, serde_json::Value>,
 }
 
-/// Token cache duration (5 minutes)
+/// Token cache duration for validated tokens.
+/// 5 minutes reduces introspection calls while ensuring revoked tokens
+/// are detected within an acceptable window.
 const TOKEN_CACHE_DURATION_SECS: u64 = 300;
 
-/// HTTP request timeout (10 seconds)
+/// HTTP request timeout for OAuth provider calls.
+/// 10 seconds is generous for OAuth providers but prevents indefinite hangs
+/// on network issues.
 const HTTP_REQUEST_TIMEOUT_SECS: u64 = 10;
 
-/// Maximum cache entries before forced cleanup
+/// Cache entry count triggering cleanup of expired entries.
+/// At 100 entries we scan for expired tokens to maintain fast lookups.
 const CACHE_CLEANUP_THRESHOLD: usize = 100;
 
-/// Maximum cache entries (hard limit)
+/// Maximum cache entries (hard limit) with LRU eviction.
+/// 500 entries bounds memory usage (~50KB) while supporting high concurrency.
+/// When exceeded, oldest 50 entries are removed.
 const CACHE_MAX_ENTRIES: usize = 500;
 
 /// Cached token info to avoid repeated introspection calls
@@ -428,8 +435,8 @@ impl OAuthAuthProvider {
         if let Some(exp) = info.expires_at {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64;
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0); // If system clock is before 1970, treat as epoch (safe fallback)
             if now > exp {
                 return Err(AuthError::TokenExpired);
             }

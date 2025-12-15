@@ -1,7 +1,31 @@
 //! CLI commands for mcp-guard
+//!
+//! This module provides the command-line interface for mcp-guard.
+//!
+//! Available commands:
+//! - `init` - Generate a new configuration file (TOML or YAML)
+//! - `validate` - Validate configuration file syntax and semantics
+//! - `keygen` - Generate a new API key with its hash for configuration
+//! - `hash-key` - Hash an existing API key for configuration
+//! - `run` - Start the MCP Guard server
+//! - `version` - Show version and build information
+//! - `check-upstream` - Test upstream MCP server connectivity
+//!
+//! # Example
+//!
+//! ```bash
+//! # Generate config and start server
+//! mcp-guard init
+//! mcp-guard validate
+//! mcp-guard run
+//! ```
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+
+// ============================================================================
+// CLI Definition
+// ============================================================================
 
 /// MCP Guard - Security gateway for MCP servers
 #[derive(Debug, Parser)]
@@ -80,12 +104,20 @@ pub enum Commands {
 }
 
 impl Cli {
+    /// Parse command-line arguments
     pub fn parse_args() -> Self {
         Self::parse()
     }
 }
 
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
 /// Generate a new random API key
+///
+/// Creates a 32-byte random key encoded as base64url with an "mcp_" prefix.
+/// Example output: `mcp_AbCdEf123456...`
 pub fn generate_api_key() -> String {
     use rand::Rng;
     let mut rng = rand::thread_rng();
@@ -97,6 +129,9 @@ pub fn generate_api_key() -> String {
 }
 
 /// Hash an API key for storage
+///
+/// Uses SHA-256 and encodes the result as base64. This hash should be stored
+/// in the configuration file instead of the plaintext key.
 pub fn hash_api_key(key: &str) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
@@ -104,7 +139,13 @@ pub fn hash_api_key(key: &str) -> String {
     base64::Engine::encode(&base64::engine::general_purpose::STANDARD, hasher.finalize())
 }
 
+// ============================================================================
+// Config Generation
+// ============================================================================
+
 /// Generate default configuration
+///
+/// Returns a configuration template in either TOML or YAML format.
 pub fn generate_config(format: &str) -> String {
     let config = r#"# MCP Guard Configuration
 

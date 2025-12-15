@@ -3,7 +3,7 @@
 use axum::{
     body::Body,
     extract::{Query, State},
-    http::{header, HeaderMap, Request, StatusCode},
+    http::{header, HeaderMap, HeaderName, HeaderValue, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
@@ -23,7 +23,9 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 // Constants
 // ============================================================================
 
-/// OAuth state expiry time (10 minutes)
+/// OAuth state expiry time for PKCE flow.
+/// 10 minutes allows users time to complete the OAuth flow (login, consent)
+/// while limiting the window for state token reuse attacks.
 const OAUTH_STATE_EXPIRY_SECS: u64 = 600;
 
 use crate::audit::AuditLogger;
@@ -51,26 +53,34 @@ pub fn new_oauth_state_store() -> OAuthStateStore {
     Arc::new(DashMap::new())
 }
 
-/// Application state shared across handlers
+/// Application state shared across all request handlers
+///
+/// This struct contains all the shared resources needed to process MCP requests,
+/// including authentication, rate limiting, transport connections, and metrics.
 pub struct AppState {
+    /// Loaded configuration (immutable after server start)
     pub config: Config,
+    /// Primary authentication provider (may be MultiProvider for fallback auth)
     pub auth_provider: Arc<dyn AuthProvider>,
+    /// Per-identity rate limiter with token bucket algorithm
     pub rate_limiter: RateLimitService,
+    /// Audit logger for security event tracking
     pub audit_logger: Arc<AuditLogger>,
-    /// Single transport for single-server mode (None when using multi-server routing)
+    /// Transport for single-server mode; None when using multi-server routing
     pub transport: Option<Arc<dyn Transport>>,
-    /// Multi-server router (None when using single-server mode)
+    /// Router for multi-server mode; None when using single-server mode
     pub router: Option<Arc<ServerRouter>>,
+    /// Prometheus metrics handle for rendering /metrics endpoint
     pub metrics_handle: PrometheusHandle,
-    /// OAuth provider for authorization code flow (optional)
+    /// OAuth provider for authorization code flow with PKCE (optional)
     pub oauth_provider: Option<Arc<OAuthAuthProvider>>,
-    /// OAuth state storage for PKCE
+    /// PKCE state storage mapping state tokens to code verifiers
     pub oauth_state_store: OAuthStateStore,
-    /// Server startup time for uptime calculation
+    /// Server startup timestamp for calculating uptime in /health
     pub started_at: Instant,
-    /// Readiness state (set to true after successful transport initialization)
+    /// Readiness flag for /ready endpoint (false until transport initialized)
     pub ready: Arc<RwLock<bool>>,
-    /// mTLS provider for header-based client certificate auth (optional)
+    /// mTLS provider for client certificate auth via reverse proxy headers
     pub mtls_provider: Option<Arc<MtlsAuthProvider>>,
 }
 
@@ -173,7 +183,7 @@ async fn handle_mcp_message(
     // Wait for response
     let response = transport.receive().await?;
 
-    // Filter tools/list response to only show authorized tools (FR-AUTHZ-03)
+    // Filter tools/list response to only show authorized tools
     let response = if is_tools_list {
         filter_tools_list_response(response, &identity)
     } else {
@@ -183,7 +193,7 @@ async fn handle_mcp_message(
     Ok(Json(response))
 }
 
-/// MCP message handler for multi-server routing
+/// MCP message handler for multi-server routing (FR-AUTHZ-03 applies here too)
 /// Routes requests to different upstreams based on the server name in the path
 async fn handle_routed_mcp_message(
     State(state): State<Arc<AppState>>,
@@ -219,7 +229,7 @@ async fn handle_routed_mcp_message(
     // Wait for response
     let response = transport.receive().await?;
 
-    // Filter tools/list response to only show authorized tools (FR-AUTHZ-03)
+    // Filter tools/list response to only show authorized tools
     let response = if is_tools_list {
         filter_tools_list_response(response, &identity)
     } else {
@@ -627,6 +637,49 @@ pub async fn trace_context_middleware(request: Request<Body>, next: Next) -> Res
     response
 }
 
+/// Middleware that adds security headers to all responses.
+///
+/// Headers added:
+/// - `X-Content-Type-Options: nosniff` - Prevents MIME-sniffing attacks
+/// - `X-Frame-Options: DENY` - Prevents clickjacking via iframe embedding
+/// - `X-XSS-Protection: 1; mode=block` - Enables browser XSS filtering (legacy browsers)
+/// - `Content-Security-Policy: default-src 'none'` - Strict CSP for API responses
+///
+/// These headers provide defense-in-depth for security even though
+/// mcp-guard is primarily an API server (not serving HTML).
+pub async fn security_headers_middleware(request: Request<Body>, next: Next) -> Response {
+    let mut response = next.run(request).await;
+
+    let headers = response.headers_mut();
+
+    // Prevent MIME-sniffing attacks
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+
+    // Prevent clickjacking via iframe embedding
+    headers.insert(
+        header::X_FRAME_OPTIONS,
+        HeaderValue::from_static("DENY"),
+    );
+
+    // Enable browser XSS filtering (for legacy browsers)
+    headers.insert(
+        HeaderName::from_static("x-xss-protection"),
+        HeaderValue::from_static("1; mode=block"),
+    );
+
+    // Strict Content-Security-Policy for API responses
+    // Since we don't serve HTML, we use the strictest possible policy
+    headers.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static("default-src 'none'"),
+    );
+
+    response
+}
+
 /// Application error type with unique error ID for correlation
 #[derive(Debug)]
 pub struct AppError {
@@ -806,12 +859,13 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     }
 
     // Build the router with middleware layers
-    // Layer order (bottom to top): TraceContext -> Metrics -> TraceLayer
-    // This ensures trace context is available for all subsequent layers
+    // Layer order (bottom to top): SecurityHeaders -> TraceContext -> Metrics -> TraceLayer
+    // Security headers are applied first (outermost) to ensure all responses get them
     router
         .merge(protected_routes)
         .layer(middleware::from_fn(metrics_middleware))
         .layer(middleware::from_fn(trace_context_middleware))
+        .layer(middleware::from_fn(security_headers_middleware))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

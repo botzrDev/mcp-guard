@@ -5,6 +5,20 @@
 //! - JWKS: RS256/ES256 with remote JWKS endpoint
 
 use async_trait::async_trait;
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+/// HTTP request timeout for JWKS endpoint calls.
+/// 10 seconds allows for slow identity providers while preventing indefinite hangs.
+const JWKS_HTTP_TIMEOUT_SECS: u64 = 10;
+
+/// JWKS refresh interval as a fraction of cache duration.
+/// Refreshing at 75% of TTL ensures keys are updated before expiry while
+/// avoiding excessive network calls.
+const JWKS_REFRESH_FRACTION_NUMERATOR: u64 = 3;
+const JWKS_REFRESH_FRACTION_DENOMINATOR: u64 = 4;
 use jsonwebtoken::{
     decode, decode_header, Algorithm, DecodingKey, Validation,
     errors::ErrorKind as JwtErrorKind,
@@ -13,6 +27,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
+use tokio_util::sync::CancellationToken;
 
 use crate::auth::{map_scopes_to_tools, AuthError, AuthProvider, Identity};
 use crate::config::{JwtConfig, JwtMode};
@@ -72,7 +87,7 @@ impl JwtProvider {
                 let cache_duration = Duration::from_secs(*cache_duration_secs);
                 let cache = Arc::new(RwLock::new(JwksCache::new(cache_duration)));
                 let client = reqwest::Client::builder()
-                    .timeout(Duration::from_secs(10))
+                    .timeout(Duration::from_secs(JWKS_HTTP_TIMEOUT_SECS))
                     .build()
                     .map_err(|e| AuthError::Internal(format!("Failed to create HTTP client: {}", e)))?;
 
@@ -87,17 +102,29 @@ impl JwtProvider {
     }
 
     /// Start background JWKS refresh task (for JWKS mode)
-    pub fn start_background_refresh(self: &Arc<Self>) {
+    ///
+    /// The task will run until the cancellation token is triggered.
+    /// Pass `CancellationToken::new()` if you don't need graceful shutdown.
+    pub fn start_background_refresh(self: &Arc<Self>, cancel_token: CancellationToken) {
         if let JwtMode::Jwks { cache_duration_secs, .. } = &self.config.mode {
             let provider = Arc::clone(self);
-            // Refresh at 75% of cache duration
-            let refresh_interval = Duration::from_secs(*cache_duration_secs * 3 / 4);
+            // Refresh at 75% of cache duration to ensure keys are fresh before expiry
+            let refresh_interval = Duration::from_secs(
+                *cache_duration_secs * JWKS_REFRESH_FRACTION_NUMERATOR / JWKS_REFRESH_FRACTION_DENOMINATOR
+            );
 
             tokio::spawn(async move {
                 loop {
-                    tokio::time::sleep(refresh_interval).await;
-                    if let Err(e) = provider.refresh_jwks().await {
-                        tracing::warn!("Background JWKS refresh failed: {}", e);
+                    tokio::select! {
+                        _ = cancel_token.cancelled() => {
+                            tracing::debug!("JWKS refresh task shutting down");
+                            break;
+                        }
+                        _ = tokio::time::sleep(refresh_interval) => {
+                            if let Err(e) = provider.refresh_jwks().await {
+                                tracing::warn!(error = %e, "Background JWKS refresh failed");
+                            }
+                        }
                     }
                 }
             });

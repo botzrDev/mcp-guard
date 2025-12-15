@@ -363,6 +363,178 @@ fn test_config_validation_sse_missing_url() {
     assert!(result.unwrap_err().to_string().contains("url"));
 }
 
+#[test]
+fn test_config_validation_port_zero() {
+    use mcp_guard::config::ServerConfig;
+
+    let config = Config {
+        server: ServerConfig {
+            host: "127.0.0.1".to_string(),
+            port: 0, // Invalid: port 0
+            tls: None,
+        },
+        auth: Default::default(),
+        rate_limit: Default::default(),
+        audit: Default::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+            servers: vec![],
+        },
+    };
+
+    let result = config.validate();
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("port"));
+}
+
+#[test]
+fn test_config_validation_rate_limit_zero_rps() {
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: RateLimitConfig {
+            enabled: true,
+            requests_per_second: 0, // Invalid: zero RPS
+            burst_size: 10,
+        },
+        audit: Default::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+            servers: vec![],
+        },
+    };
+
+    let result = config.validate();
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("requests_per_second"));
+}
+
+#[test]
+fn test_config_validation_rate_limit_zero_burst() {
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: RateLimitConfig {
+            enabled: true,
+            requests_per_second: 100,
+            burst_size: 0, // Invalid: zero burst
+        },
+        audit: Default::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+            servers: vec![],
+        },
+    };
+
+    let result = config.validate();
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("burst_size"));
+}
+
+#[test]
+fn test_config_validation_audit_invalid_export_url() {
+    use mcp_guard::config::AuditConfig;
+
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: Default::default(),
+        audit: AuditConfig {
+            enabled: true,
+            file: None,
+            stdout: true,
+            export_url: Some("not-a-valid-url".to_string()), // Invalid URL
+            export_batch_size: 100,
+            export_interval_secs: 30,
+            export_headers: Default::default(),
+        },
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+            servers: vec![],
+        },
+    };
+
+    let result = config.validate();
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("export_url"));
+}
+
+#[test]
+fn test_config_validation_audit_zero_batch_size() {
+    use mcp_guard::config::AuditConfig;
+
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: Default::default(),
+        audit: AuditConfig {
+            enabled: true,
+            file: None,
+            stdout: true,
+            export_url: Some("https://siem.example.com/logs".to_string()),
+            export_batch_size: 0, // Invalid: zero batch size
+            export_interval_secs: 30,
+            export_headers: Default::default(),
+        },
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+            servers: vec![],
+        },
+    };
+
+    let result = config.validate();
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("export_batch_size"));
+}
+
+#[test]
+fn test_config_validation_tracing_invalid_sample_rate() {
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: Default::default(),
+        audit: Default::default(),
+        tracing: TracingConfig {
+            enabled: true,
+            service_name: "test".to_string(),
+            otlp_endpoint: None,
+            sample_rate: 1.5, // Invalid: > 1.0
+            propagate_context: true,
+        },
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+            servers: vec![],
+        },
+    };
+
+    let result = config.validate();
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("sample_rate"));
+}
+
 // =============================================================================
 // Tools/List Filtering Tests (FR-AUTHZ-03)
 // =============================================================================
@@ -577,6 +749,37 @@ async fn test_health_endpoint_response_structure() {
     assert_eq!(json["status"], "healthy");
     assert!(json["version"].is_string());
     assert!(json["uptime_secs"].is_number());
+
+    // Verify security headers are present
+    let headers = {
+        let request = Request::builder()
+            .uri("/health")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.clone().oneshot(request).await.unwrap();
+        response.headers().clone()
+    };
+
+    assert_eq!(
+        headers.get("x-content-type-options").map(|v| v.to_str().unwrap()),
+        Some("nosniff"),
+        "X-Content-Type-Options header should be nosniff"
+    );
+    assert_eq!(
+        headers.get("x-frame-options").map(|v| v.to_str().unwrap()),
+        Some("DENY"),
+        "X-Frame-Options header should be DENY"
+    );
+    assert_eq!(
+        headers.get("x-xss-protection").map(|v| v.to_str().unwrap()),
+        Some("1; mode=block"),
+        "X-XSS-Protection header should be 1; mode=block"
+    );
+    assert_eq!(
+        headers.get("content-security-policy").map(|v| v.to_str().unwrap()),
+        Some("default-src 'none'"),
+        "Content-Security-Policy header should be default-src 'none'"
+    );
 }
 
 #[tokio::test]
@@ -796,7 +999,7 @@ fn test_cli_version_command() {
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("mcp-guard"))
-        .stdout(predicate::str::contains("0.1.0"))
+        .stdout(predicate::str::contains("1.0.0"))
         .stdout(predicate::str::contains("Build Information"))
         .stdout(predicate::str::contains("Features"))
         .stdout(predicate::str::contains("Auth providers"));
@@ -843,4 +1046,633 @@ fn test_cli_check_upstream_missing_config() {
     cmd.assert()
         .failure()
         .stderr(predicate::str::contains("Error loading config"));
+}
+
+// =============================================================================
+// OAuth E2E Tests
+// =============================================================================
+
+/// Test that /oauth/authorize endpoint returns 401 when OAuth is not configured
+/// (route not added, so falls through to auth middleware which rejects unauthenticated requests)
+#[tokio::test]
+async fn test_oauth_authorize_not_configured() {
+    use axum::{body::Body, http::{Request, StatusCode}};
+    use mcp_guard::{
+        audit::AuditLogger,
+        auth::ApiKeyProvider,
+        config::{AuditConfig, Config},
+        observability::create_metrics_handle,
+        rate_limit::RateLimitService,
+        server::{build_router, new_oauth_state_store, AppState},
+        transport::StdioTransport,
+    };
+    use tower::ServiceExt;
+
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: RateLimitConfig::default(),
+        audit: AuditConfig::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+            servers: vec![],
+        },
+    };
+
+    let state = Arc::new(AppState {
+        config: config.clone(),
+        auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
+        rate_limiter: RateLimitService::new(&config.rate_limit),
+        audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
+        transport: Some(Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap())),
+        router: None,
+        metrics_handle: create_metrics_handle(),
+        oauth_provider: None, // OAuth not configured
+        oauth_state_store: new_oauth_state_store(),
+        started_at: Instant::now(),
+        ready: Arc::new(RwLock::new(true)),
+        mtls_provider: None,
+    });
+
+    let app = build_router(state);
+
+    // /oauth/authorize returns 401 when OAuth not configured because the route
+    // is not added, so requests fall through to auth middleware
+    let request = Request::builder()
+        .uri("/oauth/authorize")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// Test OAuth authorize endpoint generates proper redirect with PKCE
+#[tokio::test]
+async fn test_oauth_authorize_generates_redirect() {
+    use axum::{body::Body, http::{Request, StatusCode}};
+    use mcp_guard::{
+        audit::AuditLogger,
+        auth::{ApiKeyProvider, OAuthAuthProvider},
+        config::{AuditConfig, Config, OAuthConfig, OAuthProvider as OAuthProviderType},
+        observability::create_metrics_handle,
+        rate_limit::RateLimitService,
+        server::{build_router, new_oauth_state_store, AppState},
+        transport::StdioTransport,
+    };
+    use tower::ServiceExt;
+
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: RateLimitConfig::default(),
+        audit: AuditConfig::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+            servers: vec![],
+        },
+    };
+
+    let oauth_config = OAuthConfig {
+        provider: OAuthProviderType::GitHub,
+        client_id: "test_client_id".to_string(),
+        client_secret: Some("test_client_secret".to_string()),
+        authorization_url: None, // Uses GitHub default
+        token_url: None,
+        introspection_url: None,
+        userinfo_url: None,
+        redirect_uri: "http://localhost:8080/oauth/callback".to_string(),
+        scopes: vec!["read:user".to_string()],
+        user_id_claim: "sub".to_string(),
+        scope_tool_mapping: HashMap::new(),
+    };
+
+    let oauth_provider = OAuthAuthProvider::new(oauth_config).unwrap();
+
+    let state = Arc::new(AppState {
+        config: config.clone(),
+        auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
+        rate_limiter: RateLimitService::new(&config.rate_limit),
+        audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
+        transport: Some(Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap())),
+        router: None,
+        metrics_handle: create_metrics_handle(),
+        oauth_provider: Some(Arc::new(oauth_provider)),
+        oauth_state_store: new_oauth_state_store(),
+        started_at: Instant::now(),
+        ready: Arc::new(RwLock::new(true)),
+        mtls_provider: None,
+    });
+
+    let app = build_router(state);
+
+    let request = Request::builder()
+        .uri("/oauth/authorize")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    // Should redirect to GitHub authorization URL
+    // StatusCode 307 (Temporary Redirect) preserves the request method
+    assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+
+    let location = response.headers().get("location").unwrap().to_str().unwrap();
+    assert!(location.starts_with("https://github.com/login/oauth/authorize"));
+    assert!(location.contains("client_id=test_client_id"));
+    assert!(location.contains("redirect_uri="));
+    assert!(location.contains("state="));
+    assert!(location.contains("code_challenge=")); // PKCE
+    assert!(location.contains("code_challenge_method=S256"));
+}
+
+/// Test OAuth callback rejects missing state parameter
+#[tokio::test]
+async fn test_oauth_callback_rejects_missing_state() {
+    use axum::{body::Body, http::{Request, StatusCode}};
+    use mcp_guard::{
+        audit::AuditLogger,
+        auth::{ApiKeyProvider, OAuthAuthProvider},
+        config::{AuditConfig, Config, OAuthConfig, OAuthProvider as OAuthProviderType},
+        observability::create_metrics_handle,
+        rate_limit::RateLimitService,
+        server::{build_router, new_oauth_state_store, AppState},
+        transport::StdioTransport,
+    };
+    use tower::ServiceExt;
+
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: RateLimitConfig::default(),
+        audit: AuditConfig::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+            servers: vec![],
+        },
+    };
+
+    let oauth_config = OAuthConfig {
+        provider: OAuthProviderType::GitHub,
+        client_id: "test_client_id".to_string(),
+        client_secret: Some("test_client_secret".to_string()),
+        authorization_url: None,
+        token_url: None,
+        introspection_url: None,
+        userinfo_url: None,
+        redirect_uri: "http://localhost:8080/oauth/callback".to_string(),
+        scopes: vec!["read:user".to_string()],
+        user_id_claim: "sub".to_string(),
+        scope_tool_mapping: HashMap::new(),
+    };
+
+    let oauth_provider = OAuthAuthProvider::new(oauth_config).unwrap();
+
+    let state = Arc::new(AppState {
+        config: config.clone(),
+        auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
+        rate_limiter: RateLimitService::new(&config.rate_limit),
+        audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
+        transport: Some(Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap())),
+        router: None,
+        metrics_handle: create_metrics_handle(),
+        oauth_provider: Some(Arc::new(oauth_provider)),
+        oauth_state_store: new_oauth_state_store(),
+        started_at: Instant::now(),
+        ready: Arc::new(RwLock::new(true)),
+        mtls_provider: None,
+    });
+
+    let app = build_router(state);
+
+    // Callback without state parameter
+    let request = Request::builder()
+        .uri("/oauth/callback?code=test_code")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// Test OAuth callback rejects invalid state parameter
+#[tokio::test]
+async fn test_oauth_callback_rejects_invalid_state() {
+    use axum::{body::Body, http::{Request, StatusCode}};
+    use mcp_guard::{
+        audit::AuditLogger,
+        auth::{ApiKeyProvider, OAuthAuthProvider},
+        config::{AuditConfig, Config, OAuthConfig, OAuthProvider as OAuthProviderType},
+        observability::create_metrics_handle,
+        rate_limit::RateLimitService,
+        server::{build_router, new_oauth_state_store, AppState},
+        transport::StdioTransport,
+    };
+    use tower::ServiceExt;
+
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: RateLimitConfig::default(),
+        audit: AuditConfig::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+            servers: vec![],
+        },
+    };
+
+    let oauth_config = OAuthConfig {
+        provider: OAuthProviderType::GitHub,
+        client_id: "test_client_id".to_string(),
+        client_secret: Some("test_client_secret".to_string()),
+        authorization_url: None,
+        token_url: None,
+        introspection_url: None,
+        userinfo_url: None,
+        redirect_uri: "http://localhost:8080/oauth/callback".to_string(),
+        scopes: vec!["read:user".to_string()],
+        user_id_claim: "sub".to_string(),
+        scope_tool_mapping: HashMap::new(),
+    };
+
+    let oauth_provider = OAuthAuthProvider::new(oauth_config).unwrap();
+
+    let state = Arc::new(AppState {
+        config: config.clone(),
+        auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
+        rate_limiter: RateLimitService::new(&config.rate_limit),
+        audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
+        transport: Some(Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap())),
+        router: None,
+        metrics_handle: create_metrics_handle(),
+        oauth_provider: Some(Arc::new(oauth_provider)),
+        oauth_state_store: new_oauth_state_store(),
+        started_at: Instant::now(),
+        ready: Arc::new(RwLock::new(true)),
+        mtls_provider: None,
+    });
+
+    let app = build_router(state);
+
+    // Callback with invalid/unknown state parameter
+    let request = Request::builder()
+        .uri("/oauth/callback?code=test_code&state=invalid_state_token")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// Test OAuth callback handles provider errors gracefully
+#[tokio::test]
+async fn test_oauth_callback_handles_provider_error() {
+    use axum::{body::Body, http::{Request, StatusCode}};
+    use mcp_guard::{
+        audit::AuditLogger,
+        auth::{ApiKeyProvider, OAuthAuthProvider},
+        config::{AuditConfig, Config, OAuthConfig, OAuthProvider as OAuthProviderType},
+        observability::create_metrics_handle,
+        rate_limit::RateLimitService,
+        server::{build_router, new_oauth_state_store, AppState},
+        transport::StdioTransport,
+    };
+    use tower::ServiceExt;
+
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: RateLimitConfig::default(),
+        audit: AuditConfig::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+            servers: vec![],
+        },
+    };
+
+    let oauth_config = OAuthConfig {
+        provider: OAuthProviderType::GitHub,
+        client_id: "test_client_id".to_string(),
+        client_secret: Some("test_client_secret".to_string()),
+        authorization_url: None,
+        token_url: None,
+        introspection_url: None,
+        userinfo_url: None,
+        redirect_uri: "http://localhost:8080/oauth/callback".to_string(),
+        scopes: vec!["read:user".to_string()],
+        user_id_claim: "sub".to_string(),
+        scope_tool_mapping: HashMap::new(),
+    };
+
+    let oauth_provider = OAuthAuthProvider::new(oauth_config).unwrap();
+
+    let state = Arc::new(AppState {
+        config: config.clone(),
+        auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
+        rate_limiter: RateLimitService::new(&config.rate_limit),
+        audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
+        transport: Some(Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap())),
+        router: None,
+        metrics_handle: create_metrics_handle(),
+        oauth_provider: Some(Arc::new(oauth_provider)),
+        oauth_state_store: new_oauth_state_store(),
+        started_at: Instant::now(),
+        ready: Arc::new(RwLock::new(true)),
+        mtls_provider: None,
+    });
+
+    let app = build_router(state);
+
+    // Callback with error from OAuth provider
+    let request = Request::builder()
+        .uri("/oauth/callback?error=access_denied&error_description=User+denied+access")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// =============================================================================
+// Multi-Server Routing Tests
+// =============================================================================
+
+/// Test route matcher finds correct route by prefix
+#[test]
+fn test_route_matcher_basic() {
+    use mcp_guard::config::{ServerRouteConfig, TransportType};
+    use mcp_guard::router::RouteMatcher;
+
+    let routes = vec![
+        ServerRouteConfig {
+            name: "github".to_string(),
+            path_prefix: "/github".to_string(),
+            transport: TransportType::Http,
+            command: None,
+            args: vec![],
+            url: Some("http://localhost:8081".to_string()),
+            strip_prefix: false,
+        },
+        ServerRouteConfig {
+            name: "filesystem".to_string(),
+            path_prefix: "/filesystem".to_string(),
+            transport: TransportType::Http,
+            command: None,
+            args: vec![],
+            url: Some("http://localhost:8082".to_string()),
+            strip_prefix: false,
+        },
+    ];
+
+    let matcher = RouteMatcher::new(&routes);
+
+    assert_eq!(matcher.match_path("/github/repos"), Some("github"));
+    assert_eq!(matcher.match_path("/filesystem/read"), Some("filesystem"));
+    assert_eq!(matcher.match_path("/unknown/path"), None);
+}
+
+/// Test route matcher uses longest prefix match
+#[test]
+fn test_route_matcher_longest_prefix() {
+    use mcp_guard::config::{ServerRouteConfig, TransportType};
+    use mcp_guard::router::RouteMatcher;
+
+    let routes = vec![
+        ServerRouteConfig {
+            name: "api".to_string(),
+            path_prefix: "/api".to_string(),
+            transport: TransportType::Http,
+            command: None,
+            args: vec![],
+            url: Some("http://localhost:8081".to_string()),
+            strip_prefix: false,
+        },
+        ServerRouteConfig {
+            name: "api-v2".to_string(),
+            path_prefix: "/api/v2".to_string(),
+            transport: TransportType::Http,
+            command: None,
+            args: vec![],
+            url: Some("http://localhost:8082".to_string()),
+            strip_prefix: false,
+        },
+    ];
+
+    let matcher = RouteMatcher::new(&routes);
+
+    // Longer prefix should win
+    assert_eq!(matcher.match_path("/api/v2/users"), Some("api-v2"));
+    assert_eq!(matcher.match_path("/api/v1/users"), Some("api"));
+}
+
+/// Test /routes endpoint returns configured routes
+#[tokio::test]
+async fn test_routes_endpoint_lists_servers() {
+    use axum::{body::Body, http::{Request, StatusCode}};
+    use mcp_guard::{
+        audit::AuditLogger,
+        auth::ApiKeyProvider,
+        config::{AuditConfig, Config, ServerRouteConfig},
+        observability::create_metrics_handle,
+        rate_limit::RateLimitService,
+        router::ServerRouter,
+        server::{build_router, new_oauth_state_store, AppState},
+    };
+    use tower::ServiceExt;
+
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: RateLimitConfig::default(),
+        audit: AuditConfig::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Http,
+            command: None,
+            args: vec![],
+            url: Some("http://localhost:8081".to_string()),
+            servers: vec![
+                ServerRouteConfig {
+                    name: "github".to_string(),
+                    path_prefix: "/github".to_string(),
+                    transport: TransportType::Http,
+                    command: None,
+                    args: vec![],
+                    url: Some("http://localhost:8081".to_string()),
+                    strip_prefix: false,
+                },
+                ServerRouteConfig {
+                    name: "filesystem".to_string(),
+                    path_prefix: "/filesystem".to_string(),
+                    transport: TransportType::Http,
+                    command: None,
+                    args: vec![],
+                    url: Some("http://localhost:8082".to_string()),
+                    strip_prefix: false,
+                },
+            ],
+        },
+    };
+
+    // Create router from server routes
+    let server_router = Arc::new(ServerRouter::new(config.upstream.servers.clone()).await.unwrap());
+
+    let state = Arc::new(AppState {
+        config: config.clone(),
+        auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
+        rate_limiter: RateLimitService::new(&config.rate_limit),
+        audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
+        transport: None, // Using router instead
+        router: Some(server_router),
+        metrics_handle: create_metrics_handle(),
+        oauth_provider: None,
+        oauth_state_store: new_oauth_state_store(),
+        started_at: Instant::now(),
+        ready: Arc::new(RwLock::new(true)),
+        mtls_provider: None,
+    });
+
+    let app = build_router(state);
+
+    let request = Request::builder()
+        .uri("/routes")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let routes = json["routes"].as_array().unwrap();
+    assert_eq!(routes.len(), 2);
+
+    let route_names: Vec<&str> = routes.iter().map(|r| r.as_str().unwrap()).collect();
+    assert!(route_names.contains(&"github"));
+    assert!(route_names.contains(&"filesystem"));
+}
+
+/// Test /routes endpoint is not available when no multi-server routing
+/// (route is only added when in multi-server mode, so falls through to auth)
+#[tokio::test]
+async fn test_routes_endpoint_unavailable_when_single_server() {
+    use axum::{body::Body, http::{Request, StatusCode}};
+    use mcp_guard::{
+        audit::AuditLogger,
+        auth::ApiKeyProvider,
+        config::{AuditConfig, Config},
+        observability::create_metrics_handle,
+        rate_limit::RateLimitService,
+        server::{build_router, new_oauth_state_store, AppState},
+        transport::StdioTransport,
+    };
+    use tower::ServiceExt;
+
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: RateLimitConfig::default(),
+        audit: AuditConfig::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Stdio,
+            command: Some("echo".to_string()),
+            args: vec![],
+            url: None,
+            servers: vec![], // No multi-server routing
+        },
+    };
+
+    let state = Arc::new(AppState {
+        config: config.clone(),
+        auth_provider: Arc::new(ApiKeyProvider::new(vec![])),
+        rate_limiter: RateLimitService::new(&config.rate_limit),
+        audit_logger: Arc::new(AuditLogger::new(&config.audit).unwrap()),
+        transport: Some(Arc::new(StdioTransport::spawn("echo", &[]).await.unwrap())),
+        router: None, // No router
+        metrics_handle: create_metrics_handle(),
+        oauth_provider: None,
+        oauth_state_store: new_oauth_state_store(),
+        started_at: Instant::now(),
+        ready: Arc::new(RwLock::new(true)),
+        mtls_provider: None,
+    });
+
+    let app = build_router(state);
+
+    // /routes endpoint is not available in single-server mode
+    // (the route is only added when servers are configured)
+    let request = Request::builder()
+        .uri("/routes")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    // Returns 401 because the route doesn't exist and falls through to auth middleware
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// Test ServerRouteConfig validation
+#[test]
+fn test_server_route_config_validation() {
+    use mcp_guard::config::{ServerRouteConfig, TransportType};
+
+    // Valid config
+    let valid = ServerRouteConfig {
+        name: "test".to_string(),
+        path_prefix: "/test".to_string(),
+        transport: TransportType::Http,
+        command: None,
+        args: vec![],
+        url: Some("http://localhost:8080".to_string()),
+        strip_prefix: false,
+    };
+    assert!(valid.validate().is_ok());
+
+    // Invalid: path_prefix doesn't start with /
+    let invalid_prefix = ServerRouteConfig {
+        name: "test".to_string(),
+        path_prefix: "test".to_string(), // Missing leading /
+        transport: TransportType::Http,
+        command: None,
+        args: vec![],
+        url: Some("http://localhost:8080".to_string()),
+        strip_prefix: false,
+    };
+    assert!(invalid_prefix.validate().is_err());
+
+    // Invalid: empty name
+    let invalid_name = ServerRouteConfig {
+        name: "".to_string(), // Empty
+        path_prefix: "/test".to_string(),
+        transport: TransportType::Http,
+        command: None,
+        args: vec![],
+        url: Some("http://localhost:8080".to_string()),
+        strip_prefix: false,
+    };
+    assert!(invalid_name.validate().is_err());
 }

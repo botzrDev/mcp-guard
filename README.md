@@ -42,9 +42,11 @@ Model Context Protocol (MCP) is powerful, but most servers are deployed with **z
 | OpenTelemetry Tracing | ✅ |
 | W3C Trace Context Propagation | ✅ |
 | Audit Logging | ✅ |
+| Audit Log Shipping (SIEM integration) | ✅ |
 | Stdio Transport | ✅ |
 | HTTP Transport | ✅ |
 | SSE Transport | ✅ |
+| Multi-Server Routing | ✅ |
 | Health Check Endpoints (/health, /live, /ready) | ✅ |
 
 ## Quick Start
@@ -178,6 +180,55 @@ rate_limit = 1000       # Optional custom rate limit
 # proxy_set_header X-Client-Cert-Verified $ssl_client_verify;
 ```
 
+### Multi-Server Routing
+
+Route requests to different MCP servers based on path prefix:
+
+```toml
+[upstream]
+transport = "stdio"  # Default (ignored when servers configured)
+command = "echo"     # Default (ignored when servers configured)
+
+# Define multiple upstream servers
+[[upstream.servers]]
+name = "filesystem"
+path_prefix = "/fs"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+
+[[upstream.servers]]
+name = "database"
+path_prefix = "/db"
+transport = "http"
+url = "http://localhost:8080/mcp"
+
+[[upstream.servers]]
+name = "default"
+path_prefix = "/"
+transport = "stdio"
+command = "node"
+args = ["./default-server.js"]
+```
+
+Access servers via `/mcp/:server_name` or by path prefix matching. List available routes at `GET /routes`.
+
+### Audit Log Shipping (SIEM Integration)
+
+Export audit logs to HTTP endpoints for SIEM integration:
+
+```toml
+[audit]
+enabled = true
+stdout = true
+
+# Export to Splunk, Datadog, or custom SIEM
+export_url = "https://hec.splunk.example.com/services/collector/event"
+export_batch_size = 100          # Logs per batch
+export_interval_secs = 30        # Max time between flushes
+export_headers = { "Authorization" = "Splunk YOUR_HEC_TOKEN" }
+```
+
 ## Observability
 
 ### Prometheus Metrics
@@ -209,6 +260,8 @@ When enabled, mcp-guard exports traces via OTLP to collectors like Jaeger or Gra
 | `/ready` | GET | Readiness probe (checks transport) |
 | `/metrics` | GET | Prometheus metrics |
 | `/mcp` | POST | MCP message handler (requires auth) |
+| `/mcp/:server` | POST | Route to specific server (multi-server mode) |
+| `/routes` | GET | List available server routes (multi-server mode) |
 | `/oauth/authorize` | GET | Start OAuth flow |
 | `/oauth/callback` | GET | OAuth callback |
 
@@ -232,11 +285,13 @@ When enabled, mcp-guard exports traces via OTLP to collectors like Jaeger or Gra
 ## CLI Reference
 
 ```bash
-mcp-guard init [--format toml|yaml] [--force]  # Generate config file
-mcp-guard validate                              # Validate config
-mcp-guard keygen --user-id X [--rate-limit N]  # Generate API key
-mcp-guard hash-key <key>                        # Hash an existing key
-mcp-guard run [--host H] [--port P]            # Start the gateway
+mcp-guard init [--format toml|yaml] [--force]       # Generate config file
+mcp-guard validate                                   # Validate config
+mcp-guard keygen --user-id X [--rate-limit N] [--tools T]  # Generate API key
+mcp-guard hash-key <key>                             # Hash an existing key
+mcp-guard run [--host H] [--port P]                 # Start the gateway
+mcp-guard version                                    # Show version and build info
+mcp-guard check-upstream [--timeout N]              # Test upstream connectivity
 ```
 
 ### Global Options

@@ -1,4 +1,13 @@
 //! Authentication providers for mcp-guard
+//!
+//! This module provides pluggable authentication for MCP requests:
+//! - API Key: Simple hash-based key validation
+//! - JWT: HS256 (simple) or RS256/ES256 (JWKS) token validation
+//! - OAuth 2.1: Token introspection and userinfo validation with PKCE
+//! - mTLS: Client certificate authentication via reverse proxy headers
+//!
+//! All providers implement the [`AuthProvider`] trait, allowing them to be
+//! combined via [`MultiProvider`] for fallback authentication.
 
 mod jwt;
 mod mtls;
@@ -11,6 +20,10 @@ pub use oauth::OAuthAuthProvider;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
+
+// ============================================================================
+// Error Types
+// ============================================================================
 
 /// Authentication error type
 #[derive(Debug, thiserror::Error)]
@@ -37,7 +50,11 @@ pub enum AuthError {
     Internal(String),
 }
 
-/// Authenticated identity
+// ============================================================================
+// Types
+// ============================================================================
+
+/// Authenticated identity representing a user or service that has been verified
 #[derive(Debug, Clone)]
 pub struct Identity {
     /// Unique identifier for the user/service
@@ -52,9 +69,13 @@ pub struct Identity {
     /// Custom rate limit for this identity
     pub rate_limit: Option<u32>,
 
-    /// Additional claims/metadata
+    /// Additional claims/metadata from the authentication token
     pub claims: std::collections::HashMap<String, serde_json::Value>,
 }
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
 
 /// Map OAuth/JWT scopes to allowed tools based on a scope-to-tool mapping
 ///
@@ -93,17 +114,28 @@ pub fn map_scopes_to_tools(
     }
 }
 
+// ============================================================================
+// Traits
+// ============================================================================
+
 /// Authentication provider trait
 #[async_trait]
 pub trait AuthProvider: Send + Sync {
     /// Authenticate a request and return the identity
     async fn authenticate(&self, token: &str) -> Result<Identity, AuthError>;
 
-    /// Provider name for logging
+    /// Provider name for logging and metrics
     fn name(&self) -> &str;
 }
 
+// ============================================================================
+// Providers
+// ============================================================================
+
 /// API key authentication provider
+///
+/// Validates requests using pre-shared API keys. Keys are stored as SHA-256
+/// hashes to prevent exposure of plaintext keys in configuration.
 pub struct ApiKeyProvider {
     keys: std::collections::HashMap<String, crate::config::ApiKeyConfig>,
 }
@@ -151,8 +183,13 @@ impl AuthProvider for ApiKeyProvider {
     }
 }
 
-/// Combined authentication provider that tries multiple providers
+/// Combined authentication provider that tries multiple providers in sequence
+///
+/// Attempts authentication against each configured provider until one succeeds.
+/// Returns the most informative error if all providers fail (e.g., prefers
+/// "token expired" over "invalid API key").
 pub struct MultiProvider {
+    /// List of providers to try, in order of precedence
     providers: Vec<Arc<dyn AuthProvider>>,
 }
 

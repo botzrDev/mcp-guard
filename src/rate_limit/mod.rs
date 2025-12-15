@@ -18,14 +18,24 @@ use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-/// Rate limiter type alias
+/// Rate limiter type alias for a direct (non-keyed) token bucket limiter
 type Limiter = RateLimiter<NotKeyed, InMemoryState, DefaultClock>;
 
-/// Default TTL for idle rate limiter entries (1 hour)
+/// Default TTL for idle rate limiter entries.
+/// 1 hour balances memory cleanup with user experience (users reconnecting within
+/// an hour keep their rate limit state). Typical sessions are shorter.
 const DEFAULT_ENTRY_TTL: Duration = Duration::from_secs(3600);
 
-/// Cleanup threshold - run cleanup when this many identities are tracked
+/// Cleanup threshold for triggering expired entry removal.
+/// At 1000 identities (~1KB each), we check for expired entries to prevent
+/// unbounded memory growth from abandoned connections.
 const CLEANUP_THRESHOLD: usize = 1000;
+
+/// Default requests per second - const unwrap is safe in const context
+const DEFAULT_RPS: NonZeroU32 = NonZeroU32::new(100).unwrap();
+
+/// Default burst size - const unwrap is safe in const context
+const DEFAULT_BURST: NonZeroU32 = NonZeroU32::new(50).unwrap();
 
 /// Entry in the rate limiter cache with last access time
 struct RateLimitEntry {
@@ -85,8 +95,8 @@ impl RateLimitService {
 
     /// Create a rate limiter with the specified configuration
     fn create_limiter(requests_per_second: u32, burst_size: u32) -> Limiter {
-        let rps = NonZeroU32::new(requests_per_second).unwrap_or(NonZeroU32::new(100).unwrap());
-        let burst = NonZeroU32::new(burst_size).unwrap_or(NonZeroU32::new(50).unwrap());
+        let rps = NonZeroU32::new(requests_per_second).unwrap_or(DEFAULT_RPS);
+        let burst = NonZeroU32::new(burst_size).unwrap_or(DEFAULT_BURST);
 
         let quota = Quota::per_second(rps).allow_burst(burst);
         RateLimiter::direct(quota)
@@ -208,9 +218,18 @@ impl Default for RateLimitService {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for rate limiting service.
+    //!
+    //! Tests cover:
+    //! - Disabled vs enabled rate limiting
+    //! - Per-identity isolation (separate buckets)
+    //! - Custom rate limits per identity
+    //! - TTL-based cleanup of idle entries
+
     use super::*;
     use crate::config::RateLimitConfig;
 
+    /// Verify disabled rate limiter always allows requests
     #[test]
     fn test_rate_limit_disabled() {
         let config = RateLimitConfig {
@@ -228,6 +247,7 @@ mod tests {
         }
     }
 
+    /// Verify enabled rate limiter respects burst then denies
     #[test]
     fn test_rate_limit_enabled() {
         let config = RateLimitConfig {
@@ -247,6 +267,7 @@ mod tests {
         assert!(result.retry_after_secs.is_some());
     }
 
+    /// Verify each identity gets its own rate limit bucket
     #[test]
     fn test_per_identity_isolation() {
         let config = RateLimitConfig {
@@ -268,6 +289,7 @@ mod tests {
         assert_eq!(service.tracked_identities(), 2);
     }
 
+    /// Verify custom rate limits override defaults
     #[test]
     fn test_custom_rate_limit() {
         let config = RateLimitConfig {
@@ -293,6 +315,7 @@ mod tests {
         assert!(!service.check("vip_user", Some(10)).allowed);
     }
 
+    /// Verify clearing an identity resets their rate limit bucket
     #[test]
     fn test_clear_identity() {
         let config = RateLimitConfig {
@@ -314,6 +337,7 @@ mod tests {
         assert!(service.check("user", None).allowed);
     }
 
+    /// Verify backwards-compatible check_allowed returns simple bool
     #[test]
     fn test_check_allowed_backwards_compat() {
         let config = RateLimitConfig {
@@ -328,6 +352,7 @@ mod tests {
         assert!(!service.check_allowed("user", None));
     }
 
+    /// Verify retry_after_secs is populated when rate limited
     #[test]
     fn test_retry_after_populated() {
         let config = RateLimitConfig {
@@ -347,6 +372,7 @@ mod tests {
         assert!(result.retry_after_secs.unwrap() >= 1);
     }
 
+    /// Verify TTL cleanup removes expired entries
     #[test]
     fn test_ttl_cleanup() {
         let config = RateLimitConfig {
@@ -370,6 +396,7 @@ mod tests {
         assert_eq!(service.tracked_identities(), 0);
     }
 
+    /// Verify TTL cleanup preserves recently-accessed entries
     #[test]
     fn test_ttl_preserves_active_entries() {
         let config = RateLimitConfig {
