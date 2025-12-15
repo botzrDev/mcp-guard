@@ -22,8 +22,9 @@ fn create_test_config(port: u16) -> Config {
         server: ServerConfig::default(),
         upstream: UpstreamConfig {
             transport: TransportType::Stdio,
-            command: Some("/bin/sh".to_string()),
-            args: vec!["-c".to_string(), "cat".to_string()],
+            // Use 'cat' directly as the command (no shell needed)
+            command: Some("cat".to_string()),
+            args: vec![],
             url: None,
             servers: vec![],
         },

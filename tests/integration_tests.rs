@@ -1534,8 +1534,8 @@ async fn test_routes_endpoint_lists_servers() {
         },
     };
 
-    // Create router from server routes
-    let server_router = Arc::new(ServerRouter::new(config.upstream.servers.clone()).await.unwrap());
+    // Create router from server routes (using unchecked for localhost in tests)
+    let server_router = Arc::new(ServerRouter::new_unchecked(config.upstream.servers.clone()).await.unwrap());
 
     let state = Arc::new(AppState {
         config: config.clone(),

@@ -18,9 +18,10 @@ async fn spawn_server() -> (std::process::Child, String, String) {
     let script_path = cwd.join("tests/fixtures/echo_server.sh");
     
     // Replace valid config values to make them workable for test
+    // Use the script path directly as the command (it has #!/bin/sh shebang and is executable)
     let mut new_config = content.replace("port = 3000", &format!("port = {}", port));
-    new_config = new_config.replace("command = \"echo\"", "command = \"/bin/sh\"");
-    new_config = new_config.replace("args = [\"hello\"]", &format!("args = [\"{}\"]", script_path.display()));
+    new_config = new_config.replace("command = \"echo\"", &format!("command = \"{}\"", script_path.display()));
+    new_config = new_config.replace("args = [\"hello\"]", "args = []");
     
     // Add an API key for testing
     new_config.push_str("\n[[auth.api_keys]]\n");

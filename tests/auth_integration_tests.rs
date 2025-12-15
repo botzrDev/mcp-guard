@@ -46,6 +46,7 @@ async fn spawn_auth_server(config_str: &str) -> (std::process::Child, String) {
 
 #[tokio::test]
 async fn test_api_key_auth_failures() {
+    // Note: command is the script path directly (it has #!/bin/sh shebang and is executable)
     let config = r#"
 [server]
 host = "127.0.0.1"
@@ -53,8 +54,8 @@ port = PORT_PLACEHOLDER
 
 [upstream]
 transport = "stdio"
-command = "/bin/sh"
-args = ["SCRIPT_PATH_PLACEHOLDER"]
+command = "SCRIPT_PATH_PLACEHOLDER"
+args = []
 
 [[auth.api_keys]]
 id = "test"
@@ -79,6 +80,7 @@ key_hash = "2bb80d537b1da3e38bd30361aa855686bde0eacd7162fef6a25fe97bf527a25b" # 
 #[tokio::test]
 async fn test_jwt_auth_hs256() {
     let secret = "my_super_secret_key_at_least_32_chars_long";
+    // Note: command is the script path directly (it has #!/bin/sh shebang and is executable)
     let config = format!(r#"
 [server]
 host = "127.0.0.1"
@@ -86,8 +88,8 @@ port = PORT_PLACEHOLDER
 
 [upstream]
 transport = "stdio"
-command = "/bin/sh"
-args = ["SCRIPT_PATH_PLACEHOLDER"]
+command = "SCRIPT_PATH_PLACEHOLDER"
+args = []
 
 [auth.jwt]
 mode = "simple"

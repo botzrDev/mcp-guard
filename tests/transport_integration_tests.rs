@@ -10,15 +10,13 @@ async fn test_stdio_transport_echo() {
         .unwrap()
         .join("tests/fixtures/echo_server.sh");
 
-    let command = "/bin/sh";
-    let args = vec![script_path.to_str().unwrap().to_string()];
+    // Call the script directly (it has a shebang #!/bin/sh)
+    // The script must be executable (chmod +x)
+    let command = script_path.to_str().unwrap();
+    let args: Vec<String> = vec![];
 
-    // StdioTransport::spawn is async as per src/transport/mod.rs
-    // Wait, let's double check if it is async.
-    // Line 163: pub async fn spawn...
-    // Yes.
-    
-    let transport = StdioTransport::spawn(command, &args).await.expect("Failed to create transport");
+    // Use spawn_unchecked for test scripts (they are trusted test fixtures)
+    let transport = StdioTransport::spawn_unchecked(command, &args).await.expect("Failed to create transport");
     
     // Start currently returns (tx, rx). But StdioTransport implements Transport trait?
     // Let's check line 263: impl Transport for StdioTransport.

@@ -40,11 +40,28 @@ pub struct ServerRouter {
 
 impl ServerRouter {
     /// Create a new server router from configuration
+    ///
+    /// This performs SSRF validation on HTTP/SSE URLs. Use `new_unchecked` to bypass
+    /// SSRF validation for trusted configurations (e.g., in tests).
     pub async fn new(configs: Vec<ServerRouteConfig>) -> Result<Self, RouterError> {
+        Self::new_internal(configs, true).await
+    }
+
+    /// Create a new server router without SSRF validation
+    ///
+    /// # Safety
+    /// This bypasses SSRF protection. Only use when URLs are from a trusted source
+    /// (e.g., hardcoded in the application) or when connecting to localhost for testing.
+    pub async fn new_unchecked(configs: Vec<ServerRouteConfig>) -> Result<Self, RouterError> {
+        Self::new_internal(configs, false).await
+    }
+
+    /// Internal constructor with configurable SSRF validation
+    async fn new_internal(configs: Vec<ServerRouteConfig>, validate_ssrf: bool) -> Result<Self, RouterError> {
         let mut routes = Vec::new();
 
         for config in configs {
-            let transport = Self::create_transport(&config).await?;
+            let transport = Self::create_transport(&config, validate_ssrf).await?;
             routes.push(ServerRoute {
                 config,
                 transport,
@@ -61,7 +78,7 @@ impl ServerRouter {
     }
 
     /// Create a transport from server route configuration
-    async fn create_transport(config: &ServerRouteConfig) -> Result<Arc<dyn Transport>, RouterError> {
+    async fn create_transport(config: &ServerRouteConfig, validate_ssrf: bool) -> Result<Arc<dyn Transport>, RouterError> {
         match config.transport {
             TransportType::Stdio => {
                 let command = config.command.as_ref().ok_or_else(|| {
@@ -82,8 +99,12 @@ impl ServerRouter {
                         "http transport requires 'url'".to_string(),
                     )
                 })?;
-                let transport = HttpTransport::new(url.clone())
-                    .map_err(|e| RouterError::TransportInit(config.name.clone(), e.to_string()))?;
+                let transport = if validate_ssrf {
+                    HttpTransport::new(url.clone())
+                        .map_err(|e| RouterError::TransportInit(config.name.clone(), e.to_string()))?
+                } else {
+                    HttpTransport::new_unchecked(url.clone())
+                };
                 Ok(Arc::new(transport))
             }
             TransportType::Sse => {
@@ -93,9 +114,15 @@ impl ServerRouter {
                         "sse transport requires 'url'".to_string(),
                     )
                 })?;
-                let transport = SseTransport::connect(url.clone())
-                    .await
-                    .map_err(|e| RouterError::TransportInit(config.name.clone(), e.to_string()))?;
+                let transport = if validate_ssrf {
+                    SseTransport::connect(url.clone())
+                        .await
+                        .map_err(|e| RouterError::TransportInit(config.name.clone(), e.to_string()))?
+                } else {
+                    SseTransport::connect_unchecked(url.clone())
+                        .await
+                        .map_err(|e| RouterError::TransportInit(config.name.clone(), e.to_string()))?
+                };
                 Ok(Arc::new(transport))
             }
         }
