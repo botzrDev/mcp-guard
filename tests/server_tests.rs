@@ -108,7 +108,15 @@ async fn test_mcp_auth_success() {
     // Echo server echoes. So we expect 200 OK and body to be echoed.
     assert_eq!(resp.status(), StatusCode::OK);
     let body = resp.text().await.unwrap();
-    assert_eq!(body.trim(), r#"{"jsonrpc": "2.0", "method": "ping", "id": 1}"#);
+    
+    let actual_json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let expected_json: serde_json::Value = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "ping",
+        "id": 1
+    });
+
+    assert_eq!(actual_json, expected_json);
     
     child.kill().unwrap();
 }
