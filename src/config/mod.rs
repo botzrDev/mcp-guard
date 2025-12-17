@@ -124,6 +124,12 @@ pub struct MtlsConfig {
     /// Custom rate limit for mTLS-authenticated identities
     #[serde(default)]
     pub rate_limit: Option<u32>,
+    /// Trusted proxy IP addresses/CIDR ranges that are allowed to set mTLS headers
+    /// SECURITY: If empty, mTLS header authentication is DISABLED to prevent header spoofing
+    /// You MUST configure this when using mTLS with a reverse proxy.
+    /// Example: ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.1"]
+    #[serde(default)]
+    pub trusted_proxy_ips: Vec<String>,
 }
 
 impl Default for MtlsConfig {
@@ -133,6 +139,7 @@ impl Default for MtlsConfig {
             identity_source: default_mtls_identity_source(),
             allowed_tools: vec![],
             rate_limit: None,
+            trusted_proxy_ips: vec![],
         }
     }
 }

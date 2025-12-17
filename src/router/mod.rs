@@ -38,6 +38,15 @@ pub struct ServerRouter {
     default_route: Option<ServerRoute>,
 }
 
+impl std::fmt::Debug for ServerRouter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ServerRouter")
+            .field("route_count", &self.routes.len())
+            .field("has_default", &self.default_route.is_some())
+            .finish()
+    }
+}
+
 impl ServerRouter {
     /// Create a new server router from configuration
     ///
@@ -404,5 +413,108 @@ mod tests {
             strip_prefix: false,
         };
         assert!(config.validate().is_err());
+    }
+
+    // ------------------------------------------------------------------------
+    // Additional Coverage Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_router_new_validation() {
+        // Test with invalid URL scheme to ensure validation runs
+        let invalid_config = ServerRouteConfig {
+            name: "invalid".to_string(),
+            path_prefix: "/invalid".to_string(),
+            transport: TransportType::Http,
+            command: None,
+            args: vec![],
+            url: Some("not-a-url".to_string()),
+            strip_prefix: false,
+        };
+        
+        let result = tokio::runtime::Runtime::new().unwrap().block_on(ServerRouter::new(vec![invalid_config]));
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), RouterError::TransportInit(_, _)));
+    }
+
+    #[test]
+    fn test_router_send_no_route() {
+        let router = ServerRouter {
+            routes: vec![],
+            default_route: None,
+        };
+
+        let test_message = Message::request(1, "ping", None);
+        let result = tokio::runtime::Runtime::new().unwrap().block_on(
+            router.send("/unknown", test_message)
+        );
+        assert!(matches!(result, Err(RouterError::NoRoute(_))));
+    }
+
+    #[test]
+    fn test_router_receive_no_route() {
+        let router = ServerRouter {
+            routes: vec![],
+            default_route: None,
+        };
+
+        let result = tokio::runtime::Runtime::new().unwrap().block_on(
+            router.receive("/unknown")
+        );
+        assert!(matches!(result, Err(RouterError::NoRoute(_))));
+    }
+    
+    #[test]
+    fn test_router_transform_path() {
+        use crate::mocks::MockTransport;
+        let mut config = create_test_route("strip", "/strip", true);
+        config.strip_prefix = true;
+        
+        let router = ServerRouter {
+            routes: vec![ServerRoute {
+                config: config.clone(),
+                transport: Arc::new(MockTransport::new()), 
+            }],
+            default_route: None,
+        };
+        
+        // Should strip prefix
+        assert_eq!(router.transform_path("/strip/foo"), "/foo");
+        
+        // Should return original if no match
+        assert_eq!(router.transform_path("/other/foo"), "/other/foo");
+        
+        // Should return original if strip_prefix is false
+        let config_no_strip = create_test_route("no-strip", "/no-strip", false);
+        let router_no_strip = ServerRouter {
+            routes: vec![ServerRoute {
+                config: config_no_strip,
+                transport: Arc::new(MockTransport::new()),
+            }],
+            default_route: None,
+        };
+        assert_eq!(router_no_strip.transform_path("/no-strip/foo"), "/no-strip/foo");
+    }
+
+    #[test]
+    fn test_router_route_count() {
+        use crate::mocks::MockTransport;
+        let router = ServerRouter {
+            routes: vec![
+                ServerRoute {
+                    config: create_test_route("s1", "/s1", false),
+                    transport: Arc::new(MockTransport::new()),
+                },
+                ServerRoute {
+                    config: create_test_route("s2", "/s2", false),
+                    transport: Arc::new(MockTransport::new()),
+                }
+            ],
+            default_route: None,
+        };
+        
+        assert_eq!(router.route_count(), 2);
+        assert!(router.has_routes());
+        assert_eq!(router.route_names(), vec!["s1", "s2"]);
     }
 }

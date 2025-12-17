@@ -58,6 +58,8 @@ dashmap = "5.5"
 
 # Cryptography
 sha2 = "0.10"
+hmac = "0.12"
+subtle = "2.5"
 base64 = "0.22"
 rand = "0.8"
 

@@ -136,17 +136,15 @@ pub trait AuthProvider: Send + Sync {
 ///
 /// Validates requests using pre-shared API keys. Keys are stored as SHA-256
 /// hashes to prevent exposure of plaintext keys in configuration.
+///
+/// SECURITY: Uses constant-time comparison to prevent timing attacks.
 pub struct ApiKeyProvider {
-    keys: std::collections::HashMap<String, crate::config::ApiKeyConfig>,
+    keys: Vec<crate::config::ApiKeyConfig>,
 }
 
 impl ApiKeyProvider {
     pub fn new(configs: Vec<crate::config::ApiKeyConfig>) -> Self {
-        let keys = configs
-            .into_iter()
-            .map(|c| (c.key_hash.clone(), c))
-            .collect();
-        Self { keys }
+        Self { keys: configs }
     }
 
     fn hash_key(key: &str) -> String {
@@ -155,15 +153,50 @@ impl ApiKeyProvider {
         hasher.update(key.as_bytes());
         base64::Engine::encode(&base64::engine::general_purpose::STANDARD, hasher.finalize())
     }
+
+    /// Constant-time comparison of two hash strings.
+    ///
+    /// SECURITY: Prevents timing attacks by ensuring comparison takes the same
+    /// amount of time regardless of where the hashes differ.
+    fn constant_time_compare(a: &str, b: &str) -> bool {
+        use subtle::ConstantTimeEq;
+
+        // First, compare lengths in constant time
+        let len_eq = a.len().ct_eq(&b.len());
+
+        // If lengths match, compare bytes in constant time
+        // If lengths differ, still compare to maintain constant time
+        let bytes_eq = if a.len() == b.len() {
+            a.as_bytes().ct_eq(b.as_bytes())
+        } else {
+            // Compare with dummy to maintain timing
+            let dummy = vec![0u8; a.len()];
+            a.as_bytes().ct_eq(&dummy)
+        };
+
+        // Both length and content must match
+        (len_eq & bytes_eq).into()
+    }
 }
 
 #[async_trait]
 impl AuthProvider for ApiKeyProvider {
     async fn authenticate(&self, token: &str) -> Result<Identity, AuthError> {
-        let hash = Self::hash_key(token);
+        let provided_hash = Self::hash_key(token);
 
-        self.keys
-            .get(&hash)
+        // SECURITY: Iterate through ALL keys to prevent timing-based enumeration.
+        // The loop always runs for the same number of iterations regardless of
+        // which key matches (or if any matches at all).
+        let mut matched_config: Option<&crate::config::ApiKeyConfig> = None;
+
+        for config in &self.keys {
+            if Self::constant_time_compare(&provided_hash, &config.key_hash) {
+                matched_config = Some(config);
+                // Don't break - continue iterating to maintain constant time
+            }
+        }
+
+        matched_config
             .map(|config| Identity {
                 id: config.id.clone(),
                 name: Some(config.id.clone()),
@@ -236,5 +269,84 @@ impl AuthProvider for MultiProvider {
 
     fn name(&self) -> &str {
         "multi"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constant_time_compare_equal() {
+        let a = "abc123XYZ";
+        let b = "abc123XYZ";
+        assert!(ApiKeyProvider::constant_time_compare(a, b));
+    }
+
+    #[test]
+    fn test_constant_time_compare_different_content() {
+        let a = "abc123XYZ";
+        let b = "abc123XYy";  // Last char different
+        assert!(!ApiKeyProvider::constant_time_compare(a, b));
+    }
+
+    #[test]
+    fn test_constant_time_compare_different_length() {
+        let a = "abc123";
+        let b = "abc123XYZ";
+        assert!(!ApiKeyProvider::constant_time_compare(a, b));
+    }
+
+    #[test]
+    fn test_constant_time_compare_empty() {
+        assert!(ApiKeyProvider::constant_time_compare("", ""));
+        assert!(!ApiKeyProvider::constant_time_compare("", "a"));
+        assert!(!ApiKeyProvider::constant_time_compare("a", ""));
+    }
+
+    #[test]
+    fn test_constant_time_compare_first_char_different() {
+        let a = "Xbc123XYZ";
+        let b = "abc123XYZ";
+        assert!(!ApiKeyProvider::constant_time_compare(a, b));
+    }
+
+    #[tokio::test]
+    async fn test_api_key_provider_valid_key() {
+        let key = "test-api-key-12345";
+        let hash = ApiKeyProvider::hash_key(key);
+
+        let config = crate::config::ApiKeyConfig {
+            id: "test-user".to_string(),
+            key_hash: hash,
+            allowed_tools: vec!["read".to_string()],
+            rate_limit: Some(100),
+        };
+
+        let provider = ApiKeyProvider::new(vec![config]);
+        let result = provider.authenticate(key).await;
+
+        assert!(result.is_ok());
+        let identity = result.unwrap();
+        assert_eq!(identity.id, "test-user");
+        assert_eq!(identity.allowed_tools, Some(vec!["read".to_string()]));
+    }
+
+    #[tokio::test]
+    async fn test_api_key_provider_invalid_key() {
+        let valid_key = "valid-key";
+        let hash = ApiKeyProvider::hash_key(valid_key);
+
+        let config = crate::config::ApiKeyConfig {
+            id: "test-user".to_string(),
+            key_hash: hash,
+            allowed_tools: vec![],
+            rate_limit: None,
+        };
+
+        let provider = ApiKeyProvider::new(vec![config]);
+        let result = provider.authenticate("wrong-key").await;
+
+        assert!(matches!(result, Err(AuthError::InvalidApiKey)));
     }
 }

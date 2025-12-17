@@ -188,6 +188,7 @@ async fn test_oauth_state_store_operations() {
     store.insert("state1".to_string(), PkceState {
         code_verifier: "verifier1".to_string(),
         created_at: Instant::now(),
+        client_ip: std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
     });
     
     // Verify it exists
@@ -213,6 +214,7 @@ async fn test_oauth_state_store_multiple_entries() {
         store.insert(format!("state{}", i), PkceState {
             code_verifier: format!("verifier{}", i),
             created_at: Instant::now(),
+            client_ip: std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
         });
     }
     

@@ -1102,10 +1102,12 @@ async fn test_oauth_authorize_not_configured() {
 
     // /oauth/authorize returns 401 when OAuth not configured because the route
     // is not added, so requests fall through to auth middleware
-    let request = Request::builder()
+    let mut request = Request::builder()
         .uri("/oauth/authorize")
         .body(Body::empty())
         .unwrap();
+
+    request.extensions_mut().insert(axum::extract::ConnectInfo(std::net::SocketAddr::from(([127, 0, 0, 1], 3000))));
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -1174,10 +1176,12 @@ async fn test_oauth_authorize_generates_redirect() {
 
     let app = build_router(state);
 
-    let request = Request::builder()
+    let mut request = Request::builder()
         .uri("/oauth/authorize")
         .body(Body::empty())
         .unwrap();
+
+    request.extensions_mut().insert(axum::extract::ConnectInfo(std::net::SocketAddr::from(([127, 0, 0, 1], 3000))));
 
     let response = app.oneshot(request).await.unwrap();
 
@@ -1258,10 +1262,12 @@ async fn test_oauth_callback_rejects_missing_state() {
     let app = build_router(state);
 
     // Callback without state parameter
-    let request = Request::builder()
+    let mut request = Request::builder()
         .uri("/oauth/callback?code=test_code")
         .body(Body::empty())
         .unwrap();
+
+    request.extensions_mut().insert(axum::extract::ConnectInfo(std::net::SocketAddr::from(([127, 0, 0, 1], 3000))));
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -1331,10 +1337,12 @@ async fn test_oauth_callback_rejects_invalid_state() {
     let app = build_router(state);
 
     // Callback with invalid/unknown state parameter
-    let request = Request::builder()
+    let mut request = Request::builder()
         .uri("/oauth/callback?code=test_code&state=invalid_state_token")
         .body(Body::empty())
         .unwrap();
+
+    request.extensions_mut().insert(axum::extract::ConnectInfo(std::net::SocketAddr::from(([127, 0, 0, 1], 3000))));
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -1404,10 +1412,12 @@ async fn test_oauth_callback_handles_provider_error() {
     let app = build_router(state);
 
     // Callback with error from OAuth provider
-    let request = Request::builder()
+    let mut request = Request::builder()
         .uri("/oauth/callback?error=access_denied&error_description=User+denied+access")
         .body(Body::empty())
         .unwrap();
+
+    request.extensions_mut().insert(axum::extract::ConnectInfo(std::net::SocketAddr::from(([127, 0, 0, 1], 3000))));
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -1625,10 +1635,12 @@ async fn test_routes_endpoint_unavailable_when_single_server() {
 
     // /routes endpoint is not available in single-server mode
     // (the route is only added when servers are configured)
-    let request = Request::builder()
+    let mut request = Request::builder()
         .uri("/routes")
         .body(Body::empty())
         .unwrap();
+
+    request.extensions_mut().insert(axum::extract::ConnectInfo(std::net::SocketAddr::from(([127, 0, 0, 1], 3000))));
 
     let response = app.oneshot(request).await.unwrap();
     // Returns 401 because the route doesn't exist and falls through to auth middleware

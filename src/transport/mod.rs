@@ -1410,4 +1410,66 @@ mod tests {
         let transport_err: TransportError = io_err.into();
         assert!(matches!(transport_err, TransportError::Spawn(_)));
     }
+
+    #[test]
+    fn test_validate_url_ssrf_protection() {
+        // Private IP ranges
+        assert!(validate_url_for_ssrf("http://127.0.0.1/api").is_err());
+        assert!(validate_url_for_ssrf("http://localhost/api").is_err()); // resolves to 127.0.0.1
+        assert!(validate_url_for_ssrf("http://10.0.0.5/api").is_err());
+        assert!(validate_url_for_ssrf("http://192.168.1.1/api").is_err());
+        assert!(validate_url_for_ssrf("http://172.16.0.1/api").is_err());
+        
+        // Cloud metadata
+        assert!(validate_url_for_ssrf("http://169.254.169.254/latest/meta-data").is_err());
+        assert!(validate_url_for_ssrf("http://metadata.google.internal/").is_err());
+        
+        // Schemes
+        assert!(validate_url_for_ssrf("ftp://example.com").is_err());
+        assert!(validate_url_for_ssrf("file:///etc/passwd").is_err());
+        
+        // Valid
+        assert!(validate_url_for_ssrf("https://api.example.com/v1").is_ok());
+        assert!(validate_url_for_ssrf("http://example.com/v1").is_ok());
+    }
+
+    #[test]
+    fn test_validate_command_injection() {
+        // Safe commands
+        assert!(validate_command_for_injection("ls").is_ok());
+        assert!(validate_command_for_injection("/usr/bin/python3").is_ok());
+        
+        // Shell metacharacters
+        assert!(validate_command_for_injection("ls; rm -rf /").is_err());
+        assert!(validate_command_for_injection("ls | grep foo").is_err());
+        assert!(validate_command_for_injection("echo $HOME").is_err());
+        assert!(validate_command_for_injection("`whoami`").is_err());
+        assert!(validate_command_for_injection("foo && bar").is_err());
+        
+        // Direct shell execution
+        assert!(validate_command_for_injection("bash").is_err());
+        assert!(validate_command_for_injection("/bin/sh").is_err());
+        assert!(validate_command_for_injection("powershell.exe").is_err());
+    }
+
+    #[test]
+    fn test_validate_args_injection() {
+        let args = vec!["-la".to_string(), "/tmp".to_string()];
+        assert!(validate_args_for_injection(&args).is_ok());
+        
+        let bad_args = vec!["-la".to_string(), "; rm -rf /".to_string()];
+        assert!(validate_args_for_injection(&bad_args).is_err());
+    }
+
+    // Mock test for message serialization/deserialization compatibility
+    #[test]
+    fn test_message_format() {
+        let msg = Message::request(1, "tools/list", None);
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: Message = serde_json::from_str(&json).unwrap();
+        
+        assert!(parsed.is_request());
+        assert_eq!(parsed.method, Some("tools/list".to_string()));
+        assert_eq!(parsed.id, Some(serde_json::json!(1)));
+    }
 }

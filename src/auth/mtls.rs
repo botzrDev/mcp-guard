@@ -9,9 +9,14 @@
 //! - Load balancer terminates mTLS and validates client certificates
 //! - Load balancer forwards certificate info in HTTP headers
 //! - mcp-guard extracts identity from headers
+//!
+//! SECURITY: When using header-based mTLS, you MUST configure `trusted_proxy_ips`
+//! to prevent header spoofing attacks. Only requests from trusted proxy IPs will
+//! have their mTLS headers honored.
 
 use async_trait::async_trait;
 use std::collections::HashMap;
+use std::net::IpAddr;
 
 use crate::auth::{AuthError, AuthProvider, Identity};
 use crate::config::{MtlsConfig, MtlsIdentitySource};
@@ -22,18 +27,162 @@ pub const HEADER_CLIENT_CERT_SAN_DNS: &str = "X-Client-Cert-SAN-DNS";
 pub const HEADER_CLIENT_CERT_SAN_EMAIL: &str = "X-Client-Cert-SAN-Email";
 pub const HEADER_CLIENT_CERT_VERIFIED: &str = "X-Client-Cert-Verified";
 
+/// Trusted proxy IP validator
+///
+/// Validates that incoming requests with mTLS headers come from trusted proxy IPs.
+/// This prevents header spoofing attacks where an attacker directly connects to
+/// the server and sets fake mTLS headers.
+#[derive(Debug, Clone)]
+pub struct TrustedProxyValidator {
+    /// List of trusted IP addresses and CIDR ranges
+    trusted_ranges: Vec<TrustedRange>,
+}
+
+/// A trusted IP range (either single IP or CIDR block)
+#[derive(Debug, Clone)]
+enum TrustedRange {
+    Single(IpAddr),
+    Cidr { network: IpAddr, prefix_len: u8 },
+}
+
+impl TrustedProxyValidator {
+    /// Create a new validator from a list of IP/CIDR strings
+    ///
+    /// Accepts formats:
+    /// - Single IP: "192.168.1.1", "::1"
+    /// - CIDR: "10.0.0.0/8", "fd00::/8"
+    pub fn new(trusted_ips: &[String]) -> Self {
+        let trusted_ranges = trusted_ips
+            .iter()
+            .filter_map(|s| Self::parse_range(s))
+            .collect();
+
+        Self { trusted_ranges }
+    }
+
+    /// Parse an IP or CIDR range string
+    fn parse_range(s: &str) -> Option<TrustedRange> {
+        let s = s.trim();
+
+        if let Some((ip_str, prefix_str)) = s.split_once('/') {
+            // CIDR format
+            let network: IpAddr = ip_str.parse().ok()?;
+            let prefix_len: u8 = prefix_str.parse().ok()?;
+
+            // Validate prefix length
+            let max_prefix = match network {
+                IpAddr::V4(_) => 32,
+                IpAddr::V6(_) => 128,
+            };
+            if prefix_len > max_prefix {
+                return None;
+            }
+
+            Some(TrustedRange::Cidr { network, prefix_len })
+        } else {
+            // Single IP
+            let ip: IpAddr = s.parse().ok()?;
+            Some(TrustedRange::Single(ip))
+        }
+    }
+
+    /// Check if an IP address is trusted
+    pub fn is_trusted(&self, ip: &IpAddr) -> bool {
+        if self.trusted_ranges.is_empty() {
+            // No trusted ranges configured = no IPs are trusted
+            return false;
+        }
+
+        for range in &self.trusted_ranges {
+            match range {
+                TrustedRange::Single(trusted_ip) => {
+                    if ip == trusted_ip {
+                        return true;
+                    }
+                }
+                TrustedRange::Cidr { network, prefix_len } => {
+                    if Self::ip_in_cidr(ip, network, *prefix_len) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    /// Check if an IP address is within a CIDR range
+    fn ip_in_cidr(ip: &IpAddr, network: &IpAddr, prefix_len: u8) -> bool {
+        match (ip, network) {
+            (IpAddr::V4(ip), IpAddr::V4(net)) => {
+                let ip_bits = u32::from_be_bytes(ip.octets());
+                let net_bits = u32::from_be_bytes(net.octets());
+                let mask = if prefix_len == 0 {
+                    0
+                } else {
+                    !0u32 << (32 - prefix_len)
+                };
+                (ip_bits & mask) == (net_bits & mask)
+            }
+            (IpAddr::V6(ip), IpAddr::V6(net)) => {
+                let ip_bits = u128::from_be_bytes(ip.octets());
+                let net_bits = u128::from_be_bytes(net.octets());
+                let mask = if prefix_len == 0 {
+                    0
+                } else {
+                    !0u128 << (128 - prefix_len)
+                };
+                (ip_bits & mask) == (net_bits & mask)
+            }
+            _ => false, // IPv4 and IPv6 don't match
+        }
+    }
+
+    /// Check if the validator has any trusted ranges configured
+    pub fn has_trusted_ranges(&self) -> bool {
+        !self.trusted_ranges.is_empty()
+    }
+}
+
 /// mTLS authentication provider
 ///
 /// Extracts identity from client certificates that have been validated
 /// at the TLS layer (either by this server or a reverse proxy).
+///
+/// SECURITY: When using header-based mTLS, configure `trusted_proxy_ips` in the
+/// config to prevent header spoofing. Without this, mTLS header auth is disabled.
 pub struct MtlsAuthProvider {
     config: MtlsConfig,
+    proxy_validator: TrustedProxyValidator,
 }
 
 impl MtlsAuthProvider {
     /// Create a new mTLS auth provider
     pub fn new(config: MtlsConfig) -> Self {
-        Self { config }
+        let proxy_validator = TrustedProxyValidator::new(&config.trusted_proxy_ips);
+
+        if config.enabled && !proxy_validator.has_trusted_ranges() {
+            tracing::warn!(
+                "mTLS authentication enabled but no trusted_proxy_ips configured. \
+                 mTLS header authentication will be DISABLED to prevent header spoofing. \
+                 Configure trusted_proxy_ips with your reverse proxy IPs."
+            );
+        }
+
+        Self {
+            config,
+            proxy_validator,
+        }
+    }
+
+    /// Check if a client IP is trusted to set mTLS headers
+    pub fn is_trusted_proxy(&self, client_ip: &IpAddr) -> bool {
+        self.proxy_validator.is_trusted(client_ip)
+    }
+
+    /// Check if the provider has trusted proxies configured
+    pub fn has_trusted_proxies(&self) -> bool {
+        self.proxy_validator.has_trusted_ranges()
     }
 
     /// Extract identity from client certificate info
@@ -128,14 +277,43 @@ pub struct ClientCertInfo {
 }
 
 impl ClientCertInfo {
-    /// Create ClientCertInfo from HTTP headers (reverse proxy scenario)
+    /// Create ClientCertInfo from HTTP headers with trusted proxy validation
+    ///
+    /// SECURITY: This validates that the client IP is from a trusted proxy before
+    /// accepting the mTLS headers. If the client IP is not trusted, returns None.
     ///
     /// Headers expected:
     /// - X-Client-Cert-CN: Common Name from certificate
     /// - X-Client-Cert-SAN-DNS: Comma-separated DNS SANs
     /// - X-Client-Cert-SAN-Email: Comma-separated email SANs
     /// - X-Client-Cert-Verified: "SUCCESS" if verified
-    pub fn from_headers(headers: &axum::http::HeaderMap) -> Option<Self> {
+    pub fn from_headers_if_trusted(
+        headers: &axum::http::HeaderMap,
+        client_ip: &IpAddr,
+        mtls_provider: &MtlsAuthProvider,
+    ) -> Option<Self> {
+        // SECURITY: Only accept mTLS headers from trusted proxy IPs
+        if !mtls_provider.is_trusted_proxy(client_ip) {
+            if mtls_provider.has_trusted_proxies() {
+                tracing::warn!(
+                    client_ip = %client_ip,
+                    "Rejecting mTLS headers from untrusted IP"
+                );
+            }
+            return None;
+        }
+
+        Self::from_headers_unchecked(headers)
+    }
+
+    /// Create ClientCertInfo from HTTP headers WITHOUT trusted proxy validation
+    ///
+    /// # Safety
+    /// This method does NOT validate the client IP. Only use when:
+    /// 1. You have already validated the client IP separately
+    /// 2. In tests with trusted data
+    /// 3. When TLS is terminated by the same server (no proxy headers)
+    pub fn from_headers_unchecked(headers: &axum::http::HeaderMap) -> Option<Self> {
         // Check if cert was verified
         let verified = headers
             .get(HEADER_CLIENT_CERT_VERIFIED)
@@ -188,11 +366,142 @@ mod tests {
             identity_source: MtlsIdentitySource::Cn,
             allowed_tools: vec!["read_file".to_string()],
             rate_limit: Some(100),
+            trusted_proxy_ips: vec!["127.0.0.1".to_string()],
         };
 
         let provider = MtlsAuthProvider::new(config);
         assert_eq!(provider.name(), "mtls");
+        assert!(provider.has_trusted_proxies());
     }
+
+    // --------------------------------------------------------------------------
+    // Trusted Proxy Validation Tests
+    // --------------------------------------------------------------------------
+
+    #[test]
+    fn test_trusted_proxy_single_ip() {
+        let validator = TrustedProxyValidator::new(&[
+            "10.0.0.1".to_string(),
+            "192.168.1.100".to_string(),
+        ]);
+
+        assert!(validator.is_trusted(&"10.0.0.1".parse().unwrap()));
+        assert!(validator.is_trusted(&"192.168.1.100".parse().unwrap()));
+        assert!(!validator.is_trusted(&"10.0.0.2".parse().unwrap()));
+        assert!(!validator.is_trusted(&"8.8.8.8".parse().unwrap()));
+    }
+
+    #[test]
+    fn test_trusted_proxy_cidr() {
+        let validator = TrustedProxyValidator::new(&[
+            "10.0.0.0/8".to_string(),
+            "192.168.0.0/16".to_string(),
+        ]);
+
+        // Should match 10.x.x.x
+        assert!(validator.is_trusted(&"10.0.0.1".parse().unwrap()));
+        assert!(validator.is_trusted(&"10.255.255.255".parse().unwrap()));
+
+        // Should match 192.168.x.x
+        assert!(validator.is_trusted(&"192.168.0.1".parse().unwrap()));
+        assert!(validator.is_trusted(&"192.168.255.255".parse().unwrap()));
+
+        // Should not match others
+        assert!(!validator.is_trusted(&"11.0.0.1".parse().unwrap()));
+        assert!(!validator.is_trusted(&"192.169.0.1".parse().unwrap()));
+    }
+
+    #[test]
+    fn test_trusted_proxy_empty_rejects_all() {
+        let validator = TrustedProxyValidator::new(&[]);
+
+        // Empty config should reject all IPs
+        assert!(!validator.is_trusted(&"127.0.0.1".parse().unwrap()));
+        assert!(!validator.is_trusted(&"10.0.0.1".parse().unwrap()));
+        assert!(!validator.is_trusted(&"8.8.8.8".parse().unwrap()));
+    }
+
+    #[test]
+    fn test_trusted_proxy_ipv6() {
+        let validator = TrustedProxyValidator::new(&[
+            "::1".to_string(),
+            "fd00::/8".to_string(),
+        ]);
+
+        assert!(validator.is_trusted(&"::1".parse().unwrap()));
+        assert!(validator.is_trusted(&"fd00::1".parse().unwrap()));
+        assert!(!validator.is_trusted(&"fe80::1".parse().unwrap()));
+    }
+
+    #[test]
+    fn test_from_headers_if_trusted_accepts_trusted() {
+        let config = MtlsConfig {
+            enabled: true,
+            identity_source: MtlsIdentitySource::Cn,
+            allowed_tools: vec![],
+            rate_limit: None,
+            trusted_proxy_ips: vec!["10.0.0.1".to_string()],
+        };
+        let provider = MtlsAuthProvider::new(config);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(HEADER_CLIENT_CERT_VERIFIED, "SUCCESS".parse().unwrap());
+        headers.insert(HEADER_CLIENT_CERT_CN, "trusted-client".parse().unwrap());
+
+        let trusted_ip: IpAddr = "10.0.0.1".parse().unwrap();
+        let cert_info = ClientCertInfo::from_headers_if_trusted(&headers, &trusted_ip, &provider);
+
+        assert!(cert_info.is_some());
+        assert_eq!(cert_info.unwrap().common_name, Some("trusted-client".to_string()));
+    }
+
+    #[test]
+    fn test_from_headers_if_trusted_rejects_untrusted() {
+        let config = MtlsConfig {
+            enabled: true,
+            identity_source: MtlsIdentitySource::Cn,
+            allowed_tools: vec![],
+            rate_limit: None,
+            trusted_proxy_ips: vec!["10.0.0.1".to_string()],
+        };
+        let provider = MtlsAuthProvider::new(config);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(HEADER_CLIENT_CERT_VERIFIED, "SUCCESS".parse().unwrap());
+        headers.insert(HEADER_CLIENT_CERT_CN, "spoofed-client".parse().unwrap());
+
+        // Attacker IP not in trusted list
+        let attacker_ip: IpAddr = "8.8.8.8".parse().unwrap();
+        let cert_info = ClientCertInfo::from_headers_if_trusted(&headers, &attacker_ip, &provider);
+
+        assert!(cert_info.is_none()); // Headers should be rejected
+    }
+
+    #[test]
+    fn test_from_headers_if_trusted_rejects_when_no_trusted_configured() {
+        let config = MtlsConfig {
+            enabled: true,
+            identity_source: MtlsIdentitySource::Cn,
+            allowed_tools: vec![],
+            rate_limit: None,
+            trusted_proxy_ips: vec![], // No trusted IPs!
+        };
+        let provider = MtlsAuthProvider::new(config);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(HEADER_CLIENT_CERT_VERIFIED, "SUCCESS".parse().unwrap());
+        headers.insert(HEADER_CLIENT_CERT_CN, "any-client".parse().unwrap());
+
+        // Even localhost should be rejected
+        let localhost: IpAddr = "127.0.0.1".parse().unwrap();
+        let cert_info = ClientCertInfo::from_headers_if_trusted(&headers, &localhost, &provider);
+
+        assert!(cert_info.is_none()); // No trusted proxies = reject all header auth
+    }
+
+    // --------------------------------------------------------------------------
+    // Existing Tests (updated to use from_headers_unchecked)
+    // --------------------------------------------------------------------------
 
     #[test]
     fn test_extract_identity_from_cn() {
@@ -201,6 +510,7 @@ mod tests {
             identity_source: MtlsIdentitySource::Cn,
             allowed_tools: vec![],
             rate_limit: None,
+            trusted_proxy_ips: vec![],
         };
 
         let provider = MtlsAuthProvider::new(config);
@@ -224,6 +534,7 @@ mod tests {
             identity_source: MtlsIdentitySource::SanDns,
             allowed_tools: vec!["read_file".to_string()],
             rate_limit: Some(50),
+            trusted_proxy_ips: vec![],
         };
 
         let provider = MtlsAuthProvider::new(config);
@@ -247,6 +558,7 @@ mod tests {
             identity_source: MtlsIdentitySource::Cn,
             allowed_tools: vec![],
             rate_limit: None,
+            trusted_proxy_ips: vec![],
         };
 
         let provider = MtlsAuthProvider::new(config);
@@ -271,7 +583,7 @@ mod tests {
             "service.example.com, api.example.com".parse().unwrap(),
         );
 
-        let cert_info = ClientCertInfo::from_headers(&headers).unwrap();
+        let cert_info = ClientCertInfo::from_headers_unchecked(&headers).unwrap();
         assert_eq!(cert_info.common_name, Some("my-service".to_string()));
         assert!(cert_info.verified);
         assert_eq!(cert_info.san_dns.len(), 2);
@@ -283,7 +595,7 @@ mod tests {
     fn test_client_cert_info_from_headers_not_verified() {
         let headers = HeaderMap::new();
 
-        let cert_info = ClientCertInfo::from_headers(&headers);
+        let cert_info = ClientCertInfo::from_headers_unchecked(&headers);
         assert!(cert_info.is_none());
     }
 
@@ -294,6 +606,7 @@ mod tests {
             identity_source: MtlsIdentitySource::Cn,
             allowed_tools: vec![],
             rate_limit: None,
+            trusted_proxy_ips: vec![],
         };
 
         let provider = MtlsAuthProvider::new(config);

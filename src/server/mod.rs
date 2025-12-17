@@ -2,7 +2,7 @@
 
 use axum::{
     body::Body,
-    extract::{Query, State},
+    extract::{ConnectInfo, Query, State},
     http::{header, HeaderMap, HeaderName, HeaderValue, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Redirect, Response},
@@ -28,6 +28,11 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 /// while limiting the window for state token reuse attacks.
 const OAUTH_STATE_EXPIRY_SECS: u64 = 600;
 
+/// Maximum number of pending OAuth states to prevent DoS attacks.
+/// An attacker flooding /oauth/authorize could cause memory exhaustion without this limit.
+/// 10,000 concurrent OAuth flows is generous for legitimate use but prevents resource exhaustion.
+const MAX_PENDING_OAUTH_STATES: usize = 10_000;
+
 use crate::audit::AuditLogger;
 use crate::auth::{AuthProvider, ClientCertInfo, Identity, MtlsAuthProvider, OAuthAuthProvider};
 use crate::authz::{filter_tools_list_response, is_tools_list_request};
@@ -36,13 +41,19 @@ use crate::observability::{record_auth, record_rate_limit, record_request, set_a
 use crate::rate_limit::RateLimitService;
 use crate::router::ServerRouter;
 use crate::transport::{Message, Transport};
+use std::net::IpAddr;
 
 /// PKCE state entry for OAuth flow
+///
+/// SECURITY: Includes client IP binding to prevent state fixation attacks.
+/// The client IP that initiated the OAuth flow must match the callback IP.
 pub struct PkceState {
     /// PKCE code verifier
     pub code_verifier: String,
     /// When the state was created
     pub created_at: Instant,
+    /// Client IP that initiated the OAuth flow (for binding validation)
+    pub client_ip: IpAddr,
 }
 
 /// OAuth state storage (state -> PKCE verifier)
@@ -243,17 +254,25 @@ async fn handle_routed_mcp_message(
 // OAuth 2.1 Authorization Code Flow with PKCE (FR-AUTH-05)
 // ============================================================================
 
-/// Generate a cryptographically secure random string
+/// Generate a cryptographically secure random string using OsRng and base64url encoding.
+///
+/// SECURITY: Uses OsRng (operating system's cryptographic RNG) instead of thread_rng
+/// for better entropy. Base64url encoding provides ~6 bits per character (vs ~5.95
+/// for charset-based approach), resulting in higher entropy per character.
 fn generate_random_string(len: usize) -> String {
-    use rand::Rng;
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let mut rng = rand::thread_rng();
-    (0..len)
-        .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
-            CHARSET[idx] as char
-        })
-        .collect()
+    use base64::Engine;
+    use rand::RngCore;
+    use rand::rngs::OsRng;
+
+    // Calculate bytes needed: base64 encodes 3 bytes to 4 chars
+    // We need enough bytes to produce at least `len` characters
+    let bytes_needed = (len * 3 + 3) / 4;
+    let mut bytes = vec![0u8; bytes_needed];
+    OsRng.fill_bytes(&mut bytes);
+
+    // Encode with URL-safe base64 and truncate to desired length
+    let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&bytes);
+    encoded[..len].to_string()
 }
 
 /// Generate PKCE code verifier and challenge
@@ -282,11 +301,32 @@ fn cleanup_expired_oauth_states(store: &OAuthStateStore) {
 }
 
 /// OAuth authorize endpoint - initiates the OAuth flow
-async fn oauth_authorize(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse, AppError> {
+/// Initiate OAuth authorization flow with PKCE.
+///
+/// SECURITY: Binds the OAuth state to the client IP to prevent state fixation attacks.
+/// Also enforces a limit on pending states to prevent DoS attacks.
+async fn oauth_authorize(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+) -> Result<impl IntoResponse, AppError> {
     let oauth_provider = state
         .oauth_provider
         .as_ref()
         .ok_or_else(|| AppError::internal("OAuth not configured"))?;
+
+    // SECURITY: Cleanup expired states first, then check the limit
+    cleanup_expired_oauth_states(&state.oauth_state_store);
+
+    // SECURITY: Prevent DoS by limiting the number of pending OAuth states
+    if state.oauth_state_store.len() >= MAX_PENDING_OAUTH_STATES {
+        tracing::warn!(
+            current_count = state.oauth_state_store.len(),
+            max_allowed = MAX_PENDING_OAUTH_STATES,
+            "OAuth state store at capacity - possible DoS attack"
+        );
+        // Return rate limited with a 60 second retry-after
+        return Err(AppError::rate_limited(Some(60)));
+    }
 
     // Generate PKCE code verifier and challenge
     let (code_verifier, code_challenge) = generate_pkce();
@@ -294,20 +334,28 @@ async fn oauth_authorize(State(state): State<Arc<AppState>>) -> Result<impl Into
     // Generate random state parameter
     let oauth_state = generate_random_string(32);
 
-    // Store the code verifier with the state
-    cleanup_expired_oauth_states(&state.oauth_state_store);
+    // SECURITY: Bind the state to the client IP to prevent state fixation attacks
+    let client_ip = addr.ip();
+
+    // Store the code verifier with the state and client IP binding
     state.oauth_state_store.insert(
         oauth_state.clone(),
         PkceState {
             code_verifier,
             created_at: Instant::now(),
+            client_ip,
         },
     );
 
     // Build authorization URL
     let auth_url = oauth_provider.get_authorization_url(&oauth_state, Some(&code_challenge));
 
-    tracing::info!("Initiating OAuth flow with state: {}", oauth_state);
+    tracing::info!(
+        client_ip = %client_ip,
+        pending_states = state.oauth_state_store.len(),
+        "Initiating OAuth flow with state: {}",
+        oauth_state
+    );
 
     Ok(Redirect::temporary(&auth_url))
 }
@@ -331,9 +379,13 @@ struct OAuthTokenResponse {
     scope: Option<String>,
 }
 
-/// OAuth callback endpoint - exchanges authorization code for tokens
+/// OAuth callback endpoint - exchanges authorization code for tokens.
+///
+/// SECURITY: Validates that the client IP matches the IP that initiated the OAuth flow
+/// to prevent state fixation attacks.
 async fn oauth_callback(
     State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Query(params): Query<OAuthCallbackParams>,
 ) -> Result<impl IntoResponse, AppError> {
     // Check for errors from OAuth provider
@@ -361,6 +413,17 @@ async fn oauth_callback(
     // Validate state hasn't expired (10 minute limit)
     if pkce_state.created_at.elapsed() > Duration::from_secs(OAUTH_STATE_EXPIRY_SECS) {
         return Err(AppError::unauthorized("OAuth state expired"));
+    }
+
+    // SECURITY: Validate client IP binding to prevent state fixation attacks
+    let callback_ip = addr.ip();
+    if pkce_state.client_ip != callback_ip {
+        tracing::warn!(
+            expected_ip = %pkce_state.client_ip,
+            actual_ip = %callback_ip,
+            "OAuth callback IP mismatch - possible state fixation attack"
+        );
+        return Err(AppError::unauthorized("OAuth state binding mismatch"));
     }
 
     // Get authorization code
@@ -482,15 +545,23 @@ use crate::rate_limit::RateLimitResult;
 ///
 /// Supports multiple authentication methods in order of preference:
 /// 1. mTLS: Client certificate info from headers (X-Client-Cert-CN, etc.)
+///    SECURITY: Only accepted from trusted proxy IPs configured in `trusted_proxy_ips`
 /// 2. Bearer token: Authorization header with Bearer token (API key, JWT, OAuth)
 pub async fn auth_middleware(
     State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     mut request: Request<Body>,
     next: Next,
 ) -> Result<Response, AppError> {
     // Try mTLS authentication first (if configured and headers present)
     if let Some(ref mtls_provider) = state.mtls_provider {
-        if let Some(cert_info) = ClientCertInfo::from_headers(request.headers()) {
+        // SECURITY: Use the secure method that validates client IP
+        let client_ip = addr.ip();
+        if let Some(cert_info) = ClientCertInfo::from_headers_if_trusted(
+            request.headers(),
+            &client_ip,
+            mtls_provider,
+        ) {
             if cert_info.verified || cert_info.common_name.is_some() {
                 match mtls_provider.extract_identity(&cert_info) {
                     Ok(identity) => {
@@ -965,9 +1036,12 @@ pub async fn run(state: Arc<AppState>) -> Result<(), crate::Error> {
     tracing::info!("MCP Guard listening on {}", addr);
 
     let app = build_router(state);
-    axum::serve(listener, app)
-        .await
-        .map_err(|e| crate::Error::Server(e.to_string()))
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .map_err(|e| crate::Error::Server(e.to_string()))
 }
 
 // ============================================================================
@@ -1121,16 +1195,67 @@ mod tests {
     #[test]
     fn test_cleanup_expired_oauth_states() {
         let store = new_oauth_state_store();
-        
-        // Add a fresh state
+
+        // Add a fresh state with client IP binding
         store.insert("fresh".to_string(), PkceState {
             code_verifier: "verifier".to_string(),
             created_at: Instant::now(),
+            client_ip: "127.0.0.1".parse().unwrap(),
         });
-        
+
         // Cleanup should keep fresh state
         cleanup_expired_oauth_states(&store);
         assert!(store.contains_key("fresh"));
+    }
+
+    #[test]
+    fn test_generate_random_string_entropy() {
+        // Test that generated strings are unique (high entropy)
+        let s1 = generate_random_string(32);
+        let s2 = generate_random_string(32);
+        let s3 = generate_random_string(32);
+
+        assert_eq!(s1.len(), 32);
+        assert_eq!(s2.len(), 32);
+        assert_eq!(s3.len(), 32);
+
+        // All should be different (with overwhelming probability)
+        assert_ne!(s1, s2);
+        assert_ne!(s2, s3);
+        assert_ne!(s1, s3);
+
+        // Should only contain URL-safe base64 characters
+        for c in s1.chars() {
+            assert!(c.is_ascii_alphanumeric() || c == '-' || c == '_');
+        }
+    }
+
+    #[test]
+    fn test_oauth_state_store_limit_constant() {
+        // Verify the constant is set to a reasonable value
+        assert!(MAX_PENDING_OAUTH_STATES >= 1000); // At least 1000 for legitimate use
+        assert!(MAX_PENDING_OAUTH_STATES <= 100_000); // Not too high to be useless
+    }
+
+    #[test]
+    fn test_oauth_state_store_capacity_check() {
+        // This test verifies the store can be checked for capacity
+        let store = new_oauth_state_store();
+
+        // Fill to near capacity (we don't actually fill to max to avoid test slowness)
+        for i in 0..100 {
+            store.insert(format!("state_{}", i), PkceState {
+                code_verifier: "verifier".to_string(),
+                created_at: Instant::now(),
+                client_ip: "127.0.0.1".parse().unwrap(),
+            });
+        }
+
+        // Verify we can check the length
+        assert_eq!(store.len(), 100);
+
+        // Verify the max constant is accessible
+        assert!(store.len() < MAX_PENDING_OAUTH_STATES);
     }
 
     // ------------------------------------------------------------------------
@@ -1260,5 +1385,48 @@ mod tests {
         }
         
         assert_eq!(headers.get("x-trace-id").unwrap(), "12345");
+    }
+
+    #[test]
+    fn test_app_error_response_codes() {
+        // Forbidden
+        let err = AppError::forbidden("access denied");
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        
+        // Not Found
+        let err = AppError::not_found("resource missing");
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        
+        // Transport error
+        let err = AppError::transport(crate::transport::TransportError::Timeout);
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+        
+        // Internal
+        let err = AppError::internal("boom");
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn test_trace_context_middleware() {
+        use tower::ServiceExt;
+        
+        async fn handler() -> &'static str { "ok" }
+        
+        let app = Router::new()
+             .route("/", get(handler))
+             .layer(middleware::from_fn(trace_context_middleware));
+             
+        let req = Request::builder()
+            .uri("/")
+            .header("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+            .body(Body::empty())
+            .unwrap();
+            
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }

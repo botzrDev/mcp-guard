@@ -82,7 +82,8 @@ pub fn init_tracing(verbose: bool, tracing_config: Option<&TracingConfig>) -> Tr
     tracing_subscriber::registry()
         .with(filter)
         .with(tracing_subscriber::fmt::layer())
-        .init();
+        .try_init()
+        .ok();
 
     TracingGuard { _provider: None }
 }
@@ -152,7 +153,8 @@ fn init_opentelemetry_tracing(verbose: bool, config: &TracingConfig) -> Result<T
         .with(filter)
         .with(otel_layer)
         .with(fmt_layer)
-        .init();
+        .try_init()
+        .ok();
 
     Ok(TracingGuard {
         _provider: Some(provider),
@@ -343,6 +345,26 @@ mod tests {
     fn test_tracing_guard_drop() {
         // TracingGuard with None provider should drop without issue
         let guard = TracingGuard { _provider: None };
+        drop(guard);
+    }
+    
+    #[test]
+    fn test_init_tracing_basic() {
+        // Should initialize basic logging without panic
+        let guard = init_tracing(true, None);
+        // Guard scope end should drop safely
+        drop(guard);
+    }
+
+    #[test]
+    fn test_init_tracing_otel_disabled() {
+        let config = TracingConfig {
+            enabled: false,
+            // ... other fields default
+            ..Default::default()
+        };
+        // Should ignore config if enabled is false
+        let guard = init_tracing(true, Some(&config));
         drop(guard);
     }
 }

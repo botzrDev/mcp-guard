@@ -279,14 +279,19 @@ impl AuthProvider for JwtProvider {
             }
         };
 
-        // Validate algorithm matches (for JWKS mode, this ensures the token's alg matches the key's alg)
-        if let JwtMode::Jwks { .. } = &self.config.mode {
-            if header.alg != algorithm {
-                return Err(AuthError::InvalidJwt(format!(
-                    "Algorithm mismatch: expected {:?}, got {:?}",
-                    algorithm, header.alg
-                )));
-            }
+        // SECURITY: Validate algorithm matches to prevent algorithm confusion attacks.
+        // In Simple mode, reject any token not using HS256 (prevents 'none' algorithm attack).
+        // In JWKS mode, ensure the token's alg matches the key's expected algorithm.
+        if header.alg != algorithm {
+            tracing::warn!(
+                expected_alg = ?algorithm,
+                claimed_alg = ?header.alg,
+                "JWT algorithm mismatch - possible algorithm confusion attack"
+            );
+            return Err(AuthError::InvalidJwt(format!(
+                "Algorithm mismatch: expected {:?}, got {:?}",
+                algorithm, header.alg
+            )));
         }
 
         // Build validation and decode
@@ -378,6 +383,7 @@ fn parse_algorithm(alg: &str) -> Option<Algorithm> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::Engine;
     use jsonwebtoken::{encode, EncodingKey, Header};
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -642,5 +648,163 @@ mod tests {
         assert!(result.is_ok());
         let identity = result.unwrap();
         assert_eq!(identity.name, Some("John Doe".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_alg_mismatch_simple_mode() {
+        let provider = create_simple_provider();
+        let now = now_secs();
+        
+        let mut claims = HashMap::new();
+        claims.insert("sub".to_string(), serde_json::json!("user123"));
+        claims.insert("iss".to_string(), serde_json::json!("test-issuer"));
+        claims.insert("aud".to_string(), serde_json::json!("test-audience"));
+        claims.insert("exp".to_string(), serde_json::json!(now + 3600));
+
+        // Create token signed with RS256 (simulated by just using wrong header)
+        // Note: We can't actually sign with RS256 without a key, 
+        // but we can sign with HS256 and LIE in the header about the algorithm.
+        // Or we can just use HS512.
+        let header = Header::new(Algorithm::HS512);
+        let token = encode(&header, &claims, &EncodingKey::from_secret(TEST_SECRET.as_bytes())).unwrap();
+
+        let result = provider.authenticate(&token).await;
+        // Should fail because validation expects HS256
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), AuthError::InvalidJwt(_)));
+    }
+
+    #[tokio::test]
+    async fn test_missing_custom_claim() {
+        let config = JwtConfig {
+            mode: JwtMode::Simple {
+                secret: TEST_SECRET.to_string(),
+            },
+            issuer: "test-issuer".to_string(),
+            audience: "test-audience".to_string(),
+            user_id_claim: "custom_id".to_string(), // Expects "custom_id"
+            scopes_claim: "scope".to_string(),
+            scope_tool_mapping: HashMap::new(),
+            leeway_secs: 0,
+        };
+        let provider = JwtProvider::new(config).unwrap();
+        
+        let now = now_secs();
+        let mut claims = HashMap::new();
+        // Provide "sub" but not "custom_id"
+        claims.insert("sub".to_string(), serde_json::json!("user123"));
+        claims.insert("iss".to_string(), serde_json::json!("test-issuer"));
+        claims.insert("aud".to_string(), serde_json::json!("test-audience"));
+        claims.insert("exp".to_string(), serde_json::json!(now + 3600));
+
+        let token = create_test_token(&claims);
+        let result = provider.authenticate(&token).await;
+        
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Missing 'custom_id' claim"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Algorithm Confusion Attack Prevention Tests
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_algorithm_confusion_rs256_rejected() {
+        // Attempt to use RS256 header with HS256 secret (algorithm confusion attack)
+        // We need to manually craft the token since encode() validates algorithm/key match
+        let provider = create_simple_provider();
+        let now = now_secs();
+
+        // Manually build a JWT with RS256 in header but HS256 signature
+        let header_json = r#"{"alg":"RS256","typ":"JWT"}"#;
+        let header_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(header_json);
+
+        let claims_json = format!(
+            r#"{{"sub":"attacker","iss":"test-issuer","aud":"test-audience","exp":{}}}"#,
+            now + 3600
+        );
+        let claims_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&claims_json);
+
+        // Sign with HS256 using HMAC (would work if we accepted the wrong algorithm)
+        use hmac::{Hmac, Mac};
+        use sha2::Sha256;
+        type HmacSha256 = Hmac<Sha256>;
+
+        let message = format!("{}.{}", header_b64, claims_b64);
+        let mut mac = HmacSha256::new_from_slice(TEST_SECRET.as_bytes()).unwrap();
+        mac.update(message.as_bytes());
+        let signature = mac.finalize().into_bytes();
+        let sig_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(signature);
+
+        let token = format!("{}.{}.{}", header_b64, claims_b64, sig_b64);
+
+        let result = provider.authenticate(&token).await;
+        assert!(matches!(result, Err(AuthError::InvalidJwt(_))));
+        if let Err(AuthError::InvalidJwt(msg)) = result {
+            assert!(msg.contains("Algorithm mismatch"), "Expected algorithm mismatch error, got: {}", msg);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_algorithm_confusion_none_rejected() {
+        // The 'none' algorithm attack - try to bypass signature verification
+        let provider = create_simple_provider();
+
+        // Manually craft a token with alg: "none"
+        // Header: {"alg":"none","typ":"JWT"}
+        // This is a well-known attack vector
+        let header_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(r#"{"alg":"none","typ":"JWT"}"#);
+        let now = now_secs();
+        let claims_json = format!(
+            r#"{{"sub":"attacker","iss":"test-issuer","aud":"test-audience","exp":{}}}"#,
+            now + 3600
+        );
+        let claims_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&claims_json);
+
+        // Token with empty signature (alg: none attack)
+        let token = format!("{}.{}.", header_b64, claims_b64);
+
+        let result = provider.authenticate(&token).await;
+        // Should fail - either algorithm mismatch or invalid JWT
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_algorithm_confusion_es256_rejected() {
+        // Attempt to use ES256 header with HS256 provider
+        // We need to manually craft the token since encode() validates algorithm/key match
+        let provider = create_simple_provider();
+        let now = now_secs();
+
+        // Manually build a JWT with ES256 in header but fake signature
+        let header_json = r#"{"alg":"ES256","typ":"JWT"}"#;
+        let header_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(header_json);
+
+        let claims_json = format!(
+            r#"{{"sub":"attacker","iss":"test-issuer","aud":"test-audience","exp":{}}}"#,
+            now + 3600
+        );
+        let claims_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&claims_json);
+
+        // Use HMAC signature (the attack would be to use the HMAC secret as the "public key")
+        use hmac::{Hmac, Mac};
+        use sha2::Sha256;
+        type HmacSha256 = Hmac<Sha256>;
+
+        let message = format!("{}.{}", header_b64, claims_b64);
+        let mut mac = HmacSha256::new_from_slice(TEST_SECRET.as_bytes()).unwrap();
+        mac.update(message.as_bytes());
+        let signature = mac.finalize().into_bytes();
+        let sig_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(signature);
+
+        let token = format!("{}.{}.{}", header_b64, claims_b64, sig_b64);
+
+        let result = provider.authenticate(&token).await;
+        assert!(matches!(result, Err(AuthError::InvalidJwt(_))));
+        if let Err(AuthError::InvalidJwt(msg)) = result {
+            assert!(msg.contains("Algorithm mismatch"), "Expected algorithm mismatch error, got: {}", msg);
+        }
     }
 }
