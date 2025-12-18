@@ -16,7 +16,7 @@ mcp-guard validate --config /path/to/config.toml
 **Output (success):**
 
 ```
-Configuration valid: mcp-guard.toml
+Configuration is valid: mcp-guard.toml
 ```
 
 **Output (error):**
@@ -419,8 +419,8 @@ curl -v -X POST http://localhost:3000/mcp \
   -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
 
 # Check response headers:
-# X-RateLimit-Limit: 100
-# X-RateLimit-Remaining: 0
+# x-ratelimit-limit: 100
+# x-ratelimit-remaining: 0
 ```
 
 #### Increase Limits

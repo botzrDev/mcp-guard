@@ -39,9 +39,9 @@ Rate-limited endpoints also include:
 
 | Header | Description |
 |--------|-------------|
-| `X-RateLimit-Limit` | Maximum requests per second |
-| `X-RateLimit-Remaining` | Remaining requests in current window |
-| `X-RateLimit-Reset` | Unix timestamp when limit resets |
+| `x-ratelimit-limit` | Maximum requests per second |
+| `x-ratelimit-remaining` | Remaining requests in current window |
+| `x-ratelimit-reset` | Unix timestamp when limit resets |
 
 ---
 
@@ -73,7 +73,7 @@ Kubernetes liveness probe. Returns 200 if the process is running.
 
 ```json
 {
-  "status": "live"
+  "status": "alive"
 }
 ```
 
@@ -385,9 +385,9 @@ Rate limit exceeded.
 | Header | Value |
 |--------|-------|
 | `Retry-After` | Seconds until retry allowed |
-| `X-RateLimit-Limit` | Configured limit |
-| `X-RateLimit-Remaining` | `0` |
-| `X-RateLimit-Reset` | Unix timestamp |
+| `x-ratelimit-limit` | Configured limit |
+| `x-ratelimit-remaining` | `0` |
+| `x-ratelimit-reset` | Unix timestamp |
 
 ```json
 {
@@ -502,18 +502,18 @@ rate_limit = 500  # Custom: 500 RPS
 Successful responses include:
 
 ```http
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 42
-X-RateLimit-Reset: 1702900000
+x-ratelimit-limit: 100
+x-ratelimit-remaining: 42
+x-ratelimit-reset: 1702900000
 ```
 
 Rate-limited responses (429) include:
 
 ```http
 Retry-After: 5
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 0
-X-RateLimit-Reset: 1702900005
+x-ratelimit-limit: 100
+x-ratelimit-remaining: 0
+x-ratelimit-reset: 1702900005
 ```
 
 ---

@@ -1489,4 +1489,142 @@ mod tests {
         assert_eq!(parsed.method, Some("tools/list".to_string()));
         assert_eq!(parsed.id, Some(serde_json::json!(1)));
     }
+
+    // ------------------------------------------------------------------------
+    // Additional Edge Case Tests (Phase 3)
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_truncate_error_body_short() {
+        let short = "Short error message";
+        assert_eq!(truncate_error_body(short), short);
+    }
+
+    #[test]
+    fn test_truncate_error_body_exact_limit() {
+        let exact = "x".repeat(MAX_ERROR_BODY_LEN);
+        assert_eq!(truncate_error_body(&exact), exact);
+    }
+
+    #[test]
+    fn test_truncate_error_body_long() {
+        let long = "x".repeat(MAX_ERROR_BODY_LEN + 100);
+        let truncated = truncate_error_body(&long);
+        assert!(truncated.ends_with("... (truncated)"));
+        assert!(truncated.len() < long.len());
+    }
+
+    #[test]
+    fn test_is_private_ipv6_mapped_ipv4() {
+        // IPv6-mapped IPv4 private addresses should be blocked
+        let ipv6_mapped_private: Ipv6Addr = "::ffff:192.168.1.1".parse().unwrap();
+        assert!(is_private_ipv6(&ipv6_mapped_private));
+
+        let ipv6_mapped_loopback: Ipv6Addr = "::ffff:127.0.0.1".parse().unwrap();
+        assert!(is_private_ipv6(&ipv6_mapped_loopback));
+    }
+
+    #[test]
+    fn test_is_private_ipv6_unique_local() {
+        // fc00::/7 unique local addresses
+        let unique_local: Ipv6Addr = "fc00::1".parse().unwrap();
+        assert!(is_private_ipv6(&unique_local));
+
+        let unique_local_2: Ipv6Addr = "fd12:3456:789a::1".parse().unwrap();
+        assert!(is_private_ipv6(&unique_local_2));
+    }
+
+    #[test]
+    fn test_is_private_ipv6_link_local() {
+        // fe80::/10 link-local
+        let link_local: Ipv6Addr = "fe80::1".parse().unwrap();
+        assert!(is_private_ipv6(&link_local));
+    }
+
+    #[test]
+    fn test_is_private_ipv6_public() {
+        // Public IPv6 addresses should not be private
+        let public: Ipv6Addr = "2001:db8::1".parse().unwrap();
+        assert!(!is_private_ipv6(&public));
+    }
+
+    #[test]
+    fn test_is_private_ipv4_shared_address_space() {
+        // 100.64.0.0/10 (RFC 6598 shared address space)
+        let shared: Ipv4Addr = "100.64.0.1".parse().unwrap();
+        assert!(is_private_ipv4(&shared));
+
+        let shared_2: Ipv4Addr = "100.127.255.255".parse().unwrap();
+        assert!(is_private_ipv4(&shared_2));
+    }
+
+    #[test]
+    fn test_is_private_ipv4_reserved() {
+        // 240.0.0.0/4 reserved for future use
+        let reserved: Ipv4Addr = "240.0.0.1".parse().unwrap();
+        assert!(is_private_ipv4(&reserved));
+    }
+
+    #[test]
+    fn test_ssrf_blocks_alibaba_metadata() {
+        assert!(validate_url_for_ssrf("http://100.100.100.200/").is_err());
+    }
+
+    #[test]
+    fn test_ssrf_blocks_azure_metadata() {
+        assert!(validate_url_for_ssrf("http://metadata.azure.internal/").is_err());
+    }
+
+    #[test]
+    fn test_message_notification() {
+        let notification = Message {
+            jsonrpc: "2.0".to_string(),
+            id: None,
+            method: Some("notifications/progress".to_string()),
+            params: Some(serde_json::json!({"progress": 50})),
+            result: None,
+            error: None,
+        };
+
+        assert!(notification.is_notification());
+        assert!(!notification.is_request());
+        assert!(!notification.is_response());
+    }
+
+    #[test]
+    fn test_message_error_response_format() {
+        let error_response = Message::error_response(
+            Some(serde_json::json!(1)),
+            -32600,
+            "Invalid Request"
+        );
+
+        assert!(error_response.is_response());
+        assert!(error_response.error.is_some());
+        assert!(!error_response.is_request());
+    }
+
+    #[test]
+    fn test_http_transport_with_config_headers() {
+        let headers = HashMap::from([
+            ("Authorization".to_string(), "Bearer token".to_string()),
+        ]);
+        let transport = HttpTransport::with_config(
+            "https://api.example.com/mcp".to_string(),
+            headers,
+            60,
+        );
+        assert!(transport.is_ok());
+    }
+
+    #[test]
+    fn test_http_transport_with_config_blocks_private() {
+        let transport = HttpTransport::with_config(
+            "http://192.168.1.1/mcp".to_string(),
+            HashMap::new(),
+            30,
+        );
+        assert!(transport.is_err());
+    }
 }
+

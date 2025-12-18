@@ -144,7 +144,7 @@ Validate your configuration:
 mcp-guard validate
 ```
 
-You should see: `Configuration valid: mcp-guard.toml`
+You should see: `Configuration is valid: mcp-guard.toml`
 
 ## Step 5: Start the Gateway
 
@@ -219,9 +219,9 @@ curl -X POST http://localhost:3000/mcp \
 Successful responses include rate limit information:
 
 ```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 99
-X-RateLimit-Reset: 1702656789
+x-ratelimit-limit: 100
+x-ratelimit-remaining: 99
+x-ratelimit-reset: 1702656789
 ```
 
 ---

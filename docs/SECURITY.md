@@ -111,9 +111,9 @@ Each authenticated identity gets its own rate limiter:
 ### Response Headers
 
 ```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 47
-X-RateLimit-Reset: 1702656789
+x-ratelimit-limit: 100
+x-ratelimit-remaining: 47
+x-ratelimit-reset: 1702656789
 Retry-After: 1  (only on 429)
 ```
 

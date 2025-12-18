@@ -119,16 +119,16 @@ To prevent unbounded memory growth:
 Every successful response includes rate limit headers:
 
 ```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 47
-X-RateLimit-Reset: 1702656789
+x-ratelimit-limit: 100
+x-ratelimit-remaining: 47
+x-ratelimit-reset: 1702656789
 ```
 
 | Header | Description |
 |--------|-------------|
-| `X-RateLimit-Limit` | Maximum requests per second |
-| `X-RateLimit-Remaining` | Tokens remaining in bucket |
-| `X-RateLimit-Reset` | Unix timestamp when bucket refills |
+| `x-ratelimit-limit` | Maximum requests per second |
+| `x-ratelimit-remaining` | Tokens remaining in bucket |
+| `x-ratelimit-reset` | Unix timestamp when bucket refills |
 
 ### Rate Limited Requests (429)
 
@@ -264,7 +264,7 @@ rate(mcp_guard_rate_limit_total[5m])
 
 **Requests approaching limit:**
 
-Monitor `X-RateLimit-Remaining` in your client and alert when low.
+Monitor `x-ratelimit-remaining` in your client and alert when low.
 
 ### Audit Events
 
@@ -375,7 +375,7 @@ curl -v -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
 
-# Look for X-RateLimit-* headers
+# Look for x-ratelimit-* headers
 ```
 
 **Possible causes:**

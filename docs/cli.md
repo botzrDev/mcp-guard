@@ -107,7 +107,7 @@ mcp-guard -v validate
 **Output:**
 
 ```
-Configuration valid: mcp-guard.toml
+Configuration is valid: mcp-guard.toml
 ```
 
 Or on error:

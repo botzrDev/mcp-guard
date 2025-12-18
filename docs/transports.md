@@ -67,7 +67,6 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | `transport` | string | Yes | Must be `"stdio"` |
 | `command` | string | Yes | Executable path or command |
 | `args` | array | No | Command-line arguments |
-| `env` | table | No | Environment variables |
 
 ### Examples
 
@@ -89,17 +88,13 @@ command = "python"
 args = ["-m", "my_mcp_server", "--config", "/etc/mcp/server.json"]
 ```
 
-**Custom Binary with Environment:**
+**Custom Binary:**
 
 ```toml
 [upstream]
 transport = "stdio"
 command = "/usr/local/bin/my-mcp-server"
 args = ["--port", "internal"]
-
-[upstream.env]
-MCP_LOG_LEVEL = "debug"
-MCP_DATA_DIR = "/var/lib/mcp"
 ```
 
 **Node.js Server:**

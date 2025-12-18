@@ -460,9 +460,9 @@ async fn rate_limit_headers_middleware(
 
     // Add rate limit headers
     let headers = response.headers_mut();
-    headers.insert("X-RateLimit-Limit", result.limit.into());
-    headers.insert("X-RateLimit-Remaining", result.remaining.into());
-    headers.insert("X-RateLimit-Reset", result.reset_at.into());
+    headers.insert("x-ratelimit-limit", result.limit.into());
+    headers.insert("x-ratelimit-remaining", result.remaining.into());
+    headers.insert("x-ratelimit-reset", result.reset_at.into());
 
     response
 }

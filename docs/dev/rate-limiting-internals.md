@@ -249,9 +249,9 @@ The server adds rate limit headers to responses:
 
 | Header | Description | Example |
 |--------|-------------|---------|
-| `X-RateLimit-Limit` | Configured rate limit | `100` |
-| `X-RateLimit-Remaining` | Approximate remaining requests | `42` |
-| `X-RateLimit-Reset` | Unix timestamp when limit resets | `1702900000` |
+| `x-ratelimit-limit` | Configured rate limit | `100` |
+| `x-ratelimit-remaining` | Approximate remaining requests | `42` |
+| `x-ratelimit-reset` | Unix timestamp when limit resets | `1702900000` |
 | `Retry-After` | Seconds until retry (on 429) | `5` |
 
 ```rust
@@ -266,9 +266,9 @@ if !result.allowed {
 }
 
 // Add headers to successful response
-response.headers_mut().insert("X-RateLimit-Limit", result.limit.into());
-response.headers_mut().insert("X-RateLimit-Remaining", result.remaining.into());
-response.headers_mut().insert("X-RateLimit-Reset", result.reset_at.into());
+response.headers_mut().insert("x-ratelimit-limit", result.limit.into());
+response.headers_mut().insert("x-ratelimit-remaining", result.remaining.into());
+response.headers_mut().insert("x-ratelimit-reset", result.reset_at.into());
 ```
 
 ## Metrics Integration

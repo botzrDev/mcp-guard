@@ -159,7 +159,7 @@ pub struct AuditLogger {
    a. Forward to transport.send()
    b. Wait for transport.receive()
    c. Filter tools/list response (if applicable)
-7. Add X-RateLimit-* headers
+7. Add x-ratelimit-* headers
 8. Return response
 ```
 

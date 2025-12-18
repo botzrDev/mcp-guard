@@ -93,7 +93,7 @@ A request flows through these stages:
 │         │             Response received and returned to client            │
 │         ▼                                                                   │
 │  9. Response          Status recorded in metrics, duration histogram      │
-│                       X-RateLimit-* headers added                         │
+│                       x-ratelimit-* headers added                         │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```

@@ -353,9 +353,9 @@ rate_limit = 1000  # Override default 100 RPS
 Successful requests include:
 
 ```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 47
-X-RateLimit-Reset: 1702656789
+x-ratelimit-limit: 100
+x-ratelimit-remaining: 47
+x-ratelimit-reset: 1702656789
 ```
 
 Rate-limited requests (429) include:
