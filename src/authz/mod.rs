@@ -340,4 +340,125 @@ mod tests {
         assert!(names.contains(&"list_files"));
         assert!(!names.contains(&"write_file"));
     }
+
+    /// Verify extract_tool_name extracts tool name from tools/call request
+    #[test]
+    fn test_extract_tool_name() {
+        let message = Message {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(1)),
+            method: Some("tools/call".to_string()),
+            params: Some(serde_json::json!({"name": "read_file", "arguments": {}})),
+            result: None,
+            error: None,
+        };
+
+        assert_eq!(extract_tool_name(&message), Some("read_file"));
+    }
+
+    #[test]
+    fn test_extract_tool_name_returns_none_for_non_tool_call() {
+        let message = Message {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(1)),
+            method: Some("resources/list".to_string()),
+            params: None,
+            result: None,
+            error: None,
+        };
+
+        assert_eq!(extract_tool_name(&message), None);
+    }
+
+    #[test]
+    fn test_extract_tool_name_returns_none_without_params() {
+        let message = Message {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(1)),
+            method: Some("tools/call".to_string()),
+            params: None,
+            result: None,
+            error: None,
+        };
+
+        assert_eq!(extract_tool_name(&message), None);
+    }
+
+    #[test]
+    fn test_authorize_request_allows_unrestricted() {
+        let identity = Identity {
+            id: "test".to_string(),
+            name: None,
+            allowed_tools: None,
+            rate_limit: None,
+            claims: std::collections::HashMap::new(),
+        };
+
+        let message = Message {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(1)),
+            method: Some("tools/call".to_string()),
+            params: Some(serde_json::json!({"name": "any_tool"})),
+            result: None,
+            error: None,
+        };
+
+        match authorize_request(&identity, &message) {
+            AuthzDecision::Allow => {}
+            AuthzDecision::Deny(_) => panic!("Expected Allow"),
+        }
+    }
+
+    #[test]
+    fn test_authorize_request_denies_unauthorized_tool() {
+        let identity = Identity {
+            id: "test".to_string(),
+            name: None,
+            allowed_tools: Some(vec!["read_file".to_string()]),
+            rate_limit: None,
+            claims: std::collections::HashMap::new(),
+        };
+
+        let message = Message {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(1)),
+            method: Some("tools/call".to_string()),
+            params: Some(serde_json::json!({"name": "delete_file"})),
+            result: None,
+            error: None,
+        };
+
+        match authorize_request(&identity, &message) {
+            AuthzDecision::Allow => panic!("Expected Deny"),
+            AuthzDecision::Deny(reason) => {
+                assert!(reason.contains("delete_file"));
+            }
+        }
+    }
+
+    #[test]
+    fn test_authorize_request_allows_non_tool_calls() {
+        let identity = Identity {
+            id: "test".to_string(),
+            name: None,
+            allowed_tools: Some(vec!["read_file".to_string()]),
+            rate_limit: None,
+            claims: std::collections::HashMap::new(),
+        };
+
+        // This is not a tools/call request, so authorization should pass
+        let message = Message {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(1)),
+            method: Some("resources/list".to_string()),
+            params: None,
+            result: None,
+            error: None,
+        };
+
+        match authorize_request(&identity, &message) {
+            AuthzDecision::Allow => {}
+            AuthzDecision::Deny(_) => panic!("Expected Allow for non-tool call"),
+        }
+    }
 }
