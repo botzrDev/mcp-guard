@@ -1767,16 +1767,20 @@ Completed: 2024-12-18
 - Quick Start Auth: API Keys + JWT simple mode
 - Config Format: TOML only (no YAML examples)
 
-### Phase 2 (P1) - PENDING
+### Phase 2 (P1) - COMPLETE ✅
 
-| Document | File | Est. Lines | Status |
-|----------|------|------------|--------|
-| Transport Guide | `docs/transports.md` | 300-400 | ⬜ Pending |
-| Multi-Server Routing | `docs/multi-server.md` | 200-250 | ⬜ Pending |
-| Rate Limiting Guide | `docs/rate-limiting.md` | 150-200 | ⬜ Pending |
-| Observability Guide | `docs/observability.md` | 400-500 | ⬜ Pending |
-| Deployment Guide | `docs/deployment.md` | 500-600 | ⬜ Pending |
-| Troubleshooting Guide | `docs/troubleshooting.md` | 300-400 | ⬜ Pending |
+Completed: 2024-12-18
+
+| Document | File | Lines | Status |
+|----------|------|-------|--------|
+| Transport Guide | `docs/transports.md` | 462 | ✅ Complete |
+| Multi-Server Routing | `docs/multi-server.md` | 490 | ✅ Complete |
+| Rate Limiting Guide | `docs/rate-limiting.md` | 424 | ✅ Complete |
+| Observability Guide | `docs/observability.md` | 736 | ✅ Complete |
+| Deployment Guide | `docs/deployment.md` | 876 | ✅ Complete |
+| Troubleshooting Guide | `docs/troubleshooting.md` | 732 | ✅ Complete |
+
+**Total: 3,720 lines, ~85KB**
 
 ### Phase 3 (P2) - PENDING
 
@@ -1806,62 +1810,71 @@ Completed: 2024-12-18
 ## Next Steps
 
 1. ~~**Phase 1 (P0):** Create Quick Start, Configuration Reference, CLI Reference, Authentication Guide~~ ✅ DONE
-2. **Phase 2 (P1):** Create Transport Guide, Multi-Server, Rate Limiting, Observability, Deployment, Troubleshooting
+2. ~~**Phase 2 (P1):** Create Transport Guide, Multi-Server, Rate Limiting, Observability, Deployment, Troubleshooting~~ ✅ DONE
 3. **Phase 3 (P2):** Create developer documentation (Architecture, Traits, Testing, Contributing)
 4. **Phase 4 (P3):** Create integration guides and style guide
 
 ---
 
-## Phase 2 Session Prompt
+## Phase 3 Session Prompt
 
 Use this prompt to continue documentation in the next session:
 
 ```
 Continue implementing the MCP Guard documentation plan from DOCUMENTATION_PLAN.md.
 
-Phase 1 (P0) is complete. Now implement Phase 2 (P1) - the operational documentation:
+Phase 1 (P0) and Phase 2 (P1) are complete. Now implement Phase 3 (P2) - developer documentation:
 
-1. **Transport Guide** (docs/transports.md) - ~300-400 lines
-   - Stdio, HTTP, SSE transport types
-   - Configuration and use cases
-   - Health monitoring and troubleshooting
+1. **Architecture Overview** (docs/dev/architecture.md) - ~300-400 lines
+   - High-level system design
+   - Module structure and responsibilities
+   - Request lifecycle
+   - Concurrency model
 
-2. **Multi-Server Routing Guide** (docs/multi-server.md) - ~200-250 lines
-   - Path-based routing configuration
-   - /routes endpoint
-   - Mixed transport examples
+2. **AuthProvider Trait Guide** (docs/dev/auth-provider.md) - ~200-250 lines
+   - Trait definition and requirements
+   - Implementing new providers
+   - Example: LDAP provider
+   - Testing providers
 
-3. **Rate Limiting Guide** (docs/rate-limiting.md) - ~150-200 lines
-   - Token bucket algorithm
-   - Per-identity limits
-   - Headers and 429 responses
+3. **Transport Trait Guide** (docs/dev/transport.md) - ~200-250 lines
+   - Trait definition
+   - Message format
+   - Example: WebSocket transport
+   - Task supervision
 
-4. **Observability Guide** (docs/observability.md) - ~400-500 lines
-   - Prometheus metrics (all 5 metrics)
-   - OpenTelemetry tracing setup
-   - Audit logging and SIEM integration
-   - Health endpoints (/health, /live, /ready)
+4. **Middleware Chain** (docs/dev/middleware.md) - ~150-200 lines
+   - Middleware ordering
+   - Request extensions
+   - Adding new middleware
 
-5. **Deployment Guide** (docs/deployment.md) - ~500-600 lines
-   - Binary deployment with systemd
-   - Docker deployment
-   - Kubernetes deployment with manifests
-   - TLS and mTLS setup
-   - High availability patterns
+5. **Rate Limiting Internals** (docs/dev/rate-limiting-internals.md) - ~150-200 lines
+   - Governor crate usage
+   - TTL and eviction
+   - DashMap implementation
 
-6. **Troubleshooting Guide** (docs/troubleshooting.md) - ~300-400 lines
-   - Diagnostic tools
-   - Common issues by category
-   - Debug logging
-   - Getting help
+6. **Testing Guide** (docs/dev/testing.md) - ~200-250 lines
+   - Test structure
+   - Unit vs integration tests
+   - Running benchmarks
+   - Coverage
 
-Reference the existing Phase 1 docs for cross-linking:
-- docs/quickstart.md
-- docs/cli.md
-- docs/configuration.md
-- docs/authentication.md
+7. **Contributing Guide** (docs/dev/contributing.md) - ~200-250 lines
+   - Development workflow
+   - Code style
+   - Pull request process
 
-Style: TOML only, active voice, concise, runnable examples.
+8. **HTTP API Reference** (docs/api/http.md) - ~300-400 lines
+   - All endpoints documented
+   - Request/response formats
+   - Error codes
+
+Reference existing docs for consistency:
+- docs/quickstart.md, docs/cli.md, docs/configuration.md, docs/authentication.md
+- docs/transports.md, docs/multi-server.md, docs/rate-limiting.md
+- docs/observability.md, docs/deployment.md, docs/troubleshooting.md
+
+Style: TOML only, active voice, concise, code examples.
 ```
 
 ---
