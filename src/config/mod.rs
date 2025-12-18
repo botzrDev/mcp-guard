@@ -426,7 +426,9 @@ impl Default for AuditConfig {
         Self {
             enabled: true,
             file: None,
-            stdout: true,
+            // SECURITY: Default to false to prevent accidental PII exposure in logs.
+            // Users should explicitly configure their log destination.
+            stdout: false,
             export_url: None,
             export_batch_size: default_export_batch_size(),
             export_interval_secs: default_export_interval_secs(),
@@ -480,7 +482,9 @@ fn default_service_name() -> String {
 }
 
 fn default_sample_rate() -> f64 {
-    1.0
+    // SECURITY: Default to 10% sampling to avoid performance impact and cost
+    // in production. Users can increase to 1.0 for development/debugging.
+    0.1
 }
 
 // ============================================================================
@@ -612,10 +616,19 @@ impl Config {
         if let Some(ref oauth_config) = self.auth.oauth {
             // Validate redirect_uri is a valid URL
             if !oauth_config.redirect_uri.starts_with("http://")
-                && !oauth_config.redirect_uri.starts_with("https://") {
+                && !oauth_config.redirect_uri.starts_with("https://")
+            {
                 return Err(ConfigError::Validation(
                     "oauth.redirect_uri must be a valid HTTP(S) URL".to_string(),
                 ));
+            }
+            // SECURITY: Warn about HTTP redirect_uri in production (allow in debug for local testing)
+            #[cfg(not(debug_assertions))]
+            if oauth_config.redirect_uri.starts_with("http://") {
+                tracing::warn!(
+                    "SECURITY WARNING: oauth.redirect_uri uses HTTP instead of HTTPS. \
+                     This is insecure in production and may allow authorization code interception."
+                );
             }
         }
 
@@ -642,6 +655,18 @@ impl Config {
             if self.audit.export_interval_secs == 0 {
                 return Err(ConfigError::Validation(
                     "audit.export_interval_secs must be greater than 0".to_string(),
+                ));
+            }
+        }
+
+        // Validate mTLS configuration
+        if let Some(ref mtls_config) = self.auth.mtls {
+            if mtls_config.enabled && mtls_config.trusted_proxy_ips.is_empty() {
+                // SECURITY: mTLS without trusted proxy IPs allows header spoofing
+                return Err(ConfigError::Validation(
+                    "auth.mtls.trusted_proxy_ips must be configured when mTLS is enabled. \
+                     Without trusted proxy IPs, attackers could spoof client certificate headers."
+                        .to_string(),
                 ));
             }
         }
@@ -786,7 +811,8 @@ mod tests {
         let config = AuditConfig::default();
         assert!(config.enabled);
         assert!(config.file.is_none());
-        assert!(config.stdout);
+        // SECURITY: stdout defaults to false to prevent accidental PII exposure
+        assert!(!config.stdout);
         assert!(config.export_url.is_none());
         assert_eq!(config.export_batch_size, 100);
         assert_eq!(config.export_interval_secs, 30);
@@ -798,7 +824,8 @@ mod tests {
         assert!(!config.enabled);
         assert_eq!(config.service_name, "mcp-guard");
         assert!(config.otlp_endpoint.is_none());
-        assert_eq!(config.sample_rate, 1.0);
+        // SECURITY: sample_rate defaults to 0.1 (10%) for production safety
+        assert_eq!(config.sample_rate, 0.1);
         assert!(config.propagate_context);
     }
 
@@ -947,6 +974,45 @@ mod tests {
 
         config.tracing.sample_rate = -0.1;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_mtls_requires_trusted_proxy_ips() {
+        let mut config = create_valid_config();
+        // mTLS enabled without trusted_proxy_ips should fail
+        config.auth.mtls = Some(MtlsConfig {
+            enabled: true,
+            identity_source: MtlsIdentitySource::Cn,
+            allowed_tools: vec![],
+            rate_limit: None,
+            trusted_proxy_ips: vec![], // Empty = security risk
+        });
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("trusted_proxy_ips"));
+
+        // mTLS enabled with trusted_proxy_ips should succeed
+        config.auth.mtls = Some(MtlsConfig {
+            enabled: true,
+            identity_source: MtlsIdentitySource::Cn,
+            allowed_tools: vec![],
+            rate_limit: None,
+            trusted_proxy_ips: vec!["10.0.0.0/8".to_string()],
+        });
+        assert!(config.validate().is_ok());
+
+        // mTLS disabled without trusted_proxy_ips should succeed (not used)
+        config.auth.mtls = Some(MtlsConfig {
+            enabled: false,
+            identity_source: MtlsIdentitySource::Cn,
+            allowed_tools: vec![],
+            rate_limit: None,
+            trusted_proxy_ips: vec![],
+        });
+        assert!(config.validate().is_ok());
     }
 
     #[test]

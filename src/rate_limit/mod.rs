@@ -31,11 +31,13 @@ const DEFAULT_ENTRY_TTL: Duration = Duration::from_secs(3600);
 /// unbounded memory growth from abandoned connections.
 const CLEANUP_THRESHOLD: usize = 1000;
 
-/// Default requests per second - const unwrap is safe in const context
-const DEFAULT_RPS: NonZeroU32 = NonZeroU32::new(100).unwrap();
+/// Default requests per second
+/// SAFETY: 100 is non-zero, so new_unchecked is safe
+const DEFAULT_RPS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(100) };
 
-/// Default burst size - const unwrap is safe in const context
-const DEFAULT_BURST: NonZeroU32 = NonZeroU32::new(50).unwrap();
+/// Default burst size
+/// SAFETY: 50 is non-zero, so new_unchecked is safe
+const DEFAULT_BURST: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(50) };
 
 /// Entry in the rate limiter cache with last access time
 struct RateLimitEntry {

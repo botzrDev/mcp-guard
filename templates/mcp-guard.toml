@@ -81,12 +81,13 @@ port = 3000
 
 # -----------------------------------------------------------------------------
 # GitHub OAuth Example
+# SECURITY: Use HTTPS for redirect_uri in production to prevent code interception
 # -----------------------------------------------------------------------------
 # [auth.oauth]
 # provider = "github"
 # client_id = "your-github-client-id"
 # client_secret = "your-github-client-secret"  # Get from GitHub OAuth App settings
-# redirect_uri = "http://localhost:3000/oauth/callback"
+# redirect_uri = "https://your-domain.com/oauth/callback"  # Use HTTPS in production!
 # scopes = ["read:user", "repo"]
 # user_id_claim = "id"  # GitHub returns numeric user ID
 
@@ -97,17 +98,19 @@ port = 3000
 
 # -----------------------------------------------------------------------------
 # Google OAuth Example
+# SECURITY: Use HTTPS for redirect_uri in production
 # -----------------------------------------------------------------------------
 # [auth.oauth]
 # provider = "google"
 # client_id = "your-google-client-id.apps.googleusercontent.com"
 # client_secret = "your-google-client-secret"
-# redirect_uri = "http://localhost:3000/oauth/callback"
+# redirect_uri = "https://your-domain.com/oauth/callback"  # Use HTTPS in production!
 # scopes = ["openid", "profile", "email"]
 # user_id_claim = "sub"
 
 # -----------------------------------------------------------------------------
 # Custom OAuth Provider Example (e.g., Okta, Azure AD)
+# SECURITY: Use HTTPS for redirect_uri in production
 # -----------------------------------------------------------------------------
 # [auth.oauth]
 # provider = "custom"
@@ -117,7 +120,7 @@ port = 3000
 # token_url = "https://your-idp.com/oauth/token"
 # introspection_url = "https://your-idp.com/oauth/introspect"  # For opaque token validation
 # userinfo_url = "https://your-idp.com/userinfo"               # Fallback for token info
-# redirect_uri = "http://localhost:3000/oauth/callback"
+# redirect_uri = "https://your-domain.com/oauth/callback"  # Use HTTPS in production!
 # scopes = ["openid", "profile"]
 # user_id_claim = "sub"
 
@@ -141,12 +144,14 @@ port = 3000
 # -----------------------------------------------------------------------------
 # mTLS via Reverse Proxy (recommended for most deployments)
 # Configure your proxy to forward client cert info in headers
+# SECURITY: trusted_proxy_ips MUST be configured to prevent header spoofing
 # -----------------------------------------------------------------------------
 # [auth.mtls]
 # enabled = true
 # identity_source = "cn"                 # Extract identity from: cn, san_dns, san_email
 # allowed_tools = ["read_file", "write_file"]  # Optional: restrict tools (empty = all)
 # rate_limit = 1000                      # Optional: custom rate limit
+# trusted_proxy_ips = ["10.0.0.0/8", "172.16.0.0/12"]  # REQUIRED: IPs allowed to set cert headers
 
 # -----------------------------------------------------------------------------
 # Example: nginx mTLS termination
@@ -169,7 +174,9 @@ burst_size = 50
 
 [audit]
 enabled = true
-stdout = true
+# SECURITY: stdout defaults to false to prevent accidental PII exposure.
+# Explicitly enable stdout logging or configure a file path.
+stdout = false
 # file = "/var/log/mcp-guard/audit.log"
 
 # -----------------------------------------------------------------------------
@@ -202,7 +209,9 @@ stdout = true
 enabled = false                    # Enable OpenTelemetry tracing
 service_name = "mcp-guard"         # Service name in traces
 # otlp_endpoint = "http://localhost:4317"  # OTLP gRPC endpoint (Jaeger, Tempo, etc.)
-sample_rate = 1.0                  # Sample rate: 0.0 (none) to 1.0 (all)
+# SECURITY: Default is 0.1 (10%) to minimize performance impact in production.
+# Increase to 1.0 for development/debugging.
+sample_rate = 0.1                  # Sample rate: 0.0 (none) to 1.0 (all)
 propagate_context = true           # Extract/inject W3C traceparent headers
 
 # Example: Send traces to Jaeger (running locally)

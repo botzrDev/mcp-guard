@@ -280,7 +280,8 @@ mod tests {
         assert!(!config.enabled);
         assert_eq!(config.service_name, "mcp-guard");
         assert!(config.otlp_endpoint.is_none());
-        assert_eq!(config.sample_rate, 1.0);
+        // SECURITY: sample_rate defaults to 0.1 (10%) for production safety
+        assert_eq!(config.sample_rate, 0.1);
         assert!(config.propagate_context);
     }
 

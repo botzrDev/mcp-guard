@@ -234,10 +234,14 @@ impl RouteMatcher {
         // Find the longest matching prefix
         let mut best_match: Option<(&str, &String)> = None;
         for (prefix, name) in &self.prefixes {
-            if path.starts_with(prefix)
-                && best_match.is_none_or(|(best_prefix, _)| prefix.len() > best_prefix.len())
-            {
-                best_match = Some((prefix, name));
+            if path.starts_with(prefix) {
+                let dominated = match &best_match {
+                    Some((best_prefix, _)) => prefix.len() > best_prefix.len(),
+                    None => true,
+                };
+                if dominated {
+                    best_match = Some((prefix, name));
+                }
             }
         }
         best_match.map(|(_, name)| name.as_str())

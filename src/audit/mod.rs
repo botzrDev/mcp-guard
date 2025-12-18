@@ -35,6 +35,10 @@ const AUDIT_HTTP_TIMEOUT_SECS: u64 = 30;
 /// without excessive delay or resource consumption.
 const AUDIT_MAX_RETRY_ATTEMPTS: usize = 3;
 
+/// Maximum length for error body content in error messages.
+/// SECURITY: Truncate response bodies to prevent sensitive data leakage in logs.
+const MAX_ERROR_BODY_LEN: usize = 200;
+
 /// Audit event types
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -575,7 +579,13 @@ impl AuditShipper {
         let status = response.status();
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
-            return Err(format!("HTTP {}: {}", status, body));
+            // SECURITY: Truncate response body to prevent sensitive data leakage
+            let truncated = if body.len() <= MAX_ERROR_BODY_LEN {
+                body
+            } else {
+                format!("{}... (truncated)", &body[..MAX_ERROR_BODY_LEN])
+            };
+            return Err(format!("HTTP {}: {}", status, truncated));
         }
 
         Ok(())

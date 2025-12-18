@@ -259,6 +259,7 @@ async fn handle_routed_mcp_message(
 /// SECURITY: Uses OsRng (operating system's cryptographic RNG) instead of thread_rng
 /// for better entropy. Base64url encoding provides ~6 bits per character (vs ~5.95
 /// for charset-based approach), resulting in higher entropy per character.
+#[allow(clippy::manual_div_ceil)] // Manual impl for MSRV 1.75 compatibility
 fn generate_random_string(len: usize) -> String {
     use base64::Engine;
     use rand::RngCore;
@@ -266,7 +267,8 @@ fn generate_random_string(len: usize) -> String {
 
     // Calculate bytes needed: base64 encodes 3 bytes to 4 chars
     // We need enough bytes to produce at least `len` characters
-    let bytes_needed = (len * 3 + 3) / 4;
+    // Manual div_ceil for MSRV 1.75 compatibility: (a + b - 1) / b
+    let bytes_needed = (len * 3 + 4 - 1) / 4;
     let mut bytes = vec![0u8; bytes_needed];
     OsRng.fill_bytes(&mut bytes);
 
@@ -491,8 +493,8 @@ async fn exchange_code_for_tokens(
 
     if !response.status().is_success() {
         let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        tracing::error!("Token exchange failed: {} - {}", status, body);
+        // SECURITY: Do not log response body - may contain sensitive OAuth provider details
+        tracing::error!("Token exchange failed with status: {}", status);
         return Err(AppError::unauthorized(format!(
             "Token exchange failed: {}",
             status

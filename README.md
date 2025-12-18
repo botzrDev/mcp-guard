@@ -329,8 +329,18 @@ mcp-guard check-upstream [--timeout N]              # Test upstream connectivity
 ### Network Security
 
 - **TLS**: Use a reverse proxy (nginx, Caddy) for TLS termination in production.
-- **mTLS**: For service-to-service auth, configure your reverse proxy to forward client cert headers.
+- **mTLS**: For service-to-service auth, configure your reverse proxy to forward client cert headers. You **must** configure `trusted_proxy_ips` when enabling mTLS to prevent header spoofing.
 - **JWKS URLs**: Must use HTTPS in production builds (enforced by config validation).
+- **OAuth Redirect URIs**: Use HTTPS in production. HTTP redirect URIs are allowed but generate security warnings.
+
+### SSRF Protection
+
+mcp-guard validates upstream URLs (HTTP/SSE transports) against SSRF attacks:
+- Blocks private IPv4 ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8)
+- Blocks private IPv6 ranges (fc00::/7, fe80::/10, ::1)
+- Blocks cloud metadata endpoints (169.254.169.254, metadata.google.internal, etc.)
+
+**DNS Rebinding Note**: URL validation occurs at config load time. If you use hostnames for upstream URLs (rather than IP addresses), ensure your DNS infrastructure is trusted or use IP addresses directly in production to prevent DNS rebinding attacks.
 
 ### Headers & Responses
 

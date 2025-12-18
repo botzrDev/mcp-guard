@@ -21,6 +21,11 @@ const TRANSPORT_CHANNEL_SIZE: usize = 32;
 /// while preventing indefinite hangs on unresponsive servers.
 const HTTP_REQUEST_TIMEOUT_SECS: u64 = 30;
 
+/// Maximum length for error body content in error messages.
+/// SECURITY: Truncate response bodies to prevent sensitive data leakage in logs
+/// while still providing useful debugging information.
+const MAX_ERROR_BODY_LEN: usize = 200;
+
 /// Transport error type
 #[derive(Debug, thiserror::Error)]
 pub enum TransportError {
@@ -59,6 +64,16 @@ pub enum TransportError {
 
     #[error("Command validation failed: {0}")]
     CommandValidation(String),
+}
+
+/// Truncate error body to prevent sensitive data leakage in logs
+/// SECURITY: Response bodies from external services may contain sensitive information
+fn truncate_error_body(body: &str) -> String {
+    if body.len() <= MAX_ERROR_BODY_LEN {
+        body.to_string()
+    } else {
+        format!("{}... (truncated)", &body[..MAX_ERROR_BODY_LEN])
+    }
 }
 
 // ============================================================================
@@ -673,7 +688,8 @@ impl HttpTransport {
             let body = response.text().await.unwrap_or_default();
             return Err(TransportError::Http(format!(
                 "HTTP {}: {}",
-                status, body
+                status,
+                truncate_error_body(&body)
             )));
         }
 
@@ -826,7 +842,8 @@ impl SseTransport {
             let body = response.text().await.unwrap_or_default();
             return Err(TransportError::Http(format!(
                 "HTTP {}: {}",
-                status, body
+                status,
+                truncate_error_body(&body)
             )));
         }
 
