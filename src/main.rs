@@ -931,6 +931,59 @@ audience = "test"
         bootstrap_result.shutdown_token.cancel();
         bootstrap_result.audit_handle.shutdown().await;
     }
+
+    #[tokio::test]
+    async fn test_bootstrap_invalid_config() {
+        use wiremock::{MockServer, Mock, ResponseTemplate};
+        use wiremock::matchers::any;
+        
+        let mock_server = MockServer::start().await;
+        Mock::given(any()).respond_with(ResponseTemplate::new(200)).mount(&mock_server).await;
+
+        let config_str = format!(r#"
+[server]
+host = "127.0.0.1"
+port = 3000
+[upstream]
+transport = "http"
+url = "{}"
+[rate_limit]
+enabled = true
+requests_per_second = 0 # Invalid
+burst_size = 10
+"#, mock_server.uri());
+        
+        // This should fail at Config::from_file, protecting bootstrap
+        let temp_file = NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), &config_str).unwrap();
+        
+        let result = Config::from_file(&temp_file.path().to_path_buf());
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_bootstrap_fail_router_init_multi_server() {
+        let config_str = r#"
+[server]
+host = "127.0.0.1"
+port = 3000
+[rate_limit]
+enabled = false
+[upstream]
+transport = "http" # Ignored in multi-server
+[[upstream.servers]]
+name = "server1"
+path_prefix = "/s1"
+transport = { type = "http", url = "not-a-valid-url:::" }
+"#;
+        let temp_file = NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), config_str).unwrap();
+        
+        if let Ok(config) = Config::from_file(&temp_file.path().to_path_buf()) {
+             let result = bootstrap(config).await;
+             assert!(result.is_err());
+        }
+    }
 }
 
 

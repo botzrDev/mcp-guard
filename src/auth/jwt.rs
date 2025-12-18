@@ -998,4 +998,78 @@ mod tests {
         let scopes = provider.extract_scopes(&claims);
         assert_eq!(scopes, vec!["valid", "also_valid"]);
     }
+
+    // -------------------------------------------------------------------------
+    // JWKS Integration Tests (requires wiremock)
+    // -------------------------------------------------------------------------
+    
+    #[tokio::test]
+    async fn test_jwks_refresh_success() {
+        use wiremock::{MockServer, Mock, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+        use jsonwebtoken::{encode, Header, EncodingKey};
+        
+        let mock_server = MockServer::start().await;
+        
+        Mock::given(method("GET"))
+            .and(path("/.well-known/jwks.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "keys": []
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let config = JwtConfig {
+            mode: JwtMode::Jwks {
+                jwks_url: format!("{}/.well-known/jwks.json", mock_server.uri()),
+                algorithms: vec!["RS256".to_string()],
+                cache_duration_secs: 0, // Force refresh
+            },
+            issuer: "test-issuer".to_string(),
+            audience: "test-audience".to_string(),
+            user_id_claim: "sub".to_string(),
+            scopes_claim: "scope".to_string(),
+            scope_tool_mapping: HashMap::new(),
+            leeway_secs: 0,
+        };
+        
+        let provider = JwtProvider::new(config).unwrap();
+        
+        let token = "eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMyIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIn0.signature";
+        let result = provider.authenticate(token).await;
+        
+        assert!(result.is_err());
+    }
+    
+    #[tokio::test]
+    async fn test_jwks_fetch_failure_handling() {
+        use wiremock::{MockServer, Mock, ResponseTemplate};
+        use wiremock::matchers::any;
+        
+        let mock_server = MockServer::start().await;
+        
+        // Return 500
+        Mock::given(any()).respond_with(ResponseTemplate::new(500)).mount(&mock_server).await;
+        
+        let config = JwtConfig {
+            mode: JwtMode::Jwks {
+                jwks_url: mock_server.uri(),
+                algorithms: vec!["RS256".to_string()],
+                cache_duration_secs: 0,
+            },
+            issuer: "test".to_string(),
+            audience: "test".to_string(),
+            user_id_claim: "sub".into(),
+            scopes_claim: "scope".into(),
+            scope_tool_mapping: HashMap::new(),
+            leeway_secs: 0,
+        };
+        
+        let provider = JwtProvider::new(config).unwrap();
+        
+        let token = "eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMyIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIn0.signature";
+        
+        let result = provider.authenticate(token).await;
+        assert!(result.is_err());
+    }
 }

@@ -441,5 +441,28 @@ mod tests {
         };
         assert!(config.propagate_context);
     }
+
+    #[test]
+    fn test_init_tracing_enabled_no_otlp() {
+        let config = TracingConfig {
+            enabled: true,
+            otlp_endpoint: None,
+            service_name: "test".into(),
+            sample_rate: 1.0,
+            propagate_context: true,
+        };
+        // Should initialize partial tracing pipeline without OTLP
+        let guard = init_tracing(false, Some(&config));
+        drop(guard);
+    }
+
+    #[test]
+    fn test_init_tracing_verbose_variations() {
+        let guard_false = init_tracing(false, None);
+        drop(guard_false);
+        
+        let guard_true = init_tracing(true, None);
+        drop(guard_true);
+    }
 }
 
