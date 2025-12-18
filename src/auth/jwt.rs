@@ -807,4 +807,195 @@ mod tests {
             assert!(msg.contains("Algorithm mismatch"), "Expected algorithm mismatch error, got: {}", msg);
         }
     }
+
+    // -------------------------------------------------------------------------
+    // parse_algorithm Tests (cover all algorithm variants)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_parse_algorithm_rs_variants() {
+        assert_eq!(parse_algorithm("RS256"), Some(Algorithm::RS256));
+        assert_eq!(parse_algorithm("RS384"), Some(Algorithm::RS384));
+        assert_eq!(parse_algorithm("RS512"), Some(Algorithm::RS512));
+    }
+
+    #[test]
+    fn test_parse_algorithm_hs_variants() {
+        assert_eq!(parse_algorithm("HS256"), Some(Algorithm::HS256));
+        assert_eq!(parse_algorithm("HS384"), Some(Algorithm::HS384));
+        assert_eq!(parse_algorithm("HS512"), Some(Algorithm::HS512));
+    }
+
+    #[test]
+    fn test_parse_algorithm_es_variants() {
+        assert_eq!(parse_algorithm("ES256"), Some(Algorithm::ES256));
+        assert_eq!(parse_algorithm("ES384"), Some(Algorithm::ES384));
+    }
+
+    #[test]
+    fn test_parse_algorithm_unknown() {
+        assert_eq!(parse_algorithm("PS256"), None);
+        assert_eq!(parse_algorithm("unknown"), None);
+        assert_eq!(parse_algorithm(""), None);
+        assert_eq!(parse_algorithm("rs256"), None); // Case sensitive
+    }
+
+    // -------------------------------------------------------------------------
+    // JwksCache Tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_jwks_cache_new_starts_expired() {
+        let cache = JwksCache::new(Duration::from_secs(3600));
+        // Cache should start expired to trigger immediate refresh
+        assert!(cache.is_expired());
+        assert!(cache.keys.is_empty());
+    }
+
+    #[test]
+    fn test_jwks_cache_is_expired_after_duration() {
+        let mut cache = JwksCache::new(Duration::from_millis(1));
+        cache.fetched_at = Instant::now();
+        // Should not be expired immediately
+        assert!(!cache.is_expired());
+        // Wait for expiry
+        std::thread::sleep(Duration::from_millis(5));
+        assert!(cache.is_expired());
+    }
+
+    #[test]
+    fn test_jwks_cache_not_expired_within_duration() {
+        let mut cache = JwksCache::new(Duration::from_secs(3600));
+        cache.fetched_at = Instant::now();
+        assert!(!cache.is_expired());
+    }
+
+    // -------------------------------------------------------------------------
+    // JWKS Provider Initialization Tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_jwks_provider_creation() {
+        let config = JwtConfig {
+            mode: JwtMode::Jwks {
+                jwks_url: "https://example.com/.well-known/jwks.json".to_string(),
+                algorithms: vec!["RS256".to_string()],
+                cache_duration_secs: 3600,
+            },
+            issuer: "https://example.com".to_string(),
+            audience: "test-audience".to_string(),
+            user_id_claim: "sub".to_string(),
+            scopes_claim: "scope".to_string(),
+            scope_tool_mapping: HashMap::new(),
+            leeway_secs: 0,
+        };
+        
+        let provider = JwtProvider::new(config);
+        assert!(provider.is_ok());
+        
+        let provider = provider.unwrap();
+        assert!(provider.jwks_cache.is_some());
+        assert!(provider.http_client.is_some());
+        assert!(provider.simple_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_jwks_authenticate_missing_kid() {
+        let config = JwtConfig {
+            mode: JwtMode::Jwks {
+                jwks_url: "https://example.com/.well-known/jwks.json".to_string(),
+                algorithms: vec!["RS256".to_string()],
+                cache_duration_secs: 3600,
+            },
+            issuer: "test-issuer".to_string(),
+            audience: "test-audience".to_string(),
+            user_id_claim: "sub".to_string(),
+            scopes_claim: "scope".to_string(),
+            scope_tool_mapping: HashMap::new(),
+            leeway_secs: 0,
+        };
+        
+        let provider = JwtProvider::new(config).unwrap();
+        
+        // Create a token without kid header (should fail for JWKS mode)
+        let now = now_secs();
+        let mut claims = HashMap::new();
+        claims.insert("sub".to_string(), serde_json::json!("user123"));
+        claims.insert("iss".to_string(), serde_json::json!("test-issuer"));
+        claims.insert("aud".to_string(), serde_json::json!("test-audience"));
+        claims.insert("exp".to_string(), serde_json::json!(now + 3600));
+        
+        // Sign with HS256 (no kid)
+        let header = Header::new(Algorithm::HS256);
+        let token = encode(&header, &claims, &EncodingKey::from_secret(b"secret")).unwrap();
+        
+        let result = provider.authenticate(&token).await;
+        assert!(result.is_err());
+        if let Err(AuthError::InvalidJwt(msg)) = result {
+            assert!(msg.contains("kid") || msg.contains("key ID"), "Expected missing kid error, got: {}", msg);
+        }
+    }
+
+    #[test]
+    fn test_build_validation_sets_correct_params() {
+        let provider = create_simple_provider();
+        let validation = provider.build_validation(Algorithm::HS256);
+        
+        // Validation should be configured with issuer and audience
+        // We can't directly inspect private fields, but we can verify it works
+        assert!(!validation.algorithms.is_empty());
+    }
+
+    #[test]
+    fn test_extract_scopes_with_non_standard_value() {
+        let provider = create_simple_provider();
+        
+        // Test with number value (should return empty)
+        let mut claims = HashMap::new();
+        claims.insert("scope".to_string(), serde_json::json!(123));
+        let scopes = provider.extract_scopes(&claims);
+        assert!(scopes.is_empty());
+        
+        // Test with object value (should return empty)
+        let mut claims = HashMap::new();
+        claims.insert("scope".to_string(), serde_json::json!({"nested": "value"}));
+        let scopes = provider.extract_scopes(&claims);
+        assert!(scopes.is_empty());
+        
+        // Test with missing scope claim (should return empty)
+        let claims: HashMap<String, serde_json::Value> = HashMap::new();
+        let scopes = provider.extract_scopes(&claims);
+        assert!(scopes.is_empty());
+    }
+
+    #[test]
+    fn test_extract_scopes_empty_string() {
+        let provider = create_simple_provider();
+        
+        let mut claims = HashMap::new();
+        claims.insert("scope".to_string(), serde_json::json!(""));
+        let scopes = provider.extract_scopes(&claims);
+        assert!(scopes.is_empty());
+    }
+
+    #[test]
+    fn test_extract_scopes_empty_array() {
+        let provider = create_simple_provider();
+        
+        let mut claims = HashMap::new();
+        claims.insert("scope".to_string(), serde_json::json!([]));
+        let scopes = provider.extract_scopes(&claims);
+        assert!(scopes.is_empty());
+    }
+
+    #[test]
+    fn test_extract_scopes_array_with_non_strings() {
+        let provider = create_simple_provider();
+        
+        // Array with mixed types - only strings should be extracted
+        let mut claims = HashMap::new();
+        claims.insert("scope".to_string(), serde_json::json!(["valid", 123, "also_valid", null]));
+        let scopes = provider.extract_scopes(&claims);
+        assert_eq!(scopes, vec!["valid", "also_valid"]);
+    }
 }

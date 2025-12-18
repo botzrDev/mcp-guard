@@ -517,4 +517,133 @@ mod tests {
         assert!(router.has_routes());
         assert_eq!(router.route_names(), vec!["s1", "s2"]);
     }
+
+    // -------------------------------------------------------------------------
+    // Additional Router Tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_router_with_default_route() {
+        use crate::mocks::MockTransport;
+        
+        let default_config = create_test_route("default", "/", false);
+        let default_route = ServerRoute {
+            config: default_config,
+            transport: Arc::new(MockTransport::new()),
+        };
+        
+        let router = ServerRouter {
+            routes: vec![
+                ServerRoute {
+                    config: create_test_route("api", "/api", false),
+                    transport: Arc::new(MockTransport::new()),
+                }
+            ],
+            default_route: None,
+        }.with_default(default_route);
+        
+        // Verify default is set
+        assert!(router.has_routes());
+        
+        // Should find /api route
+        let route = router.find_route("/api/users");
+        assert!(route.is_some());
+        assert_eq!(route.unwrap().config.name, "api");
+        
+        // Unknown path should find default
+        let route = router.find_route("/unknown");
+        assert!(route.is_some());
+        assert_eq!(route.unwrap().config.name, "default");
+    }
+
+    #[test]
+    fn test_router_get_route_name() {
+        use crate::mocks::MockTransport;
+        
+        let router = ServerRouter {
+            routes: vec![
+                ServerRoute {
+                    config: create_test_route("github", "/github", false),
+                    transport: Arc::new(MockTransport::new()),
+                }
+            ],
+            default_route: None,
+        };
+        
+        assert_eq!(router.get_route_name("/github/repos"), Some("github"));
+        assert_eq!(router.get_route_name("/unknown"), None);
+    }
+
+    #[test]
+    fn test_router_get_transport() {
+        use crate::mocks::MockTransport;
+        
+        let router = ServerRouter {
+            routes: vec![
+                ServerRoute {
+                    config: create_test_route("test", "/test", false),
+                    transport: Arc::new(MockTransport::new()),
+                }
+            ],
+            default_route: None,
+        };
+        
+        // Should return transport for matching route
+        assert!(router.get_transport("/test/path").is_some());
+        // Should return None for non-matching route
+        assert!(router.get_transport("/other/path").is_none());
+    }
+
+    #[test]
+    fn test_router_debug_formatting() {
+        use crate::mocks::MockTransport;
+        
+        let router = ServerRouter {
+            routes: vec![
+                ServerRoute {
+                    config: create_test_route("s1", "/s1", false),
+                    transport: Arc::new(MockTransport::new()),
+                }
+            ],
+            default_route: None,
+        };
+        
+        // Format should include route count and has_default
+        let debug_str = format!("{:?}", router);
+        assert!(debug_str.contains("route_count: 1"));
+        assert!(debug_str.contains("has_default: false"));
+    }
+
+    #[test]
+    fn test_router_empty_has_no_routes() {
+        let router = ServerRouter {
+            routes: vec![],
+            default_route: None,
+        };
+        
+        assert!(!router.has_routes());
+        assert_eq!(router.route_count(), 0);
+        assert!(router.route_names().is_empty());
+    }
+
+    #[test]
+    fn test_router_empty_with_default_has_routes() {
+        use crate::mocks::MockTransport;
+        
+        let default_config = create_test_route("default", "/", false);
+        let default_route = ServerRoute {
+            config: default_config,
+            transport: Arc::new(MockTransport::new()),
+        };
+        
+        let router = ServerRouter {
+            routes: vec![],
+            default_route: Some(default_route),
+        };
+        
+        // Empty routes but has default means has_routes is true
+        assert!(router.has_routes());
+        assert_eq!(router.route_count(), 0); // route_count only counts routes, not default
+    }
 }
+

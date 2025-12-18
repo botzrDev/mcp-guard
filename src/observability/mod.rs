@@ -367,4 +367,78 @@ mod tests {
         let guard = init_tracing(true, Some(&config));
         drop(guard);
     }
+
+    // -------------------------------------------------------------------------
+    // Additional TracingConfig Tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_tracing_config_sample_rate_boundaries() {
+        // Test sample rate 0.0 (always off)
+        let config = TracingConfig {
+            enabled: true,
+            sample_rate: 0.0,
+            ..Default::default()
+        };
+        assert_eq!(config.sample_rate, 0.0);
+        
+        // Test sample rate 1.0 (always on)
+        let config = TracingConfig {
+            enabled: true,
+            sample_rate: 1.0,
+            ..Default::default()
+        };
+        assert_eq!(config.sample_rate, 1.0);
+        
+        // Test middle value
+        let config = TracingConfig {
+            enabled: true,
+            sample_rate: 0.5,
+            ..Default::default()
+        };
+        assert_eq!(config.sample_rate, 0.5);
+    }
+
+    #[test]
+    fn test_tracing_config_with_otlp_endpoint() {
+        let config = TracingConfig {
+            enabled: true,
+            otlp_endpoint: Some("http://localhost:4317".to_string()),
+            service_name: "test-service".to_string(),
+            sample_rate: 0.1,
+            propagate_context: true,
+        };
+        
+        assert!(config.enabled);
+        assert_eq!(config.otlp_endpoint, Some("http://localhost:4317".to_string()));
+        assert_eq!(config.service_name, "test-service");
+    }
+
+    #[test]
+    fn test_init_metrics_multiple_calls() {
+        // Init metrics multiple times should not panic
+        // (subsequent calls return local recorder handles)
+        let handle1 = create_metrics_handle();
+        let handle2 = create_metrics_handle();
+        
+        // Both should render valid output
+        let _ = handle1.render();
+        let _ = handle2.render();
+    }
+
+    #[test]
+    fn test_tracing_config_propagate_context() {
+        let config = TracingConfig {
+            propagate_context: false,
+            ..Default::default()
+        };
+        assert!(!config.propagate_context);
+        
+        let config = TracingConfig {
+            propagate_context: true,
+            ..Default::default()
+        };
+        assert!(config.propagate_context);
+    }
 }
+

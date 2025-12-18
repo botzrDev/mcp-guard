@@ -1429,4 +1429,198 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
+
+    // ------------------------------------------------------------------------
+    // Rate Limit Headers Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_add_rate_limit_headers() {
+        use axum::body::Body;
+        use crate::rate_limit::RateLimitResult;
+        
+        let mut response = Response::new(Body::empty());
+        let rate_limit = RateLimitResult {
+            allowed: true,
+            limit: 100,
+            remaining: 95,
+            reset_at: 1700000000,
+            retry_after_secs: None,
+        };
+        
+        add_rate_limit_headers_from_result(&mut response, &rate_limit);
+        
+        assert_eq!(
+            response.headers().get("x-ratelimit-limit").unwrap(),
+            "100"
+        );
+        assert_eq!(
+            response.headers().get("x-ratelimit-remaining").unwrap(),
+            "95"
+        );
+        assert_eq!(
+            response.headers().get("x-ratelimit-reset").unwrap(),
+            "1700000000"
+        );
+    }
+
+    #[test]
+    fn test_add_rate_limit_headers_zero_remaining() {
+        use axum::body::Body;
+        use crate::rate_limit::RateLimitResult;
+        
+        let mut response = Response::new(Body::empty());
+        let rate_limit = RateLimitResult {
+            allowed: false,
+            limit: 100,
+            remaining: 0,
+            reset_at: 1700000060,
+            retry_after_secs: Some(60),
+        };
+        
+        add_rate_limit_headers_from_result(&mut response, &rate_limit);
+        
+        assert_eq!(
+            response.headers().get("x-ratelimit-remaining").unwrap(),
+            "0"
+        );
+    }
+
+    // ------------------------------------------------------------------------
+    // OAuth State Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_pkce_state_ip_binding() {
+        let store = new_oauth_state_store();
+        
+        let client_ip: IpAddr = "192.168.1.100".parse().unwrap();
+        store.insert("test-state".to_string(), PkceState {
+            code_verifier: "verifier123".to_string(),
+            created_at: Instant::now(),
+            client_ip,
+        });
+        
+        // Verify the stored state has the correct IP
+        let state = store.get("test-state").unwrap();
+        assert_eq!(state.client_ip, client_ip);
+        assert_eq!(state.code_verifier, "verifier123");
+    }
+
+    #[test]
+    fn test_oauth_callback_params_deserialization() {
+        // Test with all params
+        let json = r#"{"code":"abc123","state":"xyz789","error":null,"error_description":null}"#;
+        let params: OAuthCallbackParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.code, Some("abc123".to_string()));
+        assert_eq!(params.state, Some("xyz789".to_string()));
+        assert!(params.error.is_none());
+        
+        // Test with error
+        let json = r#"{"error":"access_denied","error_description":"User denied access"}"#;
+        let params: OAuthCallbackParams = serde_json::from_str(json).unwrap();
+        assert_eq!(params.error, Some("access_denied".to_string()));
+        assert_eq!(params.error_description, Some("User denied access".to_string()));
+    }
+
+    #[test]
+    fn test_rate_limited_with_info() {
+        use crate::rate_limit::RateLimitResult;
+        
+        let rate_limit = RateLimitResult {
+            allowed: false,
+            limit: 10,
+            remaining: 0,
+            reset_at: 1700000100,
+            retry_after_secs: Some(30),
+        };
+        
+        let err = AppError::rate_limited_with_info(rate_limit);
+        
+        match err.kind {
+            AppErrorKind::RateLimited { retry_after_secs, limit, remaining, reset_at } => {
+                assert_eq!(retry_after_secs, Some(30));
+                assert_eq!(limit, Some(10));
+                assert_eq!(remaining, Some(0));
+                assert_eq!(reset_at, Some(1700000100));
+            }
+            _ => panic!("Expected RateLimited"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_rate_limited_with_info_response() {
+        use crate::rate_limit::RateLimitResult;
+        
+        let rate_limit = RateLimitResult {
+            allowed: false,
+            limit: 50,
+            remaining: 0,
+            reset_at: 1700000200,
+            retry_after_secs: Some(45),
+        };
+        
+        let err = AppError::rate_limited_with_info(rate_limit);
+        let response = err.into_response();
+        
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(response.headers().get(header::RETRY_AFTER).is_some());
+        assert_eq!(response.headers().get("x-ratelimit-limit").unwrap(), "50");
+        assert_eq!(response.headers().get("x-ratelimit-remaining").unwrap(), "0");
+        assert_eq!(response.headers().get("x-ratelimit-reset").unwrap(), "1700000200");
+    }
+
+    // ------------------------------------------------------------------------
+    // Metrics Middleware Test
+    // ------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_metrics_middleware() {
+        use tower::ServiceExt;
+        
+        async fn handler() -> &'static str { "metrics test" }
+        
+        let app = Router::new()
+            .route("/test", get(handler))
+            .layer(middleware::from_fn(metrics_middleware));
+        
+        let response = app
+            .oneshot(Request::builder().uri("/test").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    // ------------------------------------------------------------------------
+    // AppError From Transport Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn test_app_error_from_transport_variants() {
+        use crate::transport::TransportError;
+        
+        // Test ProcessExited variant
+        let err: AppError = TransportError::ProcessExited.into();
+        assert!(matches!(err.kind, AppErrorKind::Transport(_)));
+        
+        // Test ConnectionClosed variant
+        let err: AppError = TransportError::ConnectionClosed.into();
+        assert!(matches!(err.kind, AppErrorKind::Transport(_)));
+    }
+
+    #[tokio::test]
+    async fn test_transport_error_response_sanitization() {
+        use crate::transport::TransportError;
+        
+        // ProcessExited should be sanitized
+        let err = AppError::transport(TransportError::ProcessExited);
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+        
+        // Timeout should be sanitized
+        let err = AppError::transport(TransportError::Timeout);
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    }
 }

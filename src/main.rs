@@ -868,4 +868,69 @@ key_hash = "abc123"
         let result = run_cli(cli).await;
         assert!(result.is_err());
     }
+
+    // -------------------------------------------------------------------------
+    // Additional Main.rs Tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_generate_config_yaml() {
+        let config = generate_config("yaml");
+        assert!(config.contains("server:"));
+        assert!(config.contains("transport:"));
+    }
+
+    #[test]
+    fn test_generate_config_toml() {
+        let config = generate_config("toml");
+        assert!(config.contains("[server]"));
+        assert!(config.contains("[upstream]"));
+    }
+
+    #[tokio::test]
+    async fn test_bootstrap_with_multiple_auth_providers() {
+        use wiremock::{MockServer, Mock, ResponseTemplate};
+        use wiremock::matchers::any;
+        
+        let mock_server = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let config_str = format!(r#"
+[server]
+host = "127.0.0.1"
+port = 3000
+
+[upstream]
+transport = "http"
+url = "{}"
+
+[rate_limit]
+enabled = false
+
+[[auth.api_keys]]
+id = "user1"
+key_hash = "hash1"
+
+[auth.jwt]
+mode = "simple"
+secret = "very-long-secret-at-least-32-characters"
+issuer = "test"
+audience = "test"
+"#, mock_server.uri());
+        let temp_file = NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), &config_str).unwrap();
+        let config = Config::from_file(&temp_file.path().to_path_buf()).unwrap();
+        
+        let result = bootstrap(config).await;
+        assert!(result.is_ok(), "bootstrap failed: {:?}", result.err());
+        
+        let bootstrap_result = result.unwrap();
+        bootstrap_result.shutdown_token.cancel();
+        bootstrap_result.audit_handle.shutdown().await;
+    }
 }
+
+
