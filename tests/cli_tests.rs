@@ -128,3 +128,74 @@ fn test_hash_key() {
         .success()
         .stdout(predicate::str::contains(original_hash));
 }
+
+#[tokio::test]
+async fn test_check_upstream_http_success() {
+    use wiremock::{MockServer, Mock, ResponseTemplate};
+    use wiremock::matchers::method;
+
+    let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&mock_server)
+        .await;
+
+    let config_content = format!(
+        r#"
+[server]
+host = "127.0.0.1"
+port = 3000
+
+[upstream]
+transport = "http"
+url = "{}"
+
+[rate_limit]
+enabled = false
+"#,
+        mock_server.uri()
+    );
+
+    let temp = tempfile::tempdir().unwrap();
+    let config_path = temp.path().join("mcp-guard.toml");
+    fs::write(&config_path, config_content).unwrap();
+
+    let mut cmd = common::cargo_bin("mcp-guard");
+    cmd.arg("check-upstream")
+        .arg("--config")
+        .arg(config_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Upstream is reachable"));
+}
+
+#[tokio::test]
+async fn test_check_upstream_http_failure() {
+    // Config pointing to a dead port (hopefully)
+    let config_content = r#"
+[server]
+host = "127.0.0.1"
+port = 3000
+
+[upstream]
+transport = "http"
+url = "http://127.0.0.1:1"
+
+[rate_limit]
+enabled = false
+"#;
+
+    let temp = tempfile::tempdir().unwrap();
+    let config_path = temp.path().join("mcp-guard.toml");
+    fs::write(&config_path, config_content).unwrap();
+
+    let mut cmd = common::cargo_bin("mcp-guard");
+    cmd.arg("check-upstream")
+        .arg("--config")
+        .arg(config_path)
+        .arg("--timeout")
+        .arg("1") // Fast fail
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Upstream check failed"));
+}

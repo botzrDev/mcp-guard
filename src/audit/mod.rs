@@ -899,13 +899,25 @@ mod tests {
         let (logger, handle) = AuditLogger::with_tasks(&config).expect("Should create logger");
 
         // Flood the channel with many messages (channel size is 1000)
-        // This tests the try_send behavior
-        for i in 0..100 {
+        // Send 5000 messages which forces buffer overflow logic (try_send)
+        let start = std::time::Instant::now();
+        for i in 0..5000 {
             logger.log_auth_success(&format!("user{}", i));
         }
+        let duration = start.elapsed();
 
-        // Give time to process
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        // It should be extremely fast (<< 100ms) because it's non-blocking logging
+        // If it was blocking, writing 5000 lines to disk would take significantly longer
+        assert!(duration.as_millis() < 500, "Logging 5000 items took too long: {}ms (blocking?)", duration.as_millis());
+
+        // Give time to process whatever got into the channel
+        tokio::time::sleep(Duration::from_millis(500)).await;
         handle.shutdown().await;
+        
+        // Verify we captured at least some logs
+        let contents = std::fs::read_to_string(temp_file.path()).expect("Should read file");
+        let line_count = contents.lines().count();
+        // We expect at least the channel size (1000) + some that were consumed while we were sending
+        assert!(line_count >= 1000, "Should have logged at least channel capacity, got {}", line_count);
     }
 }
