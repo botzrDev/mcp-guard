@@ -83,6 +83,10 @@ impl Transport for MockTransport {
     async fn close(&self) -> Result<(), TransportError> {
         Ok(())
     }
+
+    fn transport_type(&self) -> &'static str {
+        "mock"
+    }
 }
 
 // ============================================================================

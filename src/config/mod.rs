@@ -73,6 +73,15 @@ pub struct ServerConfig {
     #[serde(default = "default_port")]
     pub port: u16,
 
+    /// Maximum request body size in bytes (default: 1MB)
+    /// Requests exceeding this size will receive 413 Payload Too Large
+    #[serde(default = "default_max_request_size")]
+    pub max_request_size: usize,
+
+    /// CORS configuration
+    #[serde(default)]
+    pub cors: CorsConfig,
+
     /// Enable TLS
     #[serde(default)]
     pub tls: Option<TlsConfig>,
@@ -83,6 +92,8 @@ impl Default for ServerConfig {
         Self {
             host: default_host(),
             port: default_port(),
+            max_request_size: default_max_request_size(),
+            cors: CorsConfig::default(),
             tls: None,
         }
     }
@@ -94,6 +105,59 @@ fn default_host() -> String {
 
 fn default_port() -> u16 {
     3000
+}
+
+fn default_max_request_size() -> usize {
+    1024 * 1024 // 1MB default
+}
+
+/// CORS configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CorsConfig {
+    /// Enable CORS (default: false for API-only use)
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Allowed origins (default: none - same-origin only when enabled)
+    /// Use ["*"] for permissive mode (not recommended for production)
+    #[serde(default)]
+    pub allowed_origins: Vec<String>,
+
+    /// Allowed methods (default: GET, POST, OPTIONS)
+    #[serde(default = "default_cors_methods")]
+    pub allowed_methods: Vec<String>,
+
+    /// Allowed headers (default: Authorization, Content-Type)
+    #[serde(default = "default_cors_headers")]
+    pub allowed_headers: Vec<String>,
+
+    /// Max age for preflight cache in seconds (default: 3600)
+    #[serde(default = "default_cors_max_age")]
+    pub max_age: u64,
+}
+
+impl Default for CorsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            allowed_origins: vec![],
+            allowed_methods: default_cors_methods(),
+            allowed_headers: default_cors_headers(),
+            max_age: default_cors_max_age(),
+        }
+    }
+}
+
+fn default_cors_methods() -> Vec<String> {
+    vec!["GET".into(), "POST".into(), "OPTIONS".into()]
+}
+
+fn default_cors_headers() -> Vec<String> {
+    vec!["Authorization".into(), "Content-Type".into()]
+}
+
+fn default_cors_max_age() -> u64 {
+    3600 // 1 hour
 }
 
 /// TLS configuration
@@ -369,11 +433,11 @@ fn default_true() -> bool {
 }
 
 fn default_rps() -> u32 {
-    100
+    25 // Conservative default - 25 RPS per identity
 }
 
 fn default_burst() -> u32 {
-    50
+    10 // Conservative default burst size
 }
 
 // ============================================================================
@@ -802,8 +866,9 @@ mod tests {
     fn test_rate_limit_config_defaults() {
         let config = RateLimitConfig::default();
         assert!(config.enabled);
-        assert_eq!(config.requests_per_second, 100);
-        assert_eq!(config.burst_size, 50);
+        // SECURITY: Conservative defaults (25 RPS, burst 10) to limit abuse
+        assert_eq!(config.requests_per_second, 25);
+        assert_eq!(config.burst_size, 10);
     }
 
     #[test]

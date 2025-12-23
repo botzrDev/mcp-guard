@@ -66,6 +66,39 @@ pub struct AuditEntry {
     pub request_id: Option<String>,
 }
 
+/// Maximum length for string fields in audit entries
+/// SECURITY: Prevents memory exhaustion and log bloat from malicious input
+const MAX_AUDIT_FIELD_LEN: usize = 1024;
+
+/// Sanitize a string for audit logging
+///
+/// SECURITY: Prevents log injection attacks by:
+/// 1. Escaping newlines and control characters
+/// 2. Truncating overly long strings
+/// 3. Removing null bytes
+fn sanitize_audit_string(s: impl Into<String>) -> String {
+    let s: String = s.into();
+
+    // Truncate if too long
+    let s = if s.len() > MAX_AUDIT_FIELD_LEN {
+        format!("{}...[truncated]", &s[..MAX_AUDIT_FIELD_LEN])
+    } else {
+        s
+    };
+
+    // Escape control characters that could be used for log injection
+    s.chars()
+        .map(|c| match c {
+            '\n' => '↵',  // Visible newline replacement
+            '\r' => ' ',  // Remove carriage returns
+            '\t' => ' ',  // Replace tabs with spaces
+            '\0' => ' ',  // Remove null bytes
+            c if c.is_control() => ' ',  // Remove other control chars
+            c => c,
+        })
+        .collect()
+}
+
 impl AuditEntry {
     pub fn new(event_type: EventType) -> Self {
         Self {
@@ -82,17 +115,17 @@ impl AuditEntry {
     }
 
     pub fn with_identity(mut self, id: impl Into<String>) -> Self {
-        self.identity_id = Some(id.into());
+        self.identity_id = Some(sanitize_audit_string(id));
         self
     }
 
     pub fn with_method(mut self, method: impl Into<String>) -> Self {
-        self.method = Some(method.into());
+        self.method = Some(sanitize_audit_string(method));
         self
     }
 
     pub fn with_tool(mut self, tool: impl Into<String>) -> Self {
-        self.tool = Some(tool.into());
+        self.tool = Some(sanitize_audit_string(tool));
         self
     }
 
@@ -102,7 +135,7 @@ impl AuditEntry {
     }
 
     pub fn with_message(mut self, message: impl Into<String>) -> Self {
-        self.message = Some(message.into());
+        self.message = Some(sanitize_audit_string(message));
         self
     }
 
@@ -112,7 +145,7 @@ impl AuditEntry {
     }
 
     pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
-        self.request_id = Some(request_id.into());
+        self.request_id = Some(sanitize_audit_string(request_id));
         self
     }
 }

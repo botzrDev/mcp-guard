@@ -117,8 +117,9 @@ fn test_rate_limit_config_defaults() {
     let config = RateLimitConfig::default();
 
     assert!(config.enabled);
-    assert_eq!(config.requests_per_second, 100);
-    assert_eq!(config.burst_size, 50);
+    // SECURITY: Conservative defaults (25 RPS, burst 10) to limit abuse
+    assert_eq!(config.requests_per_second, 25);
+    assert_eq!(config.burst_size, 10);
 }
 
 #[tokio::test]
@@ -371,7 +372,7 @@ fn test_config_validation_port_zero() {
         server: ServerConfig {
             host: "127.0.0.1".to_string(),
             port: 0, // Invalid: port 0
-            tls: None,
+            ..Default::default()
         },
         auth: Default::default(),
         rate_limit: Default::default(),

@@ -9,6 +9,8 @@
 //! - `mcp_guard_auth_total` (counter) - labels: provider, result
 //! - `mcp_guard_rate_limit_total` (counter) - labels: allowed
 //! - `mcp_guard_active_identities` (gauge)
+//! - `mcp_guard_upstream_latency_seconds` (histogram) - labels: transport, result
+//! - `mcp_guard_upstream_requests_total` (counter) - labels: transport, result
 //!
 //! ## OpenTelemetry Tracing (FR-OBS-03)
 //!
@@ -249,6 +251,29 @@ pub fn record_rate_limit(allowed: bool) {
 /// * `count` - Current number of tracked identities
 pub fn set_active_identities(count: usize) {
     gauge!("mcp_guard_active_identities").set(count as f64);
+}
+
+/// Record upstream request latency
+///
+/// # Arguments
+/// * `transport` - Transport type (stdio, http, sse)
+/// * `duration` - Time taken for the upstream request
+/// * `success` - Whether the upstream request succeeded
+pub fn record_upstream_latency(transport: &str, duration: std::time::Duration, success: bool) {
+    let result = if success { "success" } else { "error" };
+    histogram!(
+        "mcp_guard_upstream_latency_seconds",
+        "transport" => transport.to_string(),
+        "result" => result.to_string(),
+    )
+    .record(duration.as_secs_f64());
+
+    counter!(
+        "mcp_guard_upstream_requests_total",
+        "transport" => transport.to_string(),
+        "result" => result.to_string(),
+    )
+    .increment(1);
 }
 
 /// Get the current trace ID from the active span (if any)
