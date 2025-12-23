@@ -1,4 +1,91 @@
+# Build artifacts
 /target
+debug/
+release/
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# Secrets and keys - NEVER COMMIT
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+.env
+.env.*
+!.env.example
+secrets/
+credentials/
+
+# Coverage and test artifacts
+*.profraw
+*.profdata
+lcov.info
+coverage/
+tarpaulin-report.html
+cobertura.xml
+coverage*.txt
+test-results/
+*.snap
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Rust specific
+**/*.rs.bk
+Cargo.lock.bak
+
+# Build outputs
+*.deb
+*.rpm
+*.tar.gz
+*.zip
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Claude Code / AI assistants
 /.claude
+
+# Project internal files
 /context
 /CLAUDE.md
+
+# Landing page (keep source, ignore build)
+/landing/node_modules/
+/landing/dist/
+/landing/.angular/
+/landing/coverage/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
