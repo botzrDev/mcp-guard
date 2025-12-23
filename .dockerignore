@@ -1,0 +1,39 @@
+# Build artifacts
+target/
+*.rs.bk
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Documentation (not needed in image)
+docs/
+*.md
+!README.md
+
+# Test files
+tests/
+benches/
+coverage*.txt
+cobertura.xml
+tarpaulin-report.html
+
+# CI/CD
+.github/
+
+# Frontend (separate build)
+landing/
+
+# Development files
+.env*
+*.log
+context/
+
+# Examples (documentation only)
+examples/

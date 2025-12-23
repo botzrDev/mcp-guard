@@ -16,6 +16,8 @@ use opentelemetry_sdk::propagation::TraceContextPropagator;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
+use tower_http::cors::{Any, CorsLayer};
+use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
@@ -35,7 +37,7 @@ const MAX_PENDING_OAUTH_STATES: usize = 10_000;
 
 use crate::audit::AuditLogger;
 use crate::auth::{AuthProvider, ClientCertInfo, Identity, MtlsAuthProvider, OAuthAuthProvider};
-use crate::authz::{filter_tools_list_response, is_tools_list_request};
+use crate::authz::{authorize_request, filter_tools_list_response, is_tools_list_request, AuthzDecision};
 use crate::config::Config;
 use crate::observability::{record_auth, record_rate_limit, record_request, set_active_identities};
 use crate::rate_limit::RateLimitService;
@@ -185,14 +187,56 @@ async fn handle_mcp_message(
         AppError::internal("No transport configured (use multi-server routing?)")
     })?;
 
+    // SECURITY: Check authorization for tools/call requests (FR-AUTHZ-02)
+    // This prevents unauthorized tool execution even if tools/list was filtered
+    if let AuthzDecision::Deny(reason) = authorize_request(&identity, &message) {
+        // Extract tool name for audit logging (may be None for malformed requests)
+        let tool_name = crate::authz::extract_tool_name(&message).unwrap_or("unknown");
+        state.audit_logger.log_authz_denied(&identity.id, tool_name, &reason);
+        tracing::warn!(
+            identity_id = %identity.id,
+            tool = %tool_name,
+            reason = %reason,
+            "Authorization denied for tool call"
+        );
+        return Err(AppError::forbidden(reason));
+    }
+
     // Check if this is a tools/list request (for later filtering)
     let is_tools_list = is_tools_list_request(&message);
 
+    // Record start time for upstream latency metric
+    let upstream_start = Instant::now();
+
     // Forward to upstream transport
-    transport.send(message).await?;
+    if let Err(e) = transport.send(message).await {
+        crate::observability::record_upstream_latency(
+            transport.transport_type(),
+            upstream_start.elapsed(),
+            false,
+        );
+        return Err(AppError::transport(e));
+    }
 
     // Wait for response
-    let response = transport.receive().await?;
+    let response = match transport.receive().await {
+        Ok(resp) => {
+            crate::observability::record_upstream_latency(
+                transport.transport_type(),
+                upstream_start.elapsed(),
+                true,
+            );
+            resp
+        }
+        Err(e) => {
+            crate::observability::record_upstream_latency(
+                transport.transport_type(),
+                upstream_start.elapsed(),
+                false,
+            );
+            return Err(AppError::transport(e));
+        }
+    };
 
     // Filter tools/list response to only show authorized tools
     let response = if is_tools_list {
@@ -231,14 +275,56 @@ async fn handle_routed_mcp_message(
         "Routing MCP message"
     );
 
+    // SECURITY: Check authorization for tools/call requests (FR-AUTHZ-02)
+    // This prevents unauthorized tool execution even if tools/list was filtered
+    if let AuthzDecision::Deny(reason) = authorize_request(&identity, &message) {
+        let tool_name = crate::authz::extract_tool_name(&message).unwrap_or("unknown");
+        state.audit_logger.log_authz_denied(&identity.id, tool_name, &reason);
+        tracing::warn!(
+            identity_id = %identity.id,
+            server = %server_name,
+            tool = %tool_name,
+            reason = %reason,
+            "Authorization denied for tool call"
+        );
+        return Err(AppError::forbidden(reason));
+    }
+
     // Check if this is a tools/list request (for later filtering)
     let is_tools_list = is_tools_list_request(&message);
 
+    // Record start time for upstream latency metric
+    let upstream_start = Instant::now();
+
     // Forward to upstream transport
-    transport.send(message).await?;
+    if let Err(e) = transport.send(message).await {
+        crate::observability::record_upstream_latency(
+            transport.transport_type(),
+            upstream_start.elapsed(),
+            false,
+        );
+        return Err(AppError::transport(e));
+    }
 
     // Wait for response
-    let response = transport.receive().await?;
+    let response = match transport.receive().await {
+        Ok(resp) => {
+            crate::observability::record_upstream_latency(
+                transport.transport_type(),
+                upstream_start.elapsed(),
+                true,
+            );
+            resp
+        }
+        Err(e) => {
+            crate::observability::record_upstream_latency(
+                transport.transport_type(),
+                upstream_start.elapsed(),
+                false,
+            );
+            return Err(AppError::transport(e));
+        }
+    };
 
     // Filter tools/list response to only show authorized tools
     let response = if is_tools_list {
@@ -450,7 +536,15 @@ async fn oauth_callback(
 
     tracing::info!("OAuth code exchange successful");
 
-    Ok(Json(tokens))
+    // SECURITY: Add Cache-Control headers to prevent token caching
+    // This prevents browsers and proxies from caching sensitive OAuth tokens
+    Ok((
+        [
+            (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate"),
+            (header::PRAGMA, "no-cache"),
+        ],
+        Json(tokens),
+    ))
 }
 
 /// Exchange authorization code for tokens
@@ -1000,10 +1094,51 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     }
 
     // Build the router with middleware layers
-    // Layer order (bottom to top): SecurityHeaders -> TraceContext -> Metrics -> TraceLayer
-    // Security headers are applied first (outermost) to ensure all responses get them
-    router
+    // Layer order (bottom to top): RequestBodyLimit -> CORS -> SecurityHeaders -> TraceContext -> Metrics -> TraceLayer
+    // - RequestBodyLimit is innermost to reject large payloads before processing
+    // - CORS must be before security headers to handle preflight requests
+    // - Security headers are applied to ensure all responses get them
+    let max_body_size = state.config.server.max_request_size;
+
+    let mut app = router
         .merge(protected_routes)
+        .layer(RequestBodyLimitLayer::new(max_body_size));
+
+    // Add CORS layer if enabled
+    if state.config.server.cors.enabled {
+        let cors_config = &state.config.server.cors;
+        let mut cors = CorsLayer::new();
+
+        // Configure allowed origins
+        if cors_config.allowed_origins.iter().any(|o| o == "*") {
+            cors = cors.allow_origin(Any);
+        } else if !cors_config.allowed_origins.is_empty() {
+            let origins: Vec<_> = cors_config.allowed_origins.iter()
+                .filter_map(|o| o.parse().ok())
+                .collect();
+            cors = cors.allow_origin(origins);
+        }
+
+        // Configure allowed methods
+        let methods: Vec<axum::http::Method> = cors_config.allowed_methods.iter()
+            .filter_map(|m| m.parse().ok())
+            .collect();
+        cors = cors.allow_methods(methods);
+
+        // Configure allowed headers
+        let headers: Vec<axum::http::HeaderName> = cors_config.allowed_headers.iter()
+            .filter_map(|h| h.parse().ok())
+            .collect();
+        cors = cors.allow_headers(headers);
+
+        // Configure max age
+        cors = cors.max_age(Duration::from_secs(cors_config.max_age));
+
+        app = app.layer(cors);
+        tracing::info!("CORS enabled with {} allowed origins", cors_config.allowed_origins.len());
+    }
+
+    app
         .layer(middleware::from_fn(metrics_middleware))
         .layer(middleware::from_fn(trace_context_middleware))
         .layer(middleware::from_fn(security_headers_middleware))

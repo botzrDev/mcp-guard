@@ -419,6 +419,9 @@ pub trait Transport: Send + Sync {
 
     /// Close the transport
     async fn close(&self) -> Result<(), TransportError>;
+
+    /// Get the transport type name for metrics
+    fn transport_type(&self) -> &'static str;
 }
 
 /// Stdio transport for communicating with a subprocess
@@ -582,6 +585,10 @@ impl Transport for StdioTransport {
         child.kill().await?;
         Ok(())
     }
+
+    fn transport_type(&self) -> &'static str {
+        "stdio"
+    }
 }
 
 // ============================================================================
@@ -723,6 +730,10 @@ impl Transport for HttpTransport {
     async fn close(&self) -> Result<(), TransportError> {
         // HTTP is stateless, nothing to close
         Ok(())
+    }
+
+    fn transport_type(&self) -> &'static str {
+        "http"
     }
 }
 
@@ -929,6 +940,10 @@ impl Transport for SseTransport {
     async fn close(&self) -> Result<(), TransportError> {
         // Drop the sender to signal completion
         Ok(())
+    }
+
+    fn transport_type(&self) -> &'static str {
+        "sse"
     }
 }
 
