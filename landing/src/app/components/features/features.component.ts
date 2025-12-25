@@ -25,7 +25,7 @@ interface Feature {
             <span class="tag-dot"></span>
             <span class="tag-text">Features</span>
           </div>
-          <h2 class="section-title">Built for security teams.</h2>
+          <h2 class="section-title">Everything you need. Nothing you don't.</h2>
         </div>
 
         <!-- Horizontal scroll track -->
@@ -390,46 +390,46 @@ export class FeaturesComponent implements OnInit, OnDestroy, AfterViewInit {
   features: Feature[] = [
     {
       id: 'auth',
-      title: 'Multi-Provider Auth',
-      description: 'API keys for simplicity. JWT for scale. OAuth 2.1 with PKCE for enterprise SSO.',
+      title: 'Authentication',
+      description: 'API keys, OAuth 2.1, JWT, or OIDC. Pick what fits. Switch without code changes.',
       icon: 'auth',
-      tag: 'OAuth 2.1 • JWT • API Keys',
+      tag: 'Multi-Provider',
       code: '[auth]\nproviders = ["api_key", "jwt", "oauth"]'
-    },
-    {
-      id: 'authz',
-      title: 'Tool Authorization',
-      description: 'Define exactly which users can access which MCP tools with fine-grained ACLs.',
-      icon: 'authz',
-      tag: 'Per-tool ACLs'
     },
     {
       id: 'rate',
       title: 'Rate Limiting',
-      description: 'Token bucket algorithm with configurable per-user limits and burst allowance.',
+      description: 'Per-client, per-tool, or global. Your rules. Protect your upstream.',
       icon: 'rate',
-      tag: 'Token Bucket'
+      tag: 'Configurable'
     },
     {
       id: 'audit',
       title: 'Audit Logging',
-      description: 'Every request logged with automatic secret redaction. SOC 2 ready.',
+      description: 'Every request. Every tool. JSON logs ready for your SIEM or compliance officer.',
       icon: 'audit',
-      tag: 'SOC 2 Ready'
+      tag: 'Compliance Ready'
+    },
+    {
+      id: 'authz',
+      title: 'Tool Permissions',
+      description: 'Control which clients access which tools. Principle of least privilege.',
+      icon: 'authz',
+      tag: 'Fine-Grained'
     },
     {
       id: 'metrics',
-      title: 'Prometheus Metrics',
-      description: 'Built-in /metrics endpoint for seamless observability integration.',
+      title: 'Metrics',
+      description: 'Prometheus-compatible. Grafana-ready dashboards. See what\'s happening.',
       icon: 'metrics',
-      tag: 'Grafana Ready'
+      tag: 'Observable'
     },
     {
       id: 'binary',
-      title: 'Zero Infrastructure',
-      description: 'Single static binary. No Docker, no databases, no external dependencies.',
+      title: 'Any Transport',
+      description: 'HTTP, SSE, stdio. Works with your existing MCP servers unchanged.',
       icon: 'binary',
-      tag: 'Pure Rust'
+      tag: 'Flexible'
     }
   ];
 

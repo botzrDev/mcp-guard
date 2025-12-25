@@ -29,9 +29,9 @@ interface ComparisonFeature {
       <div class="pricing-container">
         <div class="section-header">
           <span class="section-tag">// Pricing</span>
-          <h2 class="section-title">Simple, <span class="gradient-text">transparent</span> pricing</h2>
+          <h2 class="section-title">Pricing that <span class="gradient-text">respects</span> your budget</h2>
           <p class="section-subtitle">
-            Start free, upgrade when you need it. Lock in founder pricing — 40% off forever.
+            Free for side projects. $12/mo when you're serious. No "contact sales" games.
           </p>
 
           <!-- View toggle -->
@@ -867,54 +867,53 @@ export class PricingComponent {
 
   tiers: PricingTier[] = [
     {
-      name: 'Free',
-      description: 'Perfect for side projects',
+      name: 'Open Source',
+      description: 'Free forever',
       price: 0,
-      period: '/month',
+      period: '',
       features: [
         '1 MCP server',
-        'API key authentication',
-        '1,000 requests/day',
-        '7-day log retention',
+        'API key auth',
+        'Basic rate limiting',
         'Community support'
       ],
-      cta: 'Get Started Free',
+      cta: 'Get Started',
       ctaLink: '/docs/quickstart'
     },
     {
       name: 'Pro',
-      description: 'For production workloads',
+      description: 'Founder pricing (normally $20)',
       price: 12,
-      originalPrice: 19,
+      originalPrice: 20,
       period: '/month',
       features: [
+        'Everything in Free, plus:',
         'Unlimited MCP servers',
-        'OAuth 2.1 + JWT + API keys',
-        'Unlimited requests',
-        '90-day log retention',
-        'Email support (48h)'
+        'OAuth 2.1 + JWT + OIDC',
+        'Advanced rate limiting',
+        'Audit logging',
+        'Email support'
       ],
-      cta: 'Start Pro Trial',
+      cta: 'Start Free Trial',
       ctaLink: '/signup?plan=pro',
       featured: true,
       founderPricing: true
     },
     {
       name: 'Team',
-      description: 'For growing organizations',
+      description: 'For growing teams',
       price: 29,
-      originalPrice: 49,
-      period: '+ $8/user',
+      period: ' + $8/seat',
       features: [
-        'Everything in Pro',
-        'Team management dashboard',
-        'SSO (SAML/OIDC)',
-        '1-year log retention',
-        'Priority support (24h)'
+        'Everything in Pro, plus:',
+        'Team management',
+        'Role-based access',
+        'Priority support',
+        'Custom integrations'
       ],
-      cta: 'Contact Sales',
+      cta: 'Contact Us',
       ctaLink: '/contact?plan=team',
-      founderPricing: true
+      founderPricing: false
     }
   ];
 

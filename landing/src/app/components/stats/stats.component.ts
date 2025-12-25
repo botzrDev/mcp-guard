@@ -380,35 +380,38 @@ export class StatsComponent implements OnInit, OnDestroy, AfterViewInit {
 
   stats: Stat[] = [
     {
-      value: '<2ms',
-      numericValue: 2,
+      value: '<1ms',
+      numericValue: 1,
       prefix: '<',
       suffix: 'ms',
       metric: '--latency',
-      label: 'P99 latency overhead. Your users won\'t notice we\'re there.',
+      label: 'Overhead per request. Your agents stay fast.',
       color: '#FF7A30'
     },
     {
-      value: '5,000+',
-      numericValue: 5000,
-      suffix: '+',
-      metric: '--throughput',
-      label: 'Requests per second on commodity hardware.',
-      color: '#ff4d00'
-    },
-    {
-      value: '<15MB',
-      numericValue: 15,
+      value: '10MB',
+      numericValue: 10,
       prefix: '<',
       suffix: 'MB',
       metric: '--binary',
-      label: 'Total binary size. No bloat, no containers.',
+      label: 'Single binary. No containers. No dependencies.',
+      color: '#ff4d00'
+    },
+    {
+      value: '5min',
+      numericValue: 5,
+      suffix: 'min',
+      metric: '--setup',
+      label: 'From download to production-ready.',
       color: '#465C88'
     },
     {
-      value: 'Zero',
-      metric: '--services',
-      label: 'External services required. No databases, no Redis, no Docker.',
+      value: '$12',
+      numericValue: 12,
+      prefix: '$',
+      suffix: '/mo',
+      metric: '--pricing',
+      label: 'When you\'re serious. Free for side projects.',
       color: '#4ade80'
     },
   ];

@@ -1236,7 +1236,23 @@ async fn list_routes(State(state): State<Arc<AppState>>) -> impl IntoResponse {
 /// Run the server
 pub async fn run(state: Arc<AppState>) -> Result<(), crate::Error> {
     let addr = format!("{}:{}", state.config.server.host, state.config.server.port);
-    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    let port = state.config.server.port;
+    let listener = tokio::net::TcpListener::bind(&addr).await.map_err(|e| {
+        if e.kind() == std::io::ErrorKind::AddrInUse {
+            crate::Error::Server(format!(
+                "Port {} is already in use.\n\n\
+                 Solutions:\n\
+                 - Stop the process using this port: lsof -i :{}\n\
+                 - Use a different port: mcp-guard run --port {}\n\
+                 - Or update [server].port in your config file",
+                port,
+                port,
+                port + 1
+            ))
+        } else {
+            crate::Error::Server(format!("Failed to bind to {}: {}", addr, e))
+        }
+    })?;
 
     tracing::info!("MCP Guard listening on {}", addr);
 

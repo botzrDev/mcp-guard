@@ -8,7 +8,7 @@ use tokio_util::sync::CancellationToken;
 use mcp_guard::{
     audit::{AuditLoggerHandle, AuditLogger},
     auth::{ApiKeyProvider, AuthProvider, JwtProvider, MtlsAuthProvider, MultiProvider, OAuthAuthProvider},
-    cli::{generate_api_key, generate_config, hash_api_key, Cli, Commands},
+    cli::{generate_api_key, generate_config_with_demo_key, hash_api_key, Cli, Commands},
     config::Config,
     observability::{init_metrics, init_tracing},
     rate_limit::RateLimitService,
@@ -233,7 +233,7 @@ async fn run_cli(cli: Cli) -> anyhow::Result<()> {
 // CLI Command Handlers
 // ============================================================================
 
-/// Handle the `init` command: create a new configuration file.
+/// Handle the `init` command: create a new configuration file with a demo API key.
 fn handle_init(format: &str, force: bool, verbose: bool) -> anyhow::Result<()> {
     let _guard = init_tracing(verbose, None);
 
@@ -248,9 +248,21 @@ fn handle_init(format: &str, force: bool, verbose: bool) -> anyhow::Result<()> {
         anyhow::bail!("{} already exists. Use --force to overwrite.", filename);
     }
 
-    let config = generate_config(format);
-    std::fs::write(filename, config)?;
+    let (config, demo_key) = generate_config_with_demo_key(format);
+    std::fs::write(filename, &config)?;
+
     println!("Created configuration file: {}", filename);
+    println!();
+    println!("Demo API key (for testing only - replace in production):");
+    println!("  {}", demo_key);
+    println!();
+    println!("Test with:");
+    println!("  mcp-guard run");
+    println!("  curl -H \"Authorization: Bearer {}\" http://localhost:3000/health", demo_key);
+    println!();
+    println!("Generate production keys with:");
+    println!("  mcp-guard keygen --user-id <name>");
+
     Ok(())
 }
 
@@ -888,16 +900,18 @@ key_hash = "abc123"
 
     #[test]
     fn test_generate_config_yaml() {
-        let config = generate_config("yaml");
+        let (config, demo_key) = generate_config_with_demo_key("yaml");
         assert!(config.contains("server:"));
-        assert!(config.contains("transport:"));
+        assert!(config.contains("upstream:"));
+        assert!(!demo_key.is_empty());
     }
 
     #[test]
     fn test_generate_config_toml() {
-        let config = generate_config("toml");
+        let (config, demo_key) = generate_config_with_demo_key("toml");
         assert!(config.contains("[server]"));
         assert!(config.contains("[upstream]"));
+        assert!(!demo_key.is_empty());
     }
 
     #[tokio::test]

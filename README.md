@@ -3,12 +3,50 @@
   <h3>Secure your MCP servers in 5 minutes.</h3>
   <p>No Docker. No Kubernetes. No DevOps team.</p>
 
-  <a href="#features">Features</a> •
+  <p>
+    <a href="https://crates.io/crates/mcp-guard"><img src="https://img.shields.io/crates/v/mcp-guard.svg" alt="Crates.io"></a>
+    <a href="https://github.com/botzrdev/mcp-guard/actions/workflows/ci.yml"><img src="https://github.com/botzrdev/mcp-guard/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
+    <a href="https://github.com/botzrdev/mcp-guard/releases"><img src="https://img.shields.io/github/v/release/botzrdev/mcp-guard" alt="GitHub Release"></a>
+  </p>
+
   <a href="#quick-start">Quick Start</a> •
+  <a href="#features">Features</a> •
   <a href="#configuration">Configuration</a> •
-  <a href="#observability">Observability</a> •
-  <a href="#cli-reference">CLI Reference</a>
+  <a href="docs/quickstart.md">Documentation</a>
 </div>
+
+---
+
+## Install
+
+```bash
+# From crates.io (requires Rust)
+cargo install mcp-guard
+
+# Or download prebuilt binary
+curl -fsSL https://github.com/botzrdev/mcp-guard/releases/latest/download/mcp-guard-x86_64-linux.tar.gz | tar -xz
+
+# Or use the install script
+curl -fsSL https://raw.githubusercontent.com/botzrdev/mcp-guard/main/install.sh | bash
+```
+
+---
+
+## Quick Start
+
+```bash
+# Generate config with demo API key
+mcp-guard init
+
+# Start the gateway
+mcp-guard run
+
+# Test it works (use the demo key printed by init)
+curl -H "Authorization: Bearer mcp_YOUR_DEMO_KEY" http://localhost:3000/health
+```
+
+For production setup, see the [Quick Start Guide](docs/quickstart.md).
 
 ---
 

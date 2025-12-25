@@ -33,18 +33,17 @@ gsap.registerPlugin(ScrollTrigger);
             </div>
             
             <h2 class="cta-title">
-              <span class="title-line">Secure your</span>
-              <span class="title-line title-gradient">MCP servers</span>
-              <span class="title-line">in minutes.</span>
+              <span class="title-line">Your MCP server is</span>
+              <span class="title-line title-gradient">exposed right now.</span>
             </h2>
             
             <p class="cta-subtitle">
-              Join developers who trust mcp-guard to protect their AI infrastructure.
+              2,000+ MCP servers are publicly accessible on Shodan. Most have zero authentication. Yours doesn't have to be one of them.
             </p>
             
             <div class="cta-actions">
               <a href="/docs/quickstart" class="btn-primary">
-                <span class="btn-text">Read the Docs</span>
+                <span class="btn-text">Secure Your Server in 5 Minutes</span>
                 <span class="btn-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M5 12h14M12 5l7 7-7 7"/>

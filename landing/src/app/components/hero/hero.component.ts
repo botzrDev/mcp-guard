@@ -57,25 +57,25 @@ import { CommonModule } from '@angular/common';
           <!-- Badge -->
           <div class="hero-badge">
             <span class="badge-dot"></span>
-            <span class="badge-text">Now with OAuth 2.1 + PKCE</span>
+            <span class="badge-text">Lightweight MCP Gateway</span>
           </div>
 
           <!-- Title -->
           <h1 class="hero-title">
-            <span class="title-line">Secure your MCP servers</span>
-            <span class="title-line gradient-text">in 5 minutes</span>
+            <span class="title-line">MCP security without the</span>
+            <span class="title-line gradient-text">infrastructure tax.</span>
           </h1>
 
           <!-- Subtitle -->
           <p class="hero-subtitle">
-            A single Rust binary that adds OAuth, JWT, rate limiting, and audit logs to any MCP server.
-            <span class="no-wrap">No Docker. No Kubernetes. No DevOps team.</span>
+            One binary. One config file. Production-ready in 5 minutes.
+            <span class="no-wrap">While others ship Kubernetes clusters, you ship features.</span>
           </p>
 
           <!-- CTAs -->
           <div class="hero-cta">
             <a href="/docs/quickstart" class="btn-primary">
-              Get Started
+              Get Started Free
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M5 12h14M12 5l7 7-7 7"/>
               </svg>
@@ -84,7 +84,7 @@ import { CommonModule } from '@angular/common';
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
               </svg>
-              Star on GitHub
+              View on GitHub ⭐
             </a>
           </div>
 
@@ -92,7 +92,7 @@ import { CommonModule } from '@angular/common';
           <div class="install-bar">
             <code class="install-code">
               <span class="prompt">$</span>
-              <span class="command">cargo install mcp-guard</span>
+              <span class="command">curl -fsSL https://mcp.guard/install.sh | sh</span>
             </code>
             <button class="copy-btn" (click)="copyCommand()" [class.copied]="copied()">
               @if (copied()) {
@@ -641,7 +641,7 @@ export class HeroComponent implements OnInit, OnDestroy {
   ngOnDestroy() { }
 
   copyCommand() {
-    navigator.clipboard.writeText('cargo install mcp-guard');
+    navigator.clipboard.writeText('curl -fsSL https://mcp.guard/install.sh | sh');
     this.copied.set(true);
     setTimeout(() => this.copied.set(false), 2000);
   }

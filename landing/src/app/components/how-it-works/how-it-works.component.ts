@@ -107,7 +107,7 @@ interface Step {
                     </div>
                     @if (i === 0 && activeStep() >= 0) {
                       <div class="terminal-output">
-                        <span class="output-success">✓ Installed mcp-guard v0.5.0</span>
+                        <span class="output-success">✓ Downloaded mcp-guard</span>
                       </div>
                     }
                     @if (i === 1 && activeStep() >= 1) {
@@ -791,9 +791,9 @@ export class HowItWorksComponent implements OnInit, OnDestroy, AfterViewInit {
     {
       number: 1,
       title: 'Install',
-      description: 'One command. No dependencies. No containers. Just a single Rust binary.',
+      description: 'Download and run. No containers. No orchestration. No infrastructure degree required.',
       icon: 'terminal',
-      code: 'cargo install mcp-guard',
+      code: 'curl -fsSL https://mcp.guard/install.sh | sh',
       brandColor: '#FF7A30',
     },
     {
@@ -807,7 +807,7 @@ export class HowItWorksComponent implements OnInit, OnDestroy, AfterViewInit {
     {
       number: 3,
       title: 'Run',
-      description: 'Start the gateway. It reads your config and secures your server instantly.',
+      description: 'Your agents stay fast. Your users stay happy. Built for latency-sensitive AI workloads.',
       icon: 'rocket',
       code: 'mcp-guard run',
       brandColor: '#465C88',

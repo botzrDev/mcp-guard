@@ -28,7 +28,7 @@ gsap.registerPlugin(ScrollTrigger);
         <div class="section-header">
           <span class="section-number">03</span>
           <div class="header-text">
-            <span class="section-tag">// The Transformation</span>
+            <span class="section-tag">// How we compare (honestly)</span>
             <h2 class="section-title">
               <span class="title-line">Your server is</span>
               <span class="state-text" [class.secured]="isSecured()">

@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get from zero to a secured MCP server in 5 minutes.
+Get from zero to a secured MCP server in under 10 minutes.
 
 ## What is MCP Guard?
 
@@ -12,6 +12,8 @@ For a complete feature list, see the [README](../README.md).
 
 - **Rust toolchain** (1.70+) for building from source, OR a prebuilt binary
 - **An MCP server** to protect (e.g., the filesystem server from `@modelcontextprotocol/server-filesystem`)
+
+> **Note:** First-time setup may take longer if you need to install Rust or if npm packages need to download. Subsequent runs are much faster.
 
 ## Installation
 
