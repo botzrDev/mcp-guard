@@ -1,17 +1,18 @@
 import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-footer',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterModule],
   template: `
     <footer class="footer">
       <div class="footer-container">
         <div class="footer-main">
           <div class="footer-brand">
-            <a href="#" class="logo">
+            <a routerLink="/" class="logo">
               <div class="logo-icon">
                 <svg viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
@@ -28,26 +29,26 @@ import { CommonModule } from '@angular/common';
           <div class="footer-links">
             <div class="link-group">
               <h4>Product</h4>
-              <a href="#features">Features</a>
-              <a href="#pricing">Pricing</a>
-              <a href="/docs">Documentation</a>
-              <a href="/changelog">Changelog</a>
+              <a routerLink="/" fragment="features">Features</a>
+              <a routerLink="/" fragment="pricing">Pricing</a>
+              <a routerLink="/docs">Documentation</a>
+              <a routerLink="/changelog">Changelog</a>
             </div>
 
             <div class="link-group">
               <h4>Resources</h4>
-              <a href="/docs/quickstart">Quick Start</a>
-              <a href="/docs/configuration">Configuration</a>
-              <a href="/docs/api">API Reference</a>
-              <a href="/blog">Blog</a>
+              <a routerLink="/docs/quickstart">Quick Start</a>
+              <a routerLink="/docs/configuration">Configuration</a>
+              <a routerLink="/docs/api">API Reference</a>
+              <a routerLink="/blog">Blog</a>
             </div>
 
             <div class="link-group">
               <h4>Company</h4>
-              <a href="/about">About</a>
-              <a href="/contact">Contact</a>
-              <a href="/privacy">Privacy</a>
-              <a href="/terms">Terms</a>
+              <a routerLink="/about">About</a>
+              <a routerLink="/contact">Contact</a>
+              <a routerLink="/privacy">Privacy</a>
+              <a routerLink="/terms">Terms</a>
             </div>
 
             <div class="link-group">

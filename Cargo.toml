@@ -50,7 +50,7 @@ config = "0.14"
 
 # Authentication
 jsonwebtoken = "9.3"
-oauth2 = "4.4"
+oauth2 = "5.0"
 
 # Rate limiting
 governor = "0.6"
@@ -84,6 +84,10 @@ opentelemetry-otlp = { version = "0.27", features = ["tonic", "trace"] }
 # Async utilities
 async-trait = "0.1"
 futures = "0.3"
+
+# Platform-specific (Unix signals for graceful shutdown)
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 # HTTP client (for JWKS fetching)
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }

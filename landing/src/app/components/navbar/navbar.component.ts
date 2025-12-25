@@ -1,11 +1,12 @@
 import { Component, signal, ChangeDetectionStrategy, NgZone, OnInit, OnDestroy, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-navbar',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterModule],
   template: `
     <!-- Command bar style header -->
     <header [class.scrolled]="isScrolled()" [class.nav-expanded]="isNavExpanded()">
@@ -17,7 +18,7 @@ import { CommonModule } from '@angular/common';
             <span class="status-text">All systems operational</span>
           </div>
           <div class="utility-links">
-            <a href="/changelog" class="utility-link">
+            <a routerLink="/changelog" class="utility-link">
               <span class="version-tag">v1.0</span>
               Changelog
             </a>
@@ -36,7 +37,7 @@ import { CommonModule } from '@angular/common';
       <nav class="main-nav">
         <div class="nav-content">
           <!-- Logo -->
-          <a href="#" class="logo-block">
+          <a routerLink="/" class="logo-block">
             <img src="assets/MCPG_LOGO1.png" alt="MCP Guard" class="logo-img" />
             <div class="logo-stack">
               <span class="logo-name">mcp-guard</span>
@@ -46,19 +47,19 @@ import { CommonModule } from '@angular/common';
 
           <!-- Keyboard-style navigation -->
           <div class="nav-keys">
-            <a href="#features" class="nav-key" data-key="F">
+            <a routerLink="/" fragment="features" class="nav-key" data-key="F">
               <span class="key-label">Features</span>
               <kbd>F</kbd>
             </a>
-            <a href="#how-it-works" class="nav-key" data-key="H">
+            <a routerLink="/" fragment="how-it-works" class="nav-key" data-key="H">
               <span class="key-label">How it works</span>
               <kbd>H</kbd>
             </a>
-            <a href="#pricing" class="nav-key" data-key="P">
+            <a routerLink="/" fragment="pricing" class="nav-key" data-key="P">
               <span class="key-label">Pricing</span>
               <kbd>P</kbd>
             </a>
-            <a href="/docs" class="nav-key" data-key="D">
+            <a routerLink="/docs" class="nav-key" data-key="D">
               <span class="key-label">Docs</span>
               <kbd>D</kbd>
             </a>
@@ -79,7 +80,7 @@ import { CommonModule } from '@angular/common';
               </span>
             </button>
 
-            <a href="/docs/quickstart" class="cta-block">
+            <a routerLink="/docs/quickstart" class="cta-block">
               <span class="cta-text">Get Started</span>
               <span class="cta-arrow">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

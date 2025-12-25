@@ -53,11 +53,6 @@ struct TokenInfo {
     claims: HashMap<String, serde_json::Value>,
 }
 
-/// Token cache duration for validated tokens.
-/// 5 minutes reduces introspection calls while ensuring revoked tokens
-/// are detected within an acceptable window.
-const TOKEN_CACHE_DURATION_SECS: u64 = 300;
-
 /// HTTP request timeout for OAuth provider calls.
 /// 10 seconds is generous for OAuth providers but prevents indefinite hangs
 /// on network issues.
@@ -208,8 +203,10 @@ impl OAuthAuthProvider {
             .build()
             .map_err(|e| AuthError::Internal(format!("Failed to create HTTP client: {}", e)))?;
 
-        // Cache tokens for 5 minutes by default
-        let token_cache = Arc::new(RwLock::new(TokenCache::new(Duration::from_secs(TOKEN_CACHE_DURATION_SECS))));
+        // Cache tokens using configurable TTL (default: 5 minutes)
+        // SECURITY: Longer TTL = more stale tokens but lower provider load
+        let cache_ttl = Duration::from_secs(config.token_cache_ttl_secs);
+        let token_cache = Arc::new(RwLock::new(TokenCache::new(cache_ttl)));
 
         Ok(Self {
             config,
@@ -488,6 +485,7 @@ mod tests {
             scopes: vec!["read:user".to_string()],
             user_id_claim: "sub".to_string(),
             scope_tool_mapping: HashMap::new(),
+            token_cache_ttl_secs: 300,
         }
     }
 
@@ -548,6 +546,7 @@ mod tests {
             scopes: vec![],
             user_id_claim: "sub".to_string(),
             scope_tool_mapping: HashMap::new(),
+            token_cache_ttl_secs: 300,
         };
 
         let result = OAuthAuthProvider::new(config);

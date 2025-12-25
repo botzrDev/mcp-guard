@@ -60,6 +60,7 @@ fn create_oauth_config(mock_server_uri: &str) -> OAuthConfig {
         scopes: vec!["openid".to_string(), "profile".to_string()],
         user_id_claim: "sub".to_string(),
         scope_tool_mapping: HashMap::new(),
+        token_cache_ttl_secs: 300,
     }
 }
 

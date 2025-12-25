@@ -1,14 +1,7 @@
 import { Component, ChangeDetectionStrategy } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
 import { NavbarComponent } from './components/navbar/navbar.component';
-import { HeroComponent } from './components/hero/hero.component';
-import { StatsComponent } from './components/stats/stats.component';
-import { FeaturesComponent } from './components/features/features.component';
-import { HowItWorksComponent } from './components/how-it-works/how-it-works.component';
-import { ComparisonComponent } from './components/comparison/comparison.component';
-import { PricingComponent } from './components/pricing/pricing.component';
-import { CtaComponent } from './components/cta/cta.component';
 import { FooterComponent } from './components/footer/footer.component';
-import { BackgroundComponent } from './components/background/background.component';
 
 @Component({
   selector: 'app-root',
@@ -16,38 +9,24 @@ import { BackgroundComponent } from './components/background/background.componen
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     NavbarComponent,
-    HeroComponent,
-    StatsComponent,
-    FeaturesComponent,
-    HowItWorksComponent,
-    ComparisonComponent,
-    PricingComponent,
-    CtaComponent,
     FooterComponent,
-    BackgroundComponent
+    RouterOutlet
   ],
   template: `
-    <app-background />
     <app-navbar />
-    <main>
-      <app-hero />
-      <app-stats />
-      <app-features />
-      <app-how-it-works />
-      <app-comparison />
-      <app-pricing />
-      <app-cta />
-    </main>
+    <router-outlet />
     <app-footer />
   `,
   styles: [`
     :host {
       display: block;
       min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
-    main {
-      position: relative;
+    router-outlet + * {
+      flex: 1;
     }
   `]
 })

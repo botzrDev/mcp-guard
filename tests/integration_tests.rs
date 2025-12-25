@@ -1156,6 +1156,7 @@ async fn test_oauth_authorize_generates_redirect() {
         scopes: vec!["read:user".to_string()],
         user_id_claim: "sub".to_string(),
         scope_tool_mapping: HashMap::new(),
+        token_cache_ttl_secs: 300,
     };
 
     let oauth_provider = OAuthAuthProvider::new(oauth_config).unwrap();
@@ -1241,6 +1242,7 @@ async fn test_oauth_callback_rejects_missing_state() {
         scopes: vec!["read:user".to_string()],
         user_id_claim: "sub".to_string(),
         scope_tool_mapping: HashMap::new(),
+        token_cache_ttl_secs: 300,
     };
 
     let oauth_provider = OAuthAuthProvider::new(oauth_config).unwrap();
@@ -1316,6 +1318,7 @@ async fn test_oauth_callback_rejects_invalid_state() {
         scopes: vec!["read:user".to_string()],
         user_id_claim: "sub".to_string(),
         scope_tool_mapping: HashMap::new(),
+        token_cache_ttl_secs: 300,
     };
 
     let oauth_provider = OAuthAuthProvider::new(oauth_config).unwrap();
@@ -1391,6 +1394,7 @@ async fn test_oauth_callback_handles_provider_error() {
         scopes: vec!["read:user".to_string()],
         user_id_claim: "sub".to_string(),
         scope_tool_mapping: HashMap::new(),
+        token_cache_ttl_secs: 300,
     };
 
     let oauth_provider = OAuthAuthProvider::new(oauth_config).unwrap();

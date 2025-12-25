@@ -6,6 +6,8 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
+use std::time::Duration;
 
 // ============================================================================
 // Constants
@@ -25,6 +27,10 @@ const HTTP_REQUEST_TIMEOUT_SECS: u64 = 30;
 /// SECURITY: Truncate response bodies to prevent sensitive data leakage in logs
 /// while still providing useful debugging information.
 const MAX_ERROR_BODY_LEN: usize = 200;
+
+/// Timeout for graceful shutdown before forced termination.
+/// 5 seconds gives child processes time to clean up while preventing indefinite hangs.
+const GRACEFUL_SHUTDOWN_TIMEOUT_SECS: u64 = 5;
 
 /// Transport error type
 #[derive(Debug, thiserror::Error)]
@@ -435,11 +441,13 @@ pub struct StdioTransport {
     /// Receiver for inbound messages from the subprocess (mutex for shared access)
     rx: tokio::sync::Mutex<mpsc::Receiver<Message>>,
     /// Child process handle (kept alive for process lifetime)
-    _child: tokio::sync::Mutex<Child>,
+    child: tokio::sync::Mutex<Child>,
     /// Background task writing messages to subprocess stdin
     writer_task: tokio::task::JoinHandle<()>,
     /// Background task reading messages from subprocess stdout
     reader_task: tokio::task::JoinHandle<()>,
+    /// Cancellation token for graceful shutdown
+    shutdown_token: CancellationToken,
 }
 
 impl StdioTransport {
@@ -484,63 +492,92 @@ impl StdioTransport {
         let (to_process_tx, mut to_process_rx) = mpsc::channel::<Message>(TRANSPORT_CHANNEL_SIZE);
         let (from_process_tx, from_process_rx) = mpsc::channel::<Message>(TRANSPORT_CHANNEL_SIZE);
 
-        // Writer task with error tracking
+        // Create shutdown token for graceful shutdown coordination
+        let shutdown_token = CancellationToken::new();
+        let writer_shutdown = shutdown_token.clone();
+        let reader_shutdown = shutdown_token.clone();
+
+        // Writer task with shutdown support
         let writer_task = tokio::spawn(async move {
             let mut stdin = stdin;
-            while let Some(msg) = to_process_rx.recv().await {
-                let json = match serde_json::to_string(&msg) {
-                    Ok(j) => j,
-                    Err(e) => {
-                        tracing::error!(error = %e, "Failed to serialize MCP message, dropping");
-                        continue;
+            loop {
+                tokio::select! {
+                    _ = writer_shutdown.cancelled() => {
+                        tracing::debug!("Writer task received shutdown signal");
+                        break;
                     }
-                };
-                if let Err(e) = stdin.write_all(json.as_bytes()).await {
-                    tracing::error!(error = %e, "Failed to write to stdin, writer task exiting");
-                    break;
-                }
-                if let Err(e) = stdin.write_all(b"\n").await {
-                    tracing::error!(error = %e, "Failed to write newline to stdin, writer task exiting");
-                    break;
-                }
-                if let Err(e) = stdin.flush().await {
-                    tracing::error!(error = %e, "Failed to flush stdin, writer task exiting");
-                    break;
+                    msg = to_process_rx.recv() => {
+                        match msg {
+                            Some(msg) => {
+                                let json = match serde_json::to_string(&msg) {
+                                    Ok(j) => j,
+                                    Err(e) => {
+                                        tracing::error!(error = %e, "Failed to serialize MCP message, dropping");
+                                        continue;
+                                    }
+                                };
+                                if let Err(e) = stdin.write_all(json.as_bytes()).await {
+                                    tracing::error!(error = %e, "Failed to write to stdin, writer task exiting");
+                                    break;
+                                }
+                                if let Err(e) = stdin.write_all(b"\n").await {
+                                    tracing::error!(error = %e, "Failed to write newline to stdin, writer task exiting");
+                                    break;
+                                }
+                                if let Err(e) = stdin.flush().await {
+                                    tracing::error!(error = %e, "Failed to flush stdin, writer task exiting");
+                                    break;
+                                }
+                            }
+                            None => {
+                                tracing::debug!("Channel closed, writer task exiting");
+                                break;
+                            }
+                        }
+                    }
                 }
             }
             tracing::debug!("Writer task exiting");
         });
 
-        // Reader task with error tracking
+        // Reader task with shutdown support
         let reader_task = tokio::spawn(async move {
             let reader = BufReader::new(stdout);
             let mut lines = reader.lines();
             loop {
-                match lines.next_line().await {
-                    Ok(Some(line)) => {
-                        match serde_json::from_str::<Message>(&line) {
-                            Ok(msg) => {
-                                if from_process_tx.send(msg).await.is_err() {
-                                    tracing::debug!("Receiver dropped, reader task exiting");
-                                    break;
+                tokio::select! {
+                    _ = reader_shutdown.cancelled() => {
+                        tracing::debug!("Reader task received shutdown signal");
+                        break;
+                    }
+                    result = lines.next_line() => {
+                        match result {
+                            Ok(Some(line)) => {
+                                match serde_json::from_str::<Message>(&line) {
+                                    Ok(msg) => {
+                                        if from_process_tx.send(msg).await.is_err() {
+                                            tracing::debug!("Receiver dropped, reader task exiting");
+                                            break;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!(
+                                            error = %e,
+                                            line = %line.chars().take(100).collect::<String>(),
+                                            "Failed to parse MCP message, skipping"
+                                        );
+                                    }
                                 }
                             }
+                            Ok(None) => {
+                                tracing::debug!("EOF from process, reader task exiting");
+                                break;
+                            }
                             Err(e) => {
-                                tracing::warn!(
-                                    error = %e,
-                                    line = %line.chars().take(100).collect::<String>(),
-                                    "Failed to parse MCP message, skipping"
-                                );
+                                tracing::error!(error = %e, "Failed to read from stdout, reader task exiting");
+                                break;
                             }
                         }
-                    }
-                    Ok(None) => {
-                        tracing::debug!("EOF from process, reader task exiting");
-                        break;
-                    }
-                    Err(e) => {
-                        tracing::error!(error = %e, "Failed to read from stdout, reader task exiting");
-                        break;
                     }
                 }
             }
@@ -550,9 +587,10 @@ impl StdioTransport {
         Ok(Self {
             tx: to_process_tx,
             rx: tokio::sync::Mutex::new(from_process_rx),
-            _child: tokio::sync::Mutex::new(child),
+            child: tokio::sync::Mutex::new(child),
             writer_task,
             reader_task,
+            shutdown_token,
         })
     }
 
@@ -581,7 +619,47 @@ impl Transport for StdioTransport {
     }
 
     async fn close(&self) -> Result<(), TransportError> {
-        let mut child = self._child.lock().await;
+        // Signal background tasks to stop
+        self.shutdown_token.cancel();
+
+        let mut child = self.child.lock().await;
+
+        // Get child PID for graceful termination
+        let child_id = child.id();
+
+        #[cfg(unix)]
+        if let Some(pid) = child_id {
+            // Send SIGTERM first for graceful shutdown
+            tracing::debug!(pid = pid, "Sending SIGTERM to child process");
+            // SAFETY: Using libc::kill with valid PID and SIGTERM signal
+            unsafe {
+                libc::kill(pid as i32, libc::SIGTERM);
+            }
+
+            // Wait for process to exit with timeout
+            let shutdown_timeout = Duration::from_secs(GRACEFUL_SHUTDOWN_TIMEOUT_SECS);
+            match tokio::time::timeout(shutdown_timeout, child.wait()).await {
+                Ok(Ok(status)) => {
+                    tracing::debug!(pid = pid, ?status, "Child process exited gracefully");
+                    return Ok(());
+                }
+                Ok(Err(e)) => {
+                    tracing::warn!(pid = pid, error = %e, "Error waiting for child process");
+                    // Fall through to SIGKILL
+                }
+                Err(_) => {
+                    tracing::warn!(
+                        pid = pid,
+                        timeout_secs = GRACEFUL_SHUTDOWN_TIMEOUT_SECS,
+                        "Child process did not exit gracefully, sending SIGKILL"
+                    );
+                    // Fall through to SIGKILL
+                }
+            }
+        }
+
+        // Force kill if graceful shutdown failed or on Windows
+        tracing::debug!("Force killing child process");
         child.kill().await?;
         Ok(())
     }

@@ -45,6 +45,28 @@ use crate::router::ServerRouter;
 use crate::transport::{Message, Transport};
 use std::net::IpAddr;
 
+// ============================================================================
+// Error Sanitization
+// ============================================================================
+
+/// Sanitize authentication error for client-facing messages
+///
+/// SECURITY: This function converts internal error details to safe client-facing messages.
+/// Detailed error information (URLs, paths, internal states) is logged internally
+/// but never returned to clients.
+fn sanitize_auth_error_for_client(error: &crate::auth::AuthError) -> &'static str {
+    use crate::auth::AuthError;
+    match error {
+        AuthError::MissingCredentials => "Missing authentication credentials",
+        AuthError::InvalidApiKey => "Invalid API key",
+        AuthError::InvalidJwt(_) => "Invalid or malformed token",
+        AuthError::TokenExpired => "Token has expired",
+        AuthError::OAuth(_) => "OAuth authentication failed",
+        AuthError::InvalidClientCert(_) => "Invalid client certificate",
+        AuthError::Internal(_) => "Authentication service error",
+    }
+}
+
 /// PKCE state entry for OAuth flow
 ///
 /// SECURITY: Includes client IP binding to prevent state fixation attacks.
@@ -583,7 +605,11 @@ async fn exchange_code_for_tokens(
         .form(&form)
         .send()
         .await
-        .map_err(|e| AppError::internal(format!("Token exchange request failed: {}", e)))?;
+        .map_err(|e| {
+            // Log full error internally, return sanitized message to client
+            tracing::error!(error = %e, "Token exchange request failed");
+            AppError::internal("Token exchange request failed")
+        })?;
 
     if !response.status().is_success() {
         let status = response.status();
@@ -598,7 +624,11 @@ async fn exchange_code_for_tokens(
     let token_response: serde_json::Value = response
         .json()
         .await
-        .map_err(|e| AppError::internal(format!("Failed to parse token response: {}", e)))?;
+        .map_err(|e| {
+            // Log full error internally, return sanitized message to client
+            tracing::error!(error = %e, "Failed to parse token response");
+            AppError::internal("Invalid token response")
+        })?;
 
     let access_token = token_response
         .get("access_token")
@@ -709,8 +739,11 @@ pub async fn auth_middleware(
         }
         Err(e) => {
             record_auth(&provider_name, false);
+            // Log full error details internally for debugging
             state.audit_logger.log_auth_failure(&e.to_string());
-            return Err(AppError::unauthorized(e.to_string()));
+            tracing::debug!(error = %e, "Authentication failed (detailed)");
+            // Return sanitized error to client - never expose URLs, paths, or internal details
+            return Err(AppError::unauthorized(sanitize_auth_error_for_client(&e)));
         }
     };
 
@@ -1869,7 +1902,7 @@ mod tests {
             client_id: "client".into(),
             client_secret: Some("secret".into()),
             redirect_uri: "http://localhost/callback".into(),
-            // discovery_url removed as it doesn't exist. 
+            // discovery_url removed as it doesn't exist.
             // Endpoints are inferred or optional.
             authorization_url: None,
             token_url: None,
@@ -1878,6 +1911,7 @@ mod tests {
             scopes: vec![],
             user_id_claim: "sub".into(),
             scope_tool_mapping: std::collections::HashMap::new(),
+            token_cache_ttl_secs: 300,
         });
 
         let mut rate_limit_config = crate::config::RateLimitConfig::default();

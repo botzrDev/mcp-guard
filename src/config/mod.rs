@@ -388,6 +388,18 @@ pub struct OAuthConfig {
     /// Mapping from scopes to allowed tools (same as JWT)
     #[serde(default)]
     pub scope_tool_mapping: HashMap<String, Vec<String>>,
+
+    /// Token cache TTL in seconds (default: 300 = 5 minutes)
+    ///
+    /// SECURITY NOTE: Revoked tokens remain valid in the cache until they expire.
+    /// Lower values provide faster revocation detection but increase OAuth provider load.
+    /// Set to 0 to disable caching (not recommended for production).
+    #[serde(default = "default_token_cache_ttl")]
+    pub token_cache_ttl_secs: u64,
+}
+
+fn default_token_cache_ttl() -> u64 {
+    300 // 5 minutes
 }
 
 fn default_redirect_uri() -> String {
@@ -995,6 +1007,7 @@ mod tests {
             scopes: vec![],
             user_id_claim: "sub".to_string(),
             scope_tool_mapping: HashMap::new(),
+            token_cache_ttl_secs: 300,
         });
         assert!(config.validate().is_err());
     }

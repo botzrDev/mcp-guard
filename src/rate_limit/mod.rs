@@ -5,6 +5,7 @@
 //! - Per-identity custom rate limits
 //! - Token bucket algorithm via Governor crate
 //! - TTL-based eviction to prevent memory growth
+//! - Background cleanup task to avoid inline latency spikes
 //!
 //! See PRD FR-RATE-01 through FR-RATE-07 for requirements.
 
@@ -17,6 +18,7 @@ use governor::{
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio_util::sync::CancellationToken;
 
 /// Rate limiter type alias for a direct (non-keyed) token bucket limiter
 type Limiter = RateLimiter<NotKeyed, InMemoryState, DefaultClock>;
@@ -26,10 +28,9 @@ type Limiter = RateLimiter<NotKeyed, InMemoryState, DefaultClock>;
 /// an hour keep their rate limit state). Typical sessions are shorter.
 const DEFAULT_ENTRY_TTL: Duration = Duration::from_secs(3600);
 
-/// Cleanup threshold for triggering expired entry removal.
-/// At 1000 identities (~1KB each), we check for expired entries to prevent
-/// unbounded memory growth from abandoned connections.
-const CLEANUP_THRESHOLD: usize = 1000;
+/// Default cleanup interval for background task.
+/// 5 minutes balances timely cleanup with low overhead.
+const DEFAULT_CLEANUP_INTERVAL_SECS: u64 = 300;
 
 /// Default requests per second
 /// SAFETY: 100 is non-zero, so new_unchecked is safe
@@ -126,10 +127,8 @@ impl RateLimitService {
             return entry.limiter.clone();
         }
 
-        // Maybe run cleanup if we have too many entries
-        if self.identity_limiters.len() >= CLEANUP_THRESHOLD {
-            self.cleanup_expired();
-        }
+        // Note: Cleanup is now handled by a background task to avoid latency spikes
+        // See start_cleanup_task() for the background cleanup implementation
 
         // Create a new limiter for this identity
         let (rps, burst) = if let Some(custom_rps) = custom_limit {
@@ -239,6 +238,56 @@ impl RateLimitService {
     pub fn with_ttl(mut self, ttl: Duration) -> Self {
         self.entry_ttl = ttl;
         self
+    }
+
+    /// Start a background cleanup task that periodically removes expired entries
+    ///
+    /// This runs cleanup in the background to avoid latency spikes during request handling.
+    /// The task will stop when the shutdown token is cancelled.
+    ///
+    /// # Arguments
+    /// * `shutdown_token` - Token to signal when the task should stop
+    /// * `cleanup_interval_secs` - How often to run cleanup (default: 5 minutes)
+    ///
+    /// # Returns
+    /// A JoinHandle for the background task
+    pub fn start_cleanup_task(
+        self: &Arc<Self>,
+        shutdown_token: CancellationToken,
+        cleanup_interval_secs: Option<u64>,
+    ) -> tokio::task::JoinHandle<()> {
+        let service = Arc::clone(self);
+        let interval = Duration::from_secs(
+            cleanup_interval_secs.unwrap_or(DEFAULT_CLEANUP_INTERVAL_SECS)
+        );
+
+        tokio::spawn(async move {
+            let mut interval_timer = tokio::time::interval(interval);
+            // Skip the first immediate tick
+            interval_timer.tick().await;
+
+            loop {
+                tokio::select! {
+                    _ = shutdown_token.cancelled() => {
+                        tracing::debug!("Rate limiter cleanup task received shutdown signal");
+                        break;
+                    }
+                    _ = interval_timer.tick() => {
+                        let before = service.tracked_identities();
+                        service.cleanup_expired();
+                        let after = service.tracked_identities();
+                        if before != after {
+                            tracing::debug!(
+                                removed = before - after,
+                                remaining = after,
+                                "Rate limiter cleanup task removed expired entries"
+                            );
+                        }
+                    }
+                }
+            }
+            tracing::debug!("Rate limiter cleanup task exiting");
+        })
     }
 }
 

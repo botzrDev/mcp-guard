@@ -27,6 +27,7 @@ fn create_oauth_config(mock_server_uri: &str) -> OAuthConfig {
         scopes: vec!["openid".to_string(), "profile".to_string()],
         user_id_claim: "sub".to_string(),
         scope_tool_mapping: HashMap::new(),
+        token_cache_ttl_secs: 300,
     }
 }
 
@@ -44,6 +45,7 @@ fn create_oauth_config_userinfo_only(mock_server_uri: &str) -> OAuthConfig {
         scopes: vec!["openid".to_string()],
         user_id_claim: "sub".to_string(),
         scope_tool_mapping: HashMap::new(),
+        token_cache_ttl_secs: 300,
     }
 }
 
@@ -371,8 +373,9 @@ fn test_oauth_provider_name() {
         scopes: vec![],
         user_id_claim: "sub".to_string(),
         scope_tool_mapping: HashMap::new(),
+        token_cache_ttl_secs: 300,
     };
-    
+
     let provider = OAuthAuthProvider::new(config).unwrap();
     assert_eq!(provider.name(), "oauth");
 }
