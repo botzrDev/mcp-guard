@@ -207,6 +207,7 @@ fn test_rate_limiter() {
         enabled: true,
         requests_per_second: 1,
         burst_size: 2,
+        tool_limits: Vec::new(),
     };
 
     let limiter = RateLimitService::new(&config);
@@ -229,6 +230,7 @@ fn test_rate_limiter_disabled() {
         enabled: false,
         requests_per_second: 1,
         burst_size: 1,
+        tool_limits: Vec::new(),
     };
 
     let limiter = RateLimitService::new(&config);
@@ -401,6 +403,7 @@ fn test_config_validation_rate_limit_zero_rps() {
             enabled: true,
             requests_per_second: 0, // Invalid: zero RPS
             burst_size: 10,
+            tool_limits: Vec::new(),
         },
         audit: Default::default(),
         tracing: TracingConfig::default(),
@@ -427,6 +430,7 @@ fn test_config_validation_rate_limit_zero_burst() {
             enabled: true,
             requests_per_second: 100,
             burst_size: 0, // Invalid: zero burst
+            tool_limits: Vec::new(),
         },
         audit: Default::default(),
         tracing: TracingConfig::default(),
