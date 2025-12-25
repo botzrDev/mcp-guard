@@ -215,239 +215,252 @@ async fn main() -> anyhow::Result<()> {
 
 async fn run_cli(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
-        Commands::Init { format, force } => {
-            // Initialize basic tracing for CLI commands
-            let _guard = init_tracing(cli.verbose, None);
-
-            let filename = if format == "yaml" {
-                "mcp-guard.yaml"
-            } else {
-                "mcp-guard.toml"
-            };
-
-            let path = std::path::Path::new(filename);
-            if path.exists() && !force {
-                anyhow::bail!("{} already exists. Use --force to overwrite.", filename);
-            }
-
-            let config = generate_config(&format);
-            std::fs::write(filename, config)?;
-            println!("Created configuration file: {}", filename);
+        Commands::Init { format, force } => handle_init(&format, force, cli.verbose),
+        Commands::Validate => handle_validate(&cli.config, cli.verbose),
+        Commands::Keygen { user_id, rate_limit, tools } => {
+            handle_keygen(&user_id, rate_limit, tools.as_deref(), cli.verbose)
         }
-
-        Commands::Validate => {
-            // Initialize basic tracing for CLI commands
-            let _guard = init_tracing(cli.verbose, None);
-
-            match Config::from_file(&cli.config) {
-                Ok(_) => {
-                    println!("Configuration is valid: {}", cli.config.display());
-                }
-                Err(e) => {
-                    anyhow::bail!("Configuration error: {}", e);
-                }
-            }
-        }
-
-        Commands::Keygen {
-            user_id,
-            rate_limit,
-            tools,
-        } => {
-            // Initialize basic tracing for CLI commands
-            let _guard = init_tracing(cli.verbose, None);
-
-            let key = generate_api_key();
-            let hash = hash_api_key(&key);
-
-            println!("Generated API key for '{}':", user_id);
-            println!();
-            println!("  API Key (save this, shown only once):");
-            println!("    {}", key);
-            println!();
-            println!("  Add to your config file:");
-            println!();
-            println!("  [[auth.api_keys]]");
-            println!("  id = \"{}\"", user_id);
-            println!("  key_hash = \"{}\"", hash);
-
-            if let Some(limit) = rate_limit {
-                println!("  rate_limit = {}", limit);
-            }
-
-            if let Some(tools_str) = tools {
-                let tool_list: Vec<&str> = tools_str.split(',').map(|s| s.trim()).collect();
-                println!("  allowed_tools = {:?}", tool_list);
-            }
-        }
-
-        Commands::HashKey { key } => {
-            // No tracing needed for simple hash operation
-            let hash = hash_api_key(&key);
-            println!("{}", hash);
-        }
-
-        Commands::Version => {
-            println!("mcp-guard {}", env!("CARGO_PKG_VERSION"));
-            println!();
-            println!("Build Information:");
-            println!("  Package:     {}", env!("CARGO_PKG_NAME"));
-            println!("  Version:     {}", env!("CARGO_PKG_VERSION"));
-            println!("  Description: {}", env!("CARGO_PKG_DESCRIPTION"));
-            println!("  License:     {}", env!("CARGO_PKG_LICENSE"));
-            println!("  Repository:  {}", env!("CARGO_PKG_REPOSITORY"));
-            println!();
-            println!("Features:");
-            println!("  Auth providers: API Key, JWT (HS256/JWKS), OAuth 2.1 (PKCE), mTLS");
-            println!("  Transports:     Stdio, HTTP, SSE");
-            println!("  Rate limiting:  Per-identity, token bucket");
-            println!("  Observability:  Prometheus metrics, OpenTelemetry tracing");
-        }
-
+        Commands::HashKey { key } => handle_hash_key(&key),
+        Commands::Version => handle_version(),
         Commands::CheckUpstream { timeout } => {
-            // Initialize basic tracing for CLI commands
-            let _guard = init_tracing(cli.verbose, None);
+            handle_check_upstream(&cli.config, timeout, cli.verbose).await
+        }
+        Commands::Run { host, port } => handle_run(&cli.config, host, port, cli.verbose).await,
+    }
+}
 
-            // Load configuration
-            let config = Config::from_file(&cli.config)
-                .map_err(|e| anyhow::anyhow!("Error loading config: {}", e))?;
+// ============================================================================
+// CLI Command Handlers
+// ============================================================================
 
-            println!("Checking upstream connectivity...");
+/// Handle the `init` command: create a new configuration file.
+fn handle_init(format: &str, force: bool, verbose: bool) -> anyhow::Result<()> {
+    let _guard = init_tracing(verbose, None);
+
+    let filename = if format == "yaml" {
+        "mcp-guard.yaml"
+    } else {
+        "mcp-guard.toml"
+    };
+
+    let path = std::path::Path::new(filename);
+    if path.exists() && !force {
+        anyhow::bail!("{} already exists. Use --force to overwrite.", filename);
+    }
+
+    let config = generate_config(format);
+    std::fs::write(filename, config)?;
+    println!("Created configuration file: {}", filename);
+    Ok(())
+}
+
+/// Handle the `validate` command: validate a configuration file.
+fn handle_validate(config_path: &std::path::PathBuf, verbose: bool) -> anyhow::Result<()> {
+    let _guard = init_tracing(verbose, None);
+
+    match Config::from_file(config_path) {
+        Ok(_) => {
+            println!("Configuration is valid: {}", config_path.display());
+            Ok(())
+        }
+        Err(e) => {
+            anyhow::bail!("Configuration error: {}", e);
+        }
+    }
+}
+
+/// Handle the `keygen` command: generate a new API key.
+fn handle_keygen(
+    user_id: &str,
+    rate_limit: Option<u32>,
+    tools: Option<&str>,
+    verbose: bool,
+) -> anyhow::Result<()> {
+    let _guard = init_tracing(verbose, None);
+
+    let key = generate_api_key();
+    let hash = hash_api_key(&key);
+
+    println!("Generated API key for '{}':", user_id);
+    println!();
+    println!("  API Key (save this, shown only once):");
+    println!("    {}", key);
+    println!();
+    println!("  Add to your config file:");
+    println!();
+    println!("  [[auth.api_keys]]");
+    println!("  id = \"{}\"", user_id);
+    println!("  key_hash = \"{}\"", hash);
+
+    if let Some(limit) = rate_limit {
+        println!("  rate_limit = {}", limit);
+    }
+
+    if let Some(tools_str) = tools {
+        let tool_list: Vec<&str> = tools_str.split(',').map(|s| s.trim()).collect();
+        println!("  allowed_tools = {:?}", tool_list);
+    }
+
+    Ok(())
+}
+
+/// Handle the `hash-key` command: hash an existing API key.
+fn handle_hash_key(key: &str) -> anyhow::Result<()> {
+    let hash = hash_api_key(key);
+    println!("{}", hash);
+    Ok(())
+}
+
+/// Handle the `version` command: print version information.
+fn handle_version() -> anyhow::Result<()> {
+    println!("mcp-guard {}", env!("CARGO_PKG_VERSION"));
+    println!();
+    println!("Build Information:");
+    println!("  Package:     {}", env!("CARGO_PKG_NAME"));
+    println!("  Version:     {}", env!("CARGO_PKG_VERSION"));
+    println!("  Description: {}", env!("CARGO_PKG_DESCRIPTION"));
+    println!("  License:     {}", env!("CARGO_PKG_LICENSE"));
+    println!("  Repository:  {}", env!("CARGO_PKG_REPOSITORY"));
+    println!();
+    println!("Features:");
+    println!("  Auth providers: API Key, JWT (HS256/JWKS), OAuth 2.1 (PKCE), mTLS");
+    println!("  Transports:     Stdio, HTTP, SSE");
+    println!("  Rate limiting:  Per-identity, token bucket");
+    println!("  Observability:  Prometheus metrics, OpenTelemetry tracing");
+    Ok(())
+}
+
+/// Handle the `check-upstream` command: check upstream server connectivity.
+async fn handle_check_upstream(
+    config_path: &std::path::PathBuf,
+    timeout: u64,
+    verbose: bool,
+) -> anyhow::Result<()> {
+    let _guard = init_tracing(verbose, None);
+
+    let config = Config::from_file(config_path)
+        .map_err(|e| anyhow::anyhow!("Error loading config: {}", e))?;
+
+    println!("Checking upstream connectivity...");
+    println!();
+
+    let timeout_duration = std::time::Duration::from_secs(timeout);
+
+    match &config.upstream.transport {
+        mcp_guard::config::TransportType::Stdio => {
+            let command = config
+                .upstream
+                .command
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("stdio transport requires 'command' in config"))?;
+
+            println!("Transport: stdio");
+            println!("Command:   {}", command);
+            println!("Args:      {:?}", config.upstream.args);
             println!();
 
-            match &config.upstream.transport {
-                mcp_guard::config::TransportType::Stdio => {
-                    let command = config
-                        .upstream
-                        .command
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("stdio transport requires 'command' in config"))?;
-
-                    println!("Transport: stdio");
-                    println!("Command:   {}", command);
-                    println!("Args:      {:?}", config.upstream.args);
-                    println!();
-
-                    // Try to spawn the process and send a test message
-                    let timeout_duration = std::time::Duration::from_secs(timeout);
-                    match tokio::time::timeout(
-                        timeout_duration,
-                        check_stdio_upstream(command, &config.upstream.args),
-                    )
-                    .await
-                    {
-                        Ok(Ok(())) => {
-                            println!("✓ Upstream is reachable and responding");
-                        }
-                        Ok(Err(e)) => {
-                            anyhow::bail!("✗ Upstream check failed: {}", e);
-                        }
-                        Err(_) => {
-                            anyhow::bail!("✗ Upstream check timed out after {}s", timeout);
-                        }
-                    }
-                }
-                mcp_guard::config::TransportType::Http => {
-                    let url = config
-                        .upstream
-                        .url
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("HTTP transport requires 'url' in config"))?;
-
-                    println!("Transport: HTTP");
-                    println!("URL:       {}", url);
-                    println!();
-
-                    let timeout_duration = std::time::Duration::from_secs(timeout);
-                    match tokio::time::timeout(timeout_duration, check_http_upstream(url)).await {
-                        Ok(Ok(())) => {
-                            println!("✓ Upstream is reachable");
-                        }
-                        Ok(Err(e)) => {
-                            anyhow::bail!("✗ Upstream check failed: {}", e);
-                        }
-                        Err(_) => {
-                            anyhow::bail!("✗ Upstream check timed out after {}s", timeout);
-                        }
-                    }
-                }
-                mcp_guard::config::TransportType::Sse => {
-                    let url = config
-                        .upstream
-                        .url
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("SSE transport requires 'url' in config"))?;
-
-                    println!("Transport: SSE");
-                    println!("URL:       {}", url);
-                    println!();
-
-                    let timeout_duration = std::time::Duration::from_secs(timeout);
-                    match tokio::time::timeout(timeout_duration, check_sse_upstream(url)).await {
-                        Ok(Ok(())) => {
-                            println!("✓ Upstream is reachable");
-                        }
-                        Ok(Err(e)) => {
-                            anyhow::bail!("✗ Upstream check failed: {}", e);
-                        }
-                        Err(_) => {
-                            anyhow::bail!("✗ Upstream check timed out after {}s", timeout);
-                        }
-                    }
-                }
+            match tokio::time::timeout(
+                timeout_duration,
+                check_stdio_upstream(command, &config.upstream.args),
+            )
+            .await
+            {
+                Ok(Ok(())) => println!("✓ Upstream is reachable and responding"),
+                Ok(Err(e)) => anyhow::bail!("✗ Upstream check failed: {}", e),
+                Err(_) => anyhow::bail!("✗ Upstream check timed out after {}s", timeout),
             }
         }
+        mcp_guard::config::TransportType::Http => {
+            let url = config
+                .upstream
+                .url
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("HTTP transport requires 'url' in config"))?;
 
-        Commands::Run { host, port } => {
-            // Load configuration first so we can use tracing config
-            let mut config = Config::from_file(&cli.config)?;
+            println!("Transport: HTTP");
+            println!("URL:       {}", url);
+            println!();
 
-            // Override with CLI args
-            if let Some(h) = host {
-                config.server.host = h;
+            match tokio::time::timeout(timeout_duration, check_http_upstream(url)).await {
+                Ok(Ok(())) => println!("✓ Upstream is reachable"),
+                Ok(Err(e)) => anyhow::bail!("✗ Upstream check failed: {}", e),
+                Err(_) => anyhow::bail!("✗ Upstream check timed out after {}s", timeout),
             }
-            if let Some(p) = port {
-                config.server.port = p;
+        }
+        mcp_guard::config::TransportType::Sse => {
+            let url = config
+                .upstream
+                .url
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("SSE transport requires 'url' in config"))?;
+
+            println!("Transport: SSE");
+            println!("URL:       {}", url);
+            println!();
+
+            match tokio::time::timeout(timeout_duration, check_sse_upstream(url)).await {
+                Ok(Ok(())) => println!("✓ Upstream is reachable"),
+                Ok(Err(e)) => anyhow::bail!("✗ Upstream check failed: {}", e),
+                Err(_) => anyhow::bail!("✗ Upstream check timed out after {}s", timeout),
             }
-
-            // Initialize tracing with OpenTelemetry (if configured)
-            let _tracing_guard = init_tracing(cli.verbose, Some(&config.tracing));
-
-            // Log tracing configuration
-            if config.tracing.enabled {
-                tracing::info!(
-                    service_name = %config.tracing.service_name,
-                    otlp_endpoint = ?config.tracing.otlp_endpoint,
-                    sample_rate = %config.tracing.sample_rate,
-                    "OpenTelemetry tracing enabled"
-                );
-            }
-
-            // Bootstrap the server state
-            let BootstrapResult { state, audit_handle, shutdown_token } = bootstrap(config).await?;
-
-            // Run server with graceful shutdown handling
-            tokio::select! {
-                result = server::run(state) => {
-                    // Server exited (error or normal termination)
-                    result?;
-                }
-                _ = tokio::signal::ctrl_c() => {
-                    tracing::info!("Received SIGINT, initiating graceful shutdown...");
-                }
-            }
-
-            // Trigger shutdown for all background tasks
-            shutdown_token.cancel();
-
-            // Give background tasks time to complete (e.g., flush audit logs)
-            tracing::info!("Shutting down background tasks...");
-            audit_handle.shutdown().await;
-
-            tracing::info!("Shutdown complete");
         }
     }
 
+    Ok(())
+}
+
+/// Handle the `run` command: start the MCP Guard server.
+async fn handle_run(
+    config_path: &std::path::PathBuf,
+    host: Option<String>,
+    port: Option<u16>,
+    verbose: bool,
+) -> anyhow::Result<()> {
+    let mut config = Config::from_file(config_path)?;
+
+    // Override with CLI args
+    if let Some(h) = host {
+        config.server.host = h;
+    }
+    if let Some(p) = port {
+        config.server.port = p;
+    }
+
+    // Initialize tracing with OpenTelemetry (if configured)
+    let _tracing_guard = init_tracing(verbose, Some(&config.tracing));
+
+    // Log tracing configuration
+    if config.tracing.enabled {
+        tracing::info!(
+            service_name = %config.tracing.service_name,
+            otlp_endpoint = ?config.tracing.otlp_endpoint,
+            sample_rate = %config.tracing.sample_rate,
+            "OpenTelemetry tracing enabled"
+        );
+    }
+
+    // Bootstrap the server state
+    let BootstrapResult { state, audit_handle, shutdown_token } = bootstrap(config).await?;
+
+    // Run server with graceful shutdown handling
+    tokio::select! {
+        result = server::run(state) => {
+            // Server exited (error or normal termination)
+            result?;
+        }
+        _ = tokio::signal::ctrl_c() => {
+            tracing::info!("Received SIGINT, initiating graceful shutdown...");
+        }
+    }
+
+    // Trigger shutdown for all background tasks
+    shutdown_token.cancel();
+
+    // Give background tasks time to complete (e.g., flush audit logs)
+    tracing::info!("Shutting down background tasks...");
+    audit_handle.shutdown().await;
+
+    tracing::info!("Shutdown complete");
     Ok(())
 }
 

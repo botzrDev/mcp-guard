@@ -739,14 +739,32 @@ impl Config {
 
     /// Validate the configuration
     pub fn validate(&self) -> Result<(), ConfigError> {
-        // Validate server port (must be 1-65535, not 0)
+        self.validate_server()?;
+        self.validate_rate_limit()?;
+        self.validate_jwt()?;
+        self.validate_oauth()?;
+        self.validate_audit()?;
+        self.validate_mtls()?;
+        self.validate_tracing()?;
+        self.validate_upstream()
+    }
+
+    // ========================================================================
+    // Validation Helpers
+    // ========================================================================
+
+    /// Validate server configuration.
+    fn validate_server(&self) -> Result<(), ConfigError> {
         if self.server.port == 0 {
             return Err(ConfigError::Validation(
                 "server.port must be between 1 and 65535".to_string(),
             ));
         }
+        Ok(())
+    }
 
-        // Validate rate limit settings
+    /// Validate rate limit configuration.
+    fn validate_rate_limit(&self) -> Result<(), ConfigError> {
         if self.rate_limit.enabled {
             if self.rate_limit.requests_per_second == 0 {
                 return Err(ConfigError::Validation(
@@ -759,8 +777,11 @@ impl Config {
                 ));
             }
         }
+        Ok(())
+    }
 
-        // Validate JWT configuration
+    /// Validate JWT configuration.
+    fn validate_jwt(&self) -> Result<(), ConfigError> {
         if let Some(ref jwt_config) = self.auth.jwt {
             if let JwtMode::Jwks { ref jwks_url, .. } = jwt_config.mode {
                 // JWKS URL must use HTTPS in production (allow HTTP in debug builds for local testing)
@@ -778,8 +799,11 @@ impl Config {
                 }
             }
         }
+        Ok(())
+    }
 
-        // Validate OAuth configuration
+    /// Validate OAuth configuration.
+    fn validate_oauth(&self) -> Result<(), ConfigError> {
         if let Some(ref oauth_config) = self.auth.oauth {
             // Validate redirect_uri is a valid URL
             if !oauth_config.redirect_uri.starts_with("http://")
@@ -798,8 +822,11 @@ impl Config {
                 );
             }
         }
+        Ok(())
+    }
 
-        // Validate audit export configuration
+    /// Validate audit configuration.
+    fn validate_audit(&self) -> Result<(), ConfigError> {
         if let Some(ref export_url) = self.audit.export_url {
             // Validate URL format
             if !export_url.starts_with("http://") && !export_url.starts_with("https://") {
@@ -825,8 +852,11 @@ impl Config {
                 ));
             }
         }
+        Ok(())
+    }
 
-        // Validate mTLS configuration
+    /// Validate mTLS configuration.
+    fn validate_mtls(&self) -> Result<(), ConfigError> {
         if let Some(ref mtls_config) = self.auth.mtls {
             if mtls_config.enabled && mtls_config.trusted_proxy_ips.is_empty() {
                 // SECURITY: mTLS without trusted proxy IPs allows header spoofing
@@ -837,8 +867,11 @@ impl Config {
                 ));
             }
         }
+        Ok(())
+    }
 
-        // Validate tracing sample rate
+    /// Validate tracing configuration.
+    fn validate_tracing(&self) -> Result<(), ConfigError> {
         if self.tracing.enabled
             && (self.tracing.sample_rate < 0.0 || self.tracing.sample_rate > 1.0)
         {
@@ -846,7 +879,11 @@ impl Config {
                 "tracing.sample_rate must be between 0.0 and 1.0".to_string(),
             ));
         }
+        Ok(())
+    }
 
+    /// Validate upstream configuration.
+    fn validate_upstream(&self) -> Result<(), ConfigError> {
         // If multi-server routing is configured, validate each server
         if !self.upstream.servers.is_empty() {
             for server in &self.upstream.servers {
