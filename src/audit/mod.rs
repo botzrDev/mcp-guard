@@ -1,21 +1,30 @@
 //! Audit logging for mcp-guard
 //!
 //! Provides audit logging with multiple output destinations:
-//! - File: Append audit entries to a local file
+//! - File: Append audit entries to a local file (with optional rotation)
 //! - Stdout: Print audit entries to console
 //! - HTTP Export: Batch and ship audit entries to an HTTP endpoint (SIEM integration)
+//!
+//! Features:
+//! - Secret redaction: Configurable regex patterns to prevent credential leakage
+//! - Log rotation: Size and time-based rotation with optional gzip compression
 //!
 //! All I/O is performed asynchronously via background tasks to avoid blocking
 //! the async runtime.
 
 use chrono::{DateTime, Utc};
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use regex::Regex;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::fs::OpenOptions;
-use std::io::Write;
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
+
+use crate::config::{LogRotationConfig, RedactionRule};
 
 // ============================================================================
 // Constants
@@ -38,6 +47,279 @@ const AUDIT_MAX_RETRY_ATTEMPTS: usize = 3;
 /// Maximum length for error body content in error messages.
 /// SECURITY: Truncate response bodies to prevent sensitive data leakage in logs.
 const MAX_ERROR_BODY_LEN: usize = 200;
+
+// ============================================================================
+// Secret Redaction
+// ============================================================================
+
+/// Compiled redaction rules for efficient secret matching
+///
+/// Pre-compiles regex patterns at startup for optimal runtime performance.
+/// Patterns are applied in order, so more specific patterns should come first.
+#[derive(Clone)]
+pub struct CompiledRedactionRules {
+    /// Compiled rules: (name, pattern, replacement)
+    rules: Vec<(String, Regex, String)>,
+}
+
+impl std::fmt::Debug for CompiledRedactionRules {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CompiledRedactionRules")
+            .field("rules_count", &self.rules.len())
+            .field("rule_names", &self.rules.iter().map(|(name, _, _)| name.as_str()).collect::<Vec<_>>())
+            .finish()
+    }
+}
+
+impl CompiledRedactionRules {
+    /// Create compiled rules from configuration
+    ///
+    /// Returns an error if any regex pattern is invalid.
+    pub fn new(rules: &[RedactionRule]) -> Result<Self, regex::Error> {
+        let compiled = rules
+            .iter()
+            .map(|r| {
+                let regex = Regex::new(&r.pattern)?;
+                Ok((r.name.clone(), regex, r.replacement.clone()))
+            })
+            .collect::<Result<Vec<_>, regex::Error>>()?;
+
+        if !compiled.is_empty() {
+            tracing::info!(
+                rule_count = compiled.len(),
+                rules = ?compiled.iter().map(|(n, _, _)| n.as_str()).collect::<Vec<_>>(),
+                "Compiled secret redaction rules"
+            );
+        }
+
+        Ok(Self { rules: compiled })
+    }
+
+    /// Create empty rules (no redaction)
+    pub fn empty() -> Self {
+        Self { rules: Vec::new() }
+    }
+
+    /// Check if any rules are configured
+    pub fn is_empty(&self) -> bool {
+        self.rules.is_empty()
+    }
+
+    /// Redact secrets from a string using configured patterns
+    ///
+    /// Applies all rules in order. Each rule's replacement can use
+    /// regex capture groups (e.g., "$1" to preserve matched group).
+    pub fn redact(&self, input: &str) -> String {
+        if self.rules.is_empty() {
+            return input.to_string();
+        }
+
+        let mut result = input.to_string();
+        for (name, pattern, replacement) in &self.rules {
+            let before = result.clone();
+            result = pattern.replace_all(&result, replacement.as_str()).into_owned();
+            if result != before {
+                tracing::trace!(rule = %name, "Applied redaction rule");
+            }
+        }
+        result
+    }
+}
+
+// ============================================================================
+// Log Rotation
+// ============================================================================
+
+/// Rotating file writer that handles size and time-based log rotation
+///
+/// Automatically rotates log files when they exceed size or age limits.
+/// Supports optional gzip compression of rotated files.
+pub struct RotatingFileWriter {
+    /// Path to the main log file
+    path: PathBuf,
+    /// Current file handle
+    file: BufWriter<File>,
+    /// Current file size in bytes
+    current_size: u64,
+    /// When the current file was created
+    created_at: Instant,
+    /// Rotation configuration
+    config: LogRotationConfig,
+}
+
+impl RotatingFileWriter {
+    /// Create a new rotating file writer
+    pub fn new(path: PathBuf, config: LogRotationConfig) -> io::Result<Self> {
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)?;
+
+        let current_size = file.metadata()?.len();
+
+        Ok(Self {
+            path,
+            file: BufWriter::new(file),
+            current_size,
+            created_at: Instant::now(),
+            config,
+        })
+    }
+
+    /// Write data to the log file, rotating if necessary
+    pub fn write(&mut self, data: &[u8]) -> io::Result<()> {
+        // Check if rotation is needed before writing
+        if self.should_rotate() {
+            self.rotate()?;
+        }
+
+        self.file.write_all(data)?;
+        self.current_size += data.len() as u64;
+        Ok(())
+    }
+
+    /// Write a line to the log file
+    pub fn write_line(&mut self, line: &str) -> io::Result<()> {
+        self.write(line.as_bytes())?;
+        self.write(b"\n")
+    }
+
+    /// Flush buffered data to disk
+    pub fn flush(&mut self) -> io::Result<()> {
+        self.file.flush()
+    }
+
+    /// Check if rotation is needed based on size or age
+    fn should_rotate(&self) -> bool {
+        if !self.config.enabled {
+            return false;
+        }
+
+        // Check size limit
+        if let Some(max_size) = self.config.max_size_bytes {
+            if self.current_size >= max_size {
+                return true;
+            }
+        }
+
+        // Check age limit
+        if let Some(max_age) = self.config.max_age_secs {
+            if self.created_at.elapsed().as_secs() >= max_age {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Rotate the current log file
+    fn rotate(&mut self) -> io::Result<()> {
+        // Flush and close current file
+        self.file.flush()?;
+
+        // Generate backup filename with timestamp
+        let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+        let backup_name = format!(
+            "{}.{}",
+            self.path.file_name().unwrap_or_default().to_string_lossy(),
+            timestamp
+        );
+        let backup_path = self.path.with_file_name(&backup_name);
+
+        // Rename current file to backup
+        fs::rename(&self.path, &backup_path)?;
+
+        tracing::info!(
+            original = %self.path.display(),
+            backup = %backup_path.display(),
+            size_bytes = self.current_size,
+            "Rotated audit log file"
+        );
+
+        // Compress if configured
+        if self.config.compress {
+            let compressed_path = backup_path.with_extension(
+                format!("{}.gz", backup_path.extension().unwrap_or_default().to_string_lossy())
+            );
+            if let Err(e) = Self::compress_file(&backup_path, &compressed_path) {
+                tracing::warn!(
+                    error = %e,
+                    path = %backup_path.display(),
+                    "Failed to compress rotated log file"
+                );
+            } else {
+                // Remove uncompressed backup after successful compression
+                let _ = fs::remove_file(&backup_path);
+                tracing::debug!(path = %compressed_path.display(), "Compressed rotated log file");
+            }
+        }
+
+        // Clean up old backups
+        if let Err(e) = self.cleanup_old_backups() {
+            tracing::warn!(error = %e, "Failed to clean up old backup files");
+        }
+
+        // Create new file
+        let new_file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
+
+        self.file = BufWriter::new(new_file);
+        self.current_size = 0;
+        self.created_at = Instant::now();
+
+        Ok(())
+    }
+
+    /// Compress a file using gzip
+    fn compress_file(source: &PathBuf, dest: &PathBuf) -> io::Result<()> {
+        let input = File::open(source)?;
+        let output = File::create(dest)?;
+        let mut encoder = GzEncoder::new(output, Compression::default());
+
+        io::copy(&mut io::BufReader::new(input), &mut encoder)?;
+        encoder.finish()?;
+
+        Ok(())
+    }
+
+    /// Clean up old backup files, keeping only max_backups
+    fn cleanup_old_backups(&self) -> io::Result<()> {
+        let parent = self.path.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let base_name = self.path.file_name().unwrap_or_default().to_string_lossy();
+
+        // Find all backup files
+        let mut backups: Vec<_> = fs::read_dir(parent)?
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                let name = e.file_name().to_string_lossy().to_string();
+                // Match files like "audit.log.20251225-120000" or "audit.log.20251225-120000.gz"
+                name.starts_with(&format!("{}.", base_name)) && name != base_name.as_ref()
+            })
+            .collect();
+
+        // Sort by modification time (oldest first)
+        backups.sort_by_key(|e| {
+            e.metadata()
+                .and_then(|m| m.modified())
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+        });
+
+        // Remove oldest backups if we have too many
+        let to_remove = backups.len().saturating_sub(self.config.max_backups);
+        for entry in backups.into_iter().take(to_remove) {
+            let path = entry.path();
+            if let Err(e) = fs::remove_file(&path) {
+                tracing::warn!(error = %e, path = %path.display(), "Failed to remove old backup");
+            } else {
+                tracing::debug!(path = %path.display(), "Removed old backup file");
+            }
+        }
+
+        Ok(())
+    }
+}
 
 /// Audit event types
 #[derive(Debug, Clone, Serialize)]
@@ -168,6 +450,8 @@ pub struct AuditLogger {
     writer_tx: Option<mpsc::Sender<AuditMessage>>,
     /// Channel for sending entries to the HTTP shipper task
     export_tx: Option<mpsc::Sender<AuditEntry>>,
+    /// Compiled redaction rules for secret filtering
+    redaction_rules: CompiledRedactionRules,
 }
 
 /// Handle for audit logger background tasks
@@ -212,12 +496,17 @@ impl AuditLogger {
     /// Note: This creates a logger without background tasks. For production use,
     /// prefer `with_tasks()` which properly handles async I/O.
     pub fn new(config: &crate::config::AuditConfig) -> std::io::Result<Self> {
+        // Compile redaction rules
+        let redaction_rules = CompiledRedactionRules::new(&config.redaction_rules)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+
         // For backward compatibility, create a synchronous logger
         // This is used in tests and simple cases
         Ok(Self {
             enabled: config.enabled,
             writer_tx: None, // No background task in sync mode
             export_tx: None,
+            redaction_rules,
         })
     }
 
@@ -226,9 +515,18 @@ impl AuditLogger {
     /// This is the preferred constructor for production use. All file and stdout
     /// writes are performed by background tasks, avoiding blocking the async runtime.
     pub fn with_tasks(config: &crate::config::AuditConfig) -> std::io::Result<(Self, AuditLoggerHandle)> {
+        // Compile redaction rules first (before checking enabled)
+        let redaction_rules = CompiledRedactionRules::new(&config.redaction_rules)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+
         if !config.enabled {
             return Ok((
-                Self::disabled(),
+                Self {
+                    enabled: false,
+                    writer_tx: None,
+                    export_tx: None,
+                    redaction_rules: CompiledRedactionRules::empty(),
+                },
                 AuditLoggerHandle {
                     writer_task: None,
                     shipper_task: None,
@@ -241,23 +539,42 @@ impl AuditLogger {
         let (writer_tx, writer_rx) = mpsc::channel::<AuditMessage>(AUDIT_CHANNEL_SIZE);
         let shutdown_tx = writer_tx.clone();
 
-        // Open file if configured
-        let file = if let Some(path) = &config.file {
-            Some(
-                OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(path)?,
-            )
+        // Create file writer (with or without rotation)
+        let file_writer: Option<FileWriter> = if let Some(path) = &config.file {
+            if let Some(ref rotation_config) = config.rotation {
+                if rotation_config.enabled {
+                    // Use rotating file writer
+                    Some(FileWriter::Rotating(RotatingFileWriter::new(
+                        path.clone(),
+                        rotation_config.clone(),
+                    )?))
+                } else {
+                    // Rotation configured but disabled - use simple file
+                    Some(FileWriter::Simple(
+                        OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open(path)?,
+                    ))
+                }
+            } else {
+                // No rotation config - use simple file
+                Some(FileWriter::Simple(
+                    OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(path)?,
+                ))
+            }
         } else {
             None
         };
 
         let stdout_enabled = config.stdout;
 
-        // Spawn writer task (uses spawn_blocking for file I/O)
+        // Spawn writer task
         let writer_task = tokio::spawn(async move {
-            run_audit_writer(writer_rx, file, stdout_enabled).await;
+            run_audit_writer(writer_rx, file_writer, stdout_enabled).await;
         });
 
         // Create HTTP shipper if configured
@@ -285,6 +602,7 @@ impl AuditLogger {
                 enabled: true,
                 writer_tx: Some(writer_tx),
                 export_tx,
+                redaction_rules,
             },
             AuditLoggerHandle {
                 writer_task: Some(writer_task),
@@ -310,6 +628,7 @@ impl AuditLogger {
             enabled: false,
             writer_tx: None,
             export_tx: None,
+            redaction_rules: CompiledRedactionRules::empty(),
         }
     }
 
@@ -317,12 +636,21 @@ impl AuditLogger {
     ///
     /// This method never blocks the async runtime. Entries are sent to background
     /// tasks for writing. If the channel is full, entries may be dropped.
+    ///
+    /// Secret redaction is applied before serialization if redaction rules are configured.
     pub fn log(&self, entry: &AuditEntry) {
         if !self.enabled {
             return;
         }
 
-        let json = match serde_json::to_string(entry) {
+        // Apply redaction to the entry before serializing
+        let redacted_entry = if self.redaction_rules.is_empty() {
+            entry.clone()
+        } else {
+            self.redact_entry(entry)
+        };
+
+        let json = match serde_json::to_string(&redacted_entry) {
             Ok(j) => j,
             Err(e) => {
                 tracing::error!(
@@ -344,9 +672,24 @@ impl AuditLogger {
             }
         }
 
-        // Send to HTTP shipper if configured
+        // Send to HTTP shipper if configured (use redacted entry)
         if let Some(ref tx) = self.export_tx {
-            let _ = tx.try_send(entry.clone());
+            let _ = tx.try_send(redacted_entry);
+        }
+    }
+
+    /// Apply redaction rules to an audit entry
+    fn redact_entry(&self, entry: &AuditEntry) -> AuditEntry {
+        AuditEntry {
+            timestamp: entry.timestamp,
+            event_type: entry.event_type.clone(),
+            identity_id: entry.identity_id.as_ref().map(|s| self.redaction_rules.redact(s)),
+            method: entry.method.as_ref().map(|s| self.redaction_rules.redact(s)),
+            tool: entry.tool.as_ref().map(|s| self.redaction_rules.redact(s)),
+            success: entry.success,
+            message: entry.message.as_ref().map(|s| self.redaction_rules.redact(s)),
+            duration_ms: entry.duration_ms,
+            request_id: entry.request_id.as_ref().map(|s| self.redaction_rules.redact(s)),
         }
     }
 
@@ -413,12 +756,42 @@ pub fn default_audit_path() -> PathBuf {
     PathBuf::from("mcp-guard-audit.log")
 }
 
+/// File writer abstraction supporting both simple and rotating writes
+enum FileWriter {
+    /// Simple append-only file
+    Simple(File),
+    /// Rotating file with size/time-based rotation
+    Rotating(RotatingFileWriter),
+}
+
+impl FileWriter {
+    /// Write a line to the file
+    fn write_line(&mut self, line: &str) -> io::Result<()> {
+        match self {
+            FileWriter::Simple(f) => {
+                writeln!(f, "{}", line)
+            }
+            FileWriter::Rotating(r) => {
+                r.write_line(line)
+            }
+        }
+    }
+
+    /// Flush buffered data
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            FileWriter::Simple(f) => f.flush(),
+            FileWriter::Rotating(r) => r.flush(),
+        }
+    }
+}
+
 /// Background task that writes audit entries to file and/or stdout
 ///
-/// Uses `spawn_blocking` for file I/O to avoid blocking the async runtime.
+/// Supports both simple file writes and rotating file writes.
 async fn run_audit_writer(
     mut rx: mpsc::Receiver<AuditMessage>,
-    mut file: Option<std::fs::File>,
+    mut file_writer: Option<FileWriter>,
     stdout_enabled: bool,
 ) {
     while let Some(msg) = rx.recv().await {
@@ -429,12 +802,9 @@ async fn run_audit_writer(
                     println!("{}", json);
                 }
 
-                // Write to file using spawn_blocking to avoid blocking async runtime
-                if let Some(ref mut f) = file {
-                    let json_clone = json.clone();
-                    // We need to move the file into spawn_blocking, so we use a different approach
-                    // Write directly but accept this is a brief block (file writes are buffered)
-                    if let Err(e) = writeln!(f, "{}", json_clone) {
+                // Write to file (with or without rotation)
+                if let Some(ref mut writer) = file_writer {
+                    if let Err(e) = writer.write_line(&json) {
                         tracing::error!(error = %e, "Failed to write audit entry to file");
                     }
                 }
@@ -442,8 +812,8 @@ async fn run_audit_writer(
             AuditMessage::Shutdown => {
                 tracing::debug!("Audit writer received shutdown signal");
                 // Flush file before exiting
-                if let Some(ref mut f) = file {
-                    let _ = f.flush();
+                if let Some(ref mut writer) = file_writer {
+                    let _ = writer.flush();
                 }
                 break;
             }
@@ -629,7 +999,299 @@ impl AuditShipper {
 mod tests {
     use super::*;
     use crate::config::AuditConfig;
-    use tempfile::NamedTempFile;
+    use tempfile::{NamedTempFile, TempDir};
+
+    /// Helper to create a default test config
+    fn test_config() -> AuditConfig {
+        AuditConfig {
+            enabled: true,
+            file: None,
+            stdout: false,
+            export_url: None,
+            export_headers: HashMap::new(),
+            export_batch_size: 100,
+            export_interval_secs: 30,
+            redaction_rules: Vec::new(),
+            rotation: None,
+        }
+    }
+
+    // ========================================================================
+    // Redaction Tests
+    // ========================================================================
+
+    #[test]
+    fn test_redaction_rules_empty() {
+        let rules = CompiledRedactionRules::empty();
+        assert!(rules.is_empty());
+        assert_eq!(rules.redact("test"), "test");
+    }
+
+    #[test]
+    fn test_redaction_rules_bearer_token() {
+        let rules = CompiledRedactionRules::new(&[
+            RedactionRule {
+                name: "bearer_tokens".to_string(),
+                pattern: r"Bearer\s+[A-Za-z0-9\-_.]+".to_string(),
+                replacement: "Bearer [REDACTED]".to_string(),
+            },
+        ]).expect("Should compile");
+
+        let input = "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xyz";
+        let output = rules.redact(input);
+        assert!(!output.contains("eyJ"));
+        assert!(output.contains("Bearer [REDACTED]"));
+    }
+
+    #[test]
+    fn test_redaction_rules_api_key() {
+        let rules = CompiledRedactionRules::new(&[
+            RedactionRule {
+                name: "api_keys".to_string(),
+                pattern: r"(?i)(api[_-]?key)[=:]\s*([a-zA-Z0-9_\-]{20,})".to_string(),
+                replacement: "$1=[REDACTED]".to_string(),
+            },
+        ]).expect("Should compile");
+
+        let input = "Config: api_key=sk-1234567890abcdefghij1234567890";
+        let output = rules.redact(input);
+        assert!(!output.contains("sk-1234567890"));
+        assert!(output.contains("api_key=[REDACTED]"));
+    }
+
+    #[test]
+    fn test_redaction_rules_password() {
+        let rules = CompiledRedactionRules::new(&[
+            RedactionRule {
+                name: "passwords".to_string(),
+                pattern: r#"(?i)(password|passwd|secret)["\s:=]+["\']?([^"\'`,\s}{]+)"#.to_string(),
+                replacement: "$1=[REDACTED]".to_string(),
+            },
+        ]).expect("Should compile");
+
+        let input = r#"{"password": "super_secret_123"}"#;
+        let output = rules.redact(input);
+        assert!(!output.contains("super_secret_123"));
+    }
+
+    #[test]
+    fn test_redaction_rules_multiple_patterns() {
+        let rules = CompiledRedactionRules::new(&[
+            RedactionRule {
+                name: "bearer".to_string(),
+                pattern: r"Bearer\s+\S+".to_string(),
+                replacement: "Bearer [REDACTED]".to_string(),
+            },
+            RedactionRule {
+                name: "api_key".to_string(),
+                pattern: r"api_key=\S+".to_string(),
+                replacement: "api_key=[REDACTED]".to_string(),
+            },
+        ]).expect("Should compile");
+
+        let input = "Auth: Bearer xyz123 and api_key=abc456";
+        let output = rules.redact(input);
+        assert!(!output.contains("xyz123"));
+        assert!(!output.contains("abc456"));
+        assert!(output.contains("Bearer [REDACTED]"));
+        assert!(output.contains("api_key=[REDACTED]"));
+    }
+
+    #[test]
+    fn test_redaction_rules_invalid_regex() {
+        let result = CompiledRedactionRules::new(&[
+            RedactionRule {
+                name: "invalid".to_string(),
+                pattern: "[invalid(regex".to_string(), // Invalid regex
+                replacement: "[REDACTED]".to_string(),
+            },
+        ]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_redaction_preserves_non_sensitive_data() {
+        let rules = CompiledRedactionRules::new(&[
+            RedactionRule {
+                name: "passwords".to_string(),
+                pattern: r"password=\S+".to_string(),
+                replacement: "password=[REDACTED]".to_string(),
+            },
+        ]).expect("Should compile");
+
+        let input = "user=john tool=read_file status=success";
+        let output = rules.redact(input);
+        assert_eq!(input, output); // No changes
+    }
+
+    #[tokio::test]
+    async fn test_audit_logger_with_redaction() {
+        let temp_file = NamedTempFile::new().expect("Should create temp file");
+        let file_path = temp_file.path().to_path_buf();
+
+        let config = AuditConfig {
+            enabled: true,
+            file: Some(file_path.clone()),
+            stdout: false,
+            export_url: None,
+            export_headers: HashMap::new(),
+            export_batch_size: 100,
+            export_interval_secs: 30,
+            redaction_rules: vec![
+                RedactionRule {
+                    name: "bearer".to_string(),
+                    pattern: r"Bearer\s+\S+".to_string(),
+                    replacement: "Bearer [REDACTED]".to_string(),
+                },
+            ],
+            rotation: None,
+        };
+
+        let (logger, handle) = AuditLogger::with_tasks(&config).expect("Should create logger");
+
+        // Log an entry with sensitive data
+        let entry = AuditEntry::new(EventType::AuthFailure)
+            .with_message("Invalid token: Bearer eyJhbGciOiJIUzI1NiJ9.xyz");
+        logger.log(&entry);
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        handle.shutdown().await;
+
+        // Verify redaction was applied
+        let contents = std::fs::read_to_string(&file_path).expect("Should read file");
+        assert!(!contents.contains("eyJ"), "Token should be redacted");
+        assert!(contents.contains("[REDACTED]"), "Should contain redaction marker");
+    }
+
+    // ========================================================================
+    // Log Rotation Tests
+    // ========================================================================
+
+    #[test]
+    fn test_rotating_file_writer_creation() {
+        let temp_dir = TempDir::new().expect("Should create temp dir");
+        let log_path = temp_dir.path().join("test.log");
+
+        let config = LogRotationConfig {
+            enabled: true,
+            max_size_bytes: Some(1024),
+            max_age_secs: None,
+            max_backups: 3,
+            compress: false,
+        };
+
+        let writer = RotatingFileWriter::new(log_path.clone(), config);
+        assert!(writer.is_ok());
+    }
+
+    #[test]
+    fn test_rotating_file_writer_size_trigger() {
+        let temp_dir = TempDir::new().expect("Should create temp dir");
+        let log_path = temp_dir.path().join("test.log");
+
+        let config = LogRotationConfig {
+            enabled: true,
+            max_size_bytes: Some(100), // Small size to trigger rotation
+            max_age_secs: None,
+            max_backups: 3,
+            compress: false,
+        };
+
+        let mut writer = RotatingFileWriter::new(log_path.clone(), config).expect("Should create");
+
+        // Write enough data to trigger rotation
+        for i in 0..20 {
+            writer.write_line(&format!("Log line number {} with some padding", i)).expect("Should write");
+        }
+        writer.flush().expect("Should flush");
+
+        // Check that backup files were created
+        let files: Vec<_> = std::fs::read_dir(temp_dir.path())
+            .expect("Should read dir")
+            .filter_map(|e| e.ok())
+            .collect();
+
+        // Should have at least the current log file and one backup
+        assert!(files.len() >= 2, "Should have rotated files, got {}", files.len());
+    }
+
+    #[test]
+    fn test_rotating_file_writer_backup_cleanup() {
+        let temp_dir = TempDir::new().expect("Should create temp dir");
+        let log_path = temp_dir.path().join("test.log");
+
+        let config = LogRotationConfig {
+            enabled: true,
+            max_size_bytes: Some(50), // Very small to force multiple rotations
+            max_age_secs: None,
+            max_backups: 2, // Only keep 2 backups
+            compress: false,
+        };
+
+        let mut writer = RotatingFileWriter::new(log_path.clone(), config).expect("Should create");
+
+        // Write lots of data to trigger multiple rotations
+        for i in 0..50 {
+            writer.write_line(&format!("Log line {}", i)).expect("Should write");
+        }
+        writer.flush().expect("Should flush");
+
+        // Count backup files (excluding main log file)
+        let backup_count = std::fs::read_dir(temp_dir.path())
+            .expect("Should read dir")
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains(".2"))
+            .count();
+
+        // Should have at most max_backups backup files
+        assert!(backup_count <= 2, "Should have at most 2 backups, got {}", backup_count);
+    }
+
+    #[tokio::test]
+    async fn test_audit_logger_with_rotation() {
+        let temp_dir = TempDir::new().expect("Should create temp dir");
+        let log_path = temp_dir.path().join("audit.log");
+
+        let config = AuditConfig {
+            enabled: true,
+            file: Some(log_path.clone()),
+            stdout: false,
+            export_url: None,
+            export_headers: HashMap::new(),
+            export_batch_size: 100,
+            export_interval_secs: 30,
+            redaction_rules: Vec::new(),
+            rotation: Some(LogRotationConfig {
+                enabled: true,
+                max_size_bytes: Some(500), // Small for testing
+                max_age_secs: None,
+                max_backups: 3,
+                compress: false,
+            }),
+        };
+
+        let (logger, handle) = AuditLogger::with_tasks(&config).expect("Should create logger");
+
+        // Log many entries to trigger rotation
+        for i in 0..50 {
+            logger.log_auth_success(&format!("user{}", i));
+        }
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        handle.shutdown().await;
+
+        // Verify that rotation happened (multiple files exist)
+        let files: Vec<_> = std::fs::read_dir(temp_dir.path())
+            .expect("Should read dir")
+            .filter_map(|e| e.ok())
+            .collect();
+
+        assert!(files.len() >= 2, "Should have rotated files");
+    }
+
+    // ========================================================================
+    // Original Tests (updated with new config fields)
+    // ========================================================================
 
     #[test]
     fn test_audit_entry_creation() {
@@ -718,15 +1380,8 @@ mod tests {
 
     #[test]
     fn test_audit_logger_new_disabled_config() {
-        let config = AuditConfig {
-            enabled: false,
-            file: None,
-            stdout: false,
-            export_url: None,
-            export_headers: HashMap::new(),
-            export_batch_size: 100,
-            export_interval_secs: 30,
-        };
+        let mut config = test_config();
+        config.enabled = false;
 
         let logger = AuditLogger::new(&config).expect("Should create logger");
         // Should not panic
@@ -761,15 +1416,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_audit_logger_with_tasks_disabled() {
-        let config = AuditConfig {
-            enabled: false,
-            file: None,
-            stdout: false,
-            export_url: None,
-            export_headers: HashMap::new(),
-            export_batch_size: 100,
-            export_interval_secs: 30,
-        };
+        let mut config = test_config();
+        config.enabled = false;
 
         let (logger, handle) = AuditLogger::with_tasks(&config).expect("Should create logger");
 
@@ -782,15 +1430,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_audit_logger_with_tasks_stdout_only() {
-        let config = AuditConfig {
-            enabled: true,
-            file: None,
-            stdout: true, // Enable stdout
-            export_url: None,
-            export_headers: HashMap::new(),
-            export_batch_size: 100,
-            export_interval_secs: 30,
-        };
+        let mut config = test_config();
+        config.stdout = true;
 
         let (logger, handle) = AuditLogger::with_tasks(&config).expect("Should create logger");
 
@@ -810,15 +1451,8 @@ mod tests {
         let temp_file = NamedTempFile::new().expect("Should create temp file");
         let file_path = temp_file.path().to_path_buf();
 
-        let config = AuditConfig {
-            enabled: true,
-            file: Some(file_path.clone()),
-            stdout: false,
-            export_url: None,
-            export_headers: HashMap::new(),
-            export_batch_size: 100,
-            export_interval_secs: 30,
-        };
+        let mut config = test_config();
+        config.file = Some(file_path.clone());
 
         let (logger, handle) = AuditLogger::with_tasks(&config).expect("Should create logger");
 
@@ -840,15 +1474,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_audit_logger_log_method_with_entry() {
-        let config = AuditConfig {
-            enabled: true,
-            file: None,
-            stdout: false, // Suppress output in tests
-            export_url: None,
-            export_headers: HashMap::new(),
-            export_batch_size: 100,
-            export_interval_secs: 30,
-        };
+        let config = test_config();
 
         let (logger, handle) = AuditLogger::with_tasks(&config).expect("Should create logger");
 
@@ -898,15 +1524,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_audit_logger_with_export_legacy_api() {
-        let config = AuditConfig {
-            enabled: false,
-            file: None,
-            stdout: false,
-            export_url: None,
-            export_headers: HashMap::new(),
-            export_batch_size: 100,
-            export_interval_secs: 30,
-        };
+        let mut config = test_config();
+        config.enabled = false;
 
         // Test legacy with_export API
         let (logger, handle) = AuditLogger::with_export(&config).expect("Should create logger");
@@ -919,15 +1538,8 @@ mod tests {
     async fn test_audit_logger_channel_full_behavior() {
         let temp_file = NamedTempFile::new().expect("Should create temp file");
 
-        let config = AuditConfig {
-            enabled: true,
-            file: Some(temp_file.path().to_path_buf()),
-            stdout: false,
-            export_url: None,
-            export_headers: HashMap::new(),
-            export_batch_size: 100,
-            export_interval_secs: 30,
-        };
+        let mut config = test_config();
+        config.file = Some(temp_file.path().to_path_buf());
 
         let (logger, handle) = AuditLogger::with_tasks(&config).expect("Should create logger");
 
@@ -946,7 +1558,7 @@ mod tests {
         // Give time to process whatever got into the channel
         tokio::time::sleep(Duration::from_millis(500)).await;
         handle.shutdown().await;
-        
+
         // Verify we captured at least some logs
         let contents = std::fs::read_to_string(temp_file.path()).expect("Should read file");
         let line_count = contents.lines().count();

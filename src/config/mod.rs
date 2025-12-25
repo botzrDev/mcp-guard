@@ -487,6 +487,68 @@ pub struct AuditConfig {
     /// Additional headers to include in export requests (e.g., for authentication)
     #[serde(default)]
     pub export_headers: HashMap<String, String>,
+
+    /// Secret redaction rules to prevent sensitive data from being logged
+    /// Each rule defines a regex pattern and replacement text
+    #[serde(default)]
+    pub redaction_rules: Vec<RedactionRule>,
+
+    /// Log rotation configuration
+    #[serde(default)]
+    pub rotation: Option<LogRotationConfig>,
+}
+
+/// Secret redaction rule for audit logs
+///
+/// Matches sensitive data using regex patterns and replaces with safe text.
+/// Patterns are applied in order, so more specific patterns should come first.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RedactionRule {
+    /// Rule name for logging/debugging (e.g., "bearer_tokens", "api_keys")
+    pub name: String,
+
+    /// Regex pattern to match sensitive data
+    /// Uses Rust regex syntax: https://docs.rs/regex
+    pub pattern: String,
+
+    /// Replacement text (default: "[REDACTED]")
+    #[serde(default = "default_redaction_replacement")]
+    pub replacement: String,
+}
+
+fn default_redaction_replacement() -> String {
+    "[REDACTED]".to_string()
+}
+
+/// Log rotation configuration
+///
+/// Prevents audit log files from growing indefinitely by rotating
+/// based on size and/or age.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogRotationConfig {
+    /// Enable log rotation
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Maximum file size in bytes before rotation (e.g., 104857600 = 100MB)
+    #[serde(default)]
+    pub max_size_bytes: Option<u64>,
+
+    /// Maximum age in seconds before rotation (e.g., 86400 = 1 day)
+    #[serde(default)]
+    pub max_age_secs: Option<u64>,
+
+    /// Number of backup files to keep (default: 10)
+    #[serde(default = "default_max_backups")]
+    pub max_backups: usize,
+
+    /// Compress rotated files with gzip
+    #[serde(default)]
+    pub compress: bool,
+}
+
+fn default_max_backups() -> usize {
+    10
 }
 
 fn default_export_batch_size() -> usize {
@@ -509,6 +571,8 @@ impl Default for AuditConfig {
             export_batch_size: default_export_batch_size(),
             export_interval_secs: default_export_interval_secs(),
             export_headers: HashMap::new(),
+            redaction_rules: Vec::new(),
+            rotation: None,
         }
     }
 }

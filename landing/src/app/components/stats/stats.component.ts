@@ -314,7 +314,7 @@ interface Stat {
       bottom: calc(var(--space-5) * -1);
       right: var(--space-2-5);
       font-family: var(--font-display);
-      font-size: 160px;
+      font-size: clamp(100px, 15vw, 160px);
       font-weight: var(--weight-extrabold);
       color: transparent;
       -webkit-text-stroke: 1px var(--border-subtle);
@@ -364,7 +364,7 @@ interface Stat {
       }
 
       .stat-glyph {
-        font-size: 100px;
+        font-size: clamp(60px, 12vw, 100px);
       }
     }
   `]

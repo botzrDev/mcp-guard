@@ -5,6 +5,21 @@ use std::time::Duration;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+/// Helper to create a test config with export enabled
+fn test_export_config(export_url: String) -> AuditConfig {
+    AuditConfig {
+        enabled: true,
+        file: None,
+        stdout: false,
+        export_url: Some(export_url),
+        export_headers: HashMap::new(),
+        export_batch_size: 1, // Flush immediately
+        export_interval_secs: 1,
+        redaction_rules: Vec::new(),
+        rotation: None,
+    }
+}
+
 #[tokio::test]
 async fn test_audit_export_success() {
     let mock_server = MockServer::start().await;
@@ -16,15 +31,7 @@ async fn test_audit_export_success() {
         .mount(&mock_server)
         .await;
 
-    let config = AuditConfig {
-        enabled: true,
-        file: None,
-        stdout: false,
-        export_url: Some(format!("{}/audit", mock_server.uri())),
-        export_headers: HashMap::new(),
-        export_batch_size: 1, // Flush immediately
-        export_interval_secs: 1,
-    };
+    let config = test_export_config(format!("{}/audit", mock_server.uri()));
 
     let (logger, handle) = AuditLogger::with_tasks(&config).expect("Failed to create logger");
 
@@ -59,15 +66,7 @@ async fn test_audit_export_retry_logic() {
         .mount(&mock_server)
         .await;
 
-    let config = AuditConfig {
-        enabled: true,
-        file: None,
-        stdout: false,
-        export_url: Some(format!("{}/audit", mock_server.uri())),
-        export_headers: HashMap::new(),
-        export_batch_size: 1,
-        export_interval_secs: 1,
-    };
+    let config = test_export_config(format!("{}/audit", mock_server.uri()));
 
     let (logger, handle) = AuditLogger::with_tasks(&config).expect("Failed to create logger");
 
@@ -81,7 +80,7 @@ async fn test_audit_export_retry_logic() {
 
     drop(logger);
     handle.shutdown().await;
-    
+
     // Wiremock verification handles the expectation count
 }
 
@@ -97,15 +96,7 @@ async fn test_audit_export_max_retries_exceeded() {
         .mount(&mock_server)
         .await;
 
-    let config = AuditConfig {
-        enabled: true,
-        file: None,
-        stdout: false,
-        export_url: Some(format!("{}/audit", mock_server.uri())),
-        export_headers: HashMap::new(),
-        export_batch_size: 1,
-        export_interval_secs: 1,
-    };
+    let config = test_export_config(format!("{}/audit", mock_server.uri()));
 
     let (logger, handle) = AuditLogger::with_tasks(&config).expect("Failed to create logger");
 

@@ -460,6 +460,8 @@ fn test_config_validation_audit_invalid_export_url() {
             export_batch_size: 100,
             export_interval_secs: 30,
             export_headers: Default::default(),
+            redaction_rules: Vec::new(),
+            rotation: None,
         },
         tracing: TracingConfig::default(),
         upstream: UpstreamConfig {
@@ -492,6 +494,8 @@ fn test_config_validation_audit_zero_batch_size() {
             export_batch_size: 0, // Invalid: zero batch size
             export_interval_secs: 30,
             export_headers: Default::default(),
+            redaction_rules: Vec::new(),
+            rotation: None,
         },
         tracing: TracingConfig::default(),
         upstream: UpstreamConfig {

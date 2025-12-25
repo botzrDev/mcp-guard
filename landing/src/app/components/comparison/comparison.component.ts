@@ -166,7 +166,7 @@ gsap.registerPlugin(ScrollTrigger);
   styles: [`
     .comparison {
       position: relative;
-      padding: 100px 0;
+      padding: var(--section-py) 0;
       background: var(--bg-secondary);
       overflow: hidden;
     }
@@ -179,16 +179,16 @@ gsap.registerPlugin(ScrollTrigger);
       transform: translate(-50%, -50%) rotate(-45deg);
       display: flex;
       align-items: center;
-      gap: 32px;
+      gap: var(--space-8);
       font-family: var(--font-display);
       font-size: clamp(60px, 12vw, 150px);
-      font-weight: 800;
+      font-weight: var(--weight-extrabold);
       color: transparent;
       -webkit-text-stroke: 1px rgba(255, 122, 48, 0.03);
       white-space: nowrap;
       pointer-events: none;
       user-select: none;
-      letter-spacing: -0.05em;
+      letter-spacing: var(--tracking-tighter);
       z-index: 0;
     }
 
@@ -204,14 +204,14 @@ gsap.registerPlugin(ScrollTrigger);
     .brand-float {
       position: absolute;
       font-family: var(--font-display);
-      font-size: 400px;
-      font-weight: 800;
+      font-size: clamp(150px, 30vw, 400px);
+      font-weight: var(--weight-extrabold);
       color: transparent;
       -webkit-text-stroke: 1px var(--border-subtle);
       opacity: 0.15;
       pointer-events: none;
       user-select: none;
-      letter-spacing: -0.05em;
+      letter-spacing: var(--tracking-tighter);
     }
 
     .brand-float-1 {
@@ -228,36 +228,36 @@ gsap.registerPlugin(ScrollTrigger);
       position: relative;
       max-width: 1400px;
       margin: 0 auto;
-      padding: 0 24px;
+      padding: 0 var(--container-px);
       z-index: 1;
     }
 
     .section-header {
       display: flex;
       align-items: flex-start;
-      gap: 32px;
-      margin-bottom: 64px;
+      gap: var(--space-8);
+      margin-bottom: var(--space-16);
     }
 
     .section-number {
       font-family: var(--font-mono);
-      font-size: 100px;
-      font-weight: 800;
+      font-size: var(--text-6xl);
+      font-weight: var(--weight-extrabold);
       color: transparent;
       -webkit-text-stroke: 1px var(--border-subtle);
-      line-height: 0.8;
+      line-height: var(--leading-none);
     }
 
     .header-text {
-      padding-top: 16px;
+      padding-top: var(--space-4);
     }
 
     .section-tag {
       font-family: var(--font-mono);
-      font-size: 13px;
+      font-size: var(--text-xs);
       color: var(--accent-cyan);
-      letter-spacing: 0.05em;
-      margin-bottom: 12px;
+      letter-spacing: var(--tracking-wider);
+      margin-bottom: var(--space-3);
       display: block;
     }
 
@@ -275,11 +275,11 @@ gsap.registerPlugin(ScrollTrigger);
 
     .state-text {
       font-family: var(--font-display);
-      font-size: clamp(48px, 8vw, 80px);
-      font-weight: 800;
-      letter-spacing: -0.03em;
+      font-size: var(--text-5xl);
+      font-weight: var(--weight-extrabold);
+      letter-spacing: var(--tracking-tighter);
       color: var(--accent-red);
-      transition: color 0.5s, text-shadow 0.5s;
+      transition: color var(--duration-slow), text-shadow var(--duration-slow);
 
       &.secured {
         color: var(--accent-green);
@@ -290,23 +290,23 @@ gsap.registerPlugin(ScrollTrigger);
     /* Split container */
     .split-container {
       display: grid;
-      grid-template-columns: 1fr 80px 1fr;
+      grid-template-columns: 1fr var(--space-20) 1fr;
       gap: 0;
-      margin-bottom: 64px;
+      margin-bottom: var(--space-16);
 
       @media (max-width: 900px) {
         grid-template-columns: 1fr;
-        gap: 32px;
+        gap: var(--space-8);
       }
     }
 
     .split-panel {
       position: relative;
       background: var(--bg-primary);
-      border-radius: 24px;
-      padding: 40px;
+      border-radius: var(--radius-3xl);
+      padding: var(--space-10);
       border: 1px solid var(--border-subtle);
-      transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all var(--duration-slower) var(--ease-in-out);
       overflow: hidden;
     }
 
@@ -367,19 +367,19 @@ gsap.registerPlugin(ScrollTrigger);
     .status-badge {
       display: inline-flex;
       align-items: center;
-      gap: 12px;
-      padding: 12px 24px;
-      border-radius: 100px;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-6);
+      border-radius: var(--radius-full);
       font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      margin-bottom: 32px;
+      font-size: var(--text-xs);
+      font-weight: var(--weight-bold);
+      letter-spacing: var(--tracking-widest);
+      margin-bottom: var(--space-8);
       position: relative;
 
       svg {
-        width: 20px;
-        height: 20px;
+        width: var(--icon-md);
+        height: var(--icon-md);
       }
 
       &.danger {
@@ -398,11 +398,11 @@ gsap.registerPlugin(ScrollTrigger);
     .pulse-ring {
       position: absolute;
       top: 50%;
-      left: 24px;
+      left: var(--space-6);
       transform: translate(-50%, -50%);
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
+      width: var(--space-10);
+      height: var(--space-10);
+      border-radius: var(--radius-full);
       animation: pulseRing 2s infinite;
     }
 
@@ -422,18 +422,18 @@ gsap.registerPlugin(ScrollTrigger);
     .attack-list, .protection-list {
       display: flex;
       flex-direction: column;
-      gap: 16px;
-      margin-bottom: 32px;
+      gap: var(--space-4);
+      margin-bottom: var(--space-8);
     }
 
     .attack-item, .protection-item {
       display: flex;
       align-items: center;
-      gap: 16px;
-      padding: 16px;
+      gap: var(--space-4);
+      padding: var(--space-4);
       background: var(--bg-secondary);
-      border-radius: 12px;
-      transition: all 0.4s;
+      border-radius: var(--radius-xl);
+      transition: all var(--duration-slow);
     }
 
     .attack-item {
@@ -442,19 +442,19 @@ gsap.registerPlugin(ScrollTrigger);
 
     .attack-icon {
       color: var(--accent-red);
-      font-size: 18px;
+      font-size: var(--text-lg);
     }
 
     .attack-text {
       color: var(--text-secondary);
-      font-size: 14px;
+      font-size: var(--text-sm);
     }
 
     .protection-item {
       border-left: 3px solid var(--accent-green);
       opacity: 0;
-      transform: translateX(20px);
-      transition: all 0.4s ease;
+      transform: translateX(var(--space-5));
+      transition: all var(--duration-slow) var(--ease-out);
 
       &.visible {
         opacity: 1;
@@ -470,25 +470,25 @@ gsap.registerPlugin(ScrollTrigger);
 
     .protection-icon {
       color: var(--accent-green);
-      font-size: 18px;
+      font-size: var(--text-lg);
     }
 
     .protection-text {
       color: var(--text-secondary);
-      font-size: 14px;
+      font-size: var(--text-sm);
     }
 
     .panel-terminal {
       background: var(--bg-secondary);
       border: 1px solid var(--border-subtle);
-      border-radius: 12px;
-      padding: 20px;
+      border-radius: var(--radius-xl);
+      padding: var(--space-5);
 
       pre {
         margin: 0;
         font-family: var(--font-mono);
-        font-size: 13px;
-        line-height: 1.8;
+        font-size: var(--text-xs);
+        line-height: var(--leading-loose);
       }
 
       .comment { color: var(--text-dim); }
@@ -514,8 +514,8 @@ gsap.registerPlugin(ScrollTrigger);
 
     .shield-container {
       position: relative;
-      width: 80px;
-      height: 80px;
+      width: var(--space-20);
+      height: var(--space-20);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -537,20 +537,20 @@ gsap.registerPlugin(ScrollTrigger);
     .shield-icon {
       position: relative;
       z-index: 2;
-      width: 56px;
-      height: 56px;
+      width: var(--space-14);
+      height: var(--space-14);
       background: var(--bg-secondary);
       border: 2px solid var(--border-subtle);
-      border-radius: 50%;
+      border-radius: var(--radius-full);
       display: flex;
       align-items: center;
       justify-content: center;
       color: var(--text-muted);
-      transition: all 0.5s;
+      transition: all var(--duration-slow);
 
       svg {
-        width: 28px;
-        height: 28px;
+        width: var(--icon-xl);
+        height: var(--icon-xl);
       }
     }
 
@@ -562,11 +562,11 @@ gsap.registerPlugin(ScrollTrigger);
 
     .shield-ring {
       position: absolute;
-      width: 70px;
-      height: 70px;
+      width: var(--space-18);
+      height: var(--space-18);
       border: 2px solid transparent;
       border-top-color: var(--border-subtle);
-      border-radius: 50%;
+      border-radius: var(--radius-full);
       animation: rotate 3s linear infinite;
     }
 
@@ -597,18 +597,18 @@ gsap.registerPlugin(ScrollTrigger);
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 16px;
+      gap: var(--space-4);
     }
 
     .mega-toggle {
       position: relative;
       width: 280px;
-      height: 64px;
+      height: var(--space-16);
       background: var(--bg-primary);
       border: 2px solid var(--border-subtle);
-      border-radius: 100px;
+      border-radius: var(--radius-full);
       cursor: pointer;
-      transition: all 0.4s;
+      transition: all var(--duration-slow);
       overflow: hidden;
 
       &:hover {
@@ -655,60 +655,60 @@ gsap.registerPlugin(ScrollTrigger);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 24px;
+      padding: 0 var(--space-6);
     }
 
     .toggle-label {
       font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
+      font-size: var(--text-xs);
+      font-weight: var(--weight-bold);
+      letter-spacing: var(--tracking-widest);
       color: var(--text-muted);
-      transition: all 0.4s;
+      transition: all var(--duration-slow);
     }
 
     .toggle-thumb {
       position: absolute;
-      left: 4px;
-      width: 52px;
-      height: 52px;
+      left: var(--space-1);
+      width: var(--space-14);
+      height: var(--space-14);
       background: var(--accent-red);
-      border-radius: 50%;
+      border-radius: var(--radius-full);
       display: flex;
       align-items: center;
       justify-content: center;
       color: var(--bg-primary);
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      transition: all var(--duration-slow) var(--ease-in-out);
+      box-shadow: var(--shadow-lg);
 
       svg {
-        width: 24px;
-        height: 24px;
+        width: var(--icon-lg);
+        height: var(--icon-lg);
       }
     }
 
     .toggle-hint {
-      font-size: 13px;
+      font-size: var(--text-xs);
       color: var(--text-muted);
     }
 
     @media (max-width: 768px) {
       .section-header {
         flex-direction: column;
-        gap: 16px;
+        gap: var(--space-4);
       }
 
       .section-number {
-        font-size: 60px;
+        font-size: var(--text-4xl);
       }
 
       .split-panel {
-        padding: 24px;
+        padding: var(--space-6);
       }
 
       .mega-toggle {
         width: 240px;
-        height: 56px;
+        height: var(--space-14);
       }
     }
   `]

@@ -151,7 +151,7 @@ gsap.registerPlugin(ScrollTrigger);
   styles: [`
     .cta {
       position: relative;
-      padding: 120px 0;
+      padding: var(--section-py-lg) 0;
       background: var(--bg-primary);
       overflow: hidden;
     }
@@ -170,7 +170,7 @@ gsap.registerPlugin(ScrollTrigger);
     .stripe {
       position: absolute;
       height: 200%;
-      width: 80px;
+      width: var(--space-20);
       transform: rotate(-35deg);
     }
 
@@ -209,19 +209,19 @@ gsap.registerPlugin(ScrollTrigger);
       position: relative;
       max-width: 1400px;
       margin: 0 auto;
-      padding: 0 24px;
+      padding: 0 var(--container-px);
       z-index: 1;
     }
 
     .cta-content {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 80px;
+      gap: var(--space-20);
       align-items: center;
 
       @media (max-width: 1024px) {
         grid-template-columns: 1fr;
-        gap: 60px;
+        gap: var(--space-16);
       }
     }
 
@@ -254,35 +254,35 @@ gsap.registerPlugin(ScrollTrigger);
     .section-marker {
       display: flex;
       align-items: center;
-      gap: 16px;
-      margin-bottom: 24px;
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
     }
 
     .marker-line {
-      width: 40px;
+      width: var(--space-10);
       height: 3px;
       background: var(--gradient-brand);
-      border-radius: 2px;
+      border-radius: var(--radius-sm);
     }
 
     .marker-text {
       font-family: var(--font-mono);
-      font-size: 13px;
+      font-size: var(--text-xs);
       color: var(--accent-cyan);
-      letter-spacing: 0.05em;
+      letter-spacing: var(--tracking-wider);
     }
 
     .cta-title {
-      margin-bottom: 24px;
+      margin-bottom: var(--space-6);
     }
 
     .title-line {
       display: block;
       font-family: var(--font-display);
-      font-size: clamp(36px, 6vw, 56px);
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
+      font-size: var(--text-4xl);
+      font-weight: var(--weight-bold);
+      letter-spacing: var(--tracking-tighter);
+      line-height: var(--leading-tight);
     }
 
     .title-gradient {
@@ -293,38 +293,38 @@ gsap.registerPlugin(ScrollTrigger);
     }
 
     .cta-subtitle {
-      font-size: 18px;
+      font-size: var(--text-lg);
       color: var(--text-secondary);
-      margin-bottom: 32px;
-      line-height: 1.6;
+      margin-bottom: var(--space-8);
+      line-height: var(--leading-relaxed);
       max-width: 500px;
     }
 
     .cta-actions {
       display: flex;
-      gap: 16px;
+      gap: var(--space-4);
       flex-wrap: wrap;
-      margin-bottom: 40px;
+      margin-bottom: var(--space-10);
     }
 
     .btn-primary {
       position: relative;
       display: inline-flex;
       align-items: center;
-      gap: 12px;
-      padding: 16px 32px;
+      gap: var(--space-3);
+      padding: var(--space-4) var(--space-8);
       background: var(--gradient-brand);
       color: var(--bg-primary);
       text-decoration: none;
-      font-size: 16px;
-      font-weight: 600;
-      border-radius: 12px;
+      font-size: var(--text-base);
+      font-weight: var(--weight-semibold);
+      border-radius: var(--radius-xl);
       overflow: hidden;
-      transition: all 0.3s;
+      transition: all var(--duration-normal);
 
       .btn-icon svg {
-        width: 20px;
-        height: 20px;
+        width: var(--icon-md);
+        height: var(--icon-md);
       }
 
       .btn-glow {
@@ -333,7 +333,7 @@ gsap.registerPlugin(ScrollTrigger);
         background: var(--gradient-brand);
         filter: blur(20px);
         opacity: 0;
-        transition: opacity 0.3s;
+        transition: opacity var(--duration-normal);
         z-index: -1;
       }
 
@@ -349,20 +349,20 @@ gsap.registerPlugin(ScrollTrigger);
     .btn-secondary {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
-      padding: 16px 28px;
+      gap: var(--space-2-5);
+      padding: var(--space-4) var(--space-7);
       background: transparent;
       color: var(--text-primary);
       text-decoration: none;
-      font-size: 16px;
-      font-weight: 500;
-      border-radius: 12px;
+      font-size: var(--text-base);
+      font-weight: var(--weight-medium);
+      border-radius: var(--radius-xl);
       border: 1px solid var(--border-medium);
-      transition: all 0.3s;
+      transition: all var(--duration-normal);
 
       svg {
-        width: 22px;
-        height: 22px;
+        width: var(--icon-lg);
+        height: var(--icon-lg);
       }
 
       &:hover {
@@ -375,7 +375,7 @@ gsap.registerPlugin(ScrollTrigger);
     .social-proof {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: var(--space-4);
     }
 
     .proof-avatars {
@@ -383,12 +383,12 @@ gsap.registerPlugin(ScrollTrigger);
     }
 
     .avatar {
-      width: 36px;
-      height: 36px;
+      width: var(--space-9);
+      height: var(--space-9);
       background: var(--bg-elevated);
       border: 2px solid var(--bg-primary);
-      border-radius: 50%;
-      margin-left: -8px;
+      border-radius: var(--radius-full);
+      margin-left: calc(-1 * var(--space-2));
 
       &:first-child {
         margin-left: 0;
@@ -398,15 +398,15 @@ gsap.registerPlugin(ScrollTrigger);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 11px;
-        font-weight: 600;
+        font-size: var(--text-xs);
+        font-weight: var(--weight-semibold);
         color: var(--text-muted);
         background: var(--bg-secondary);
       }
     }
 
     .proof-text {
-      font-size: 14px;
+      font-size: var(--text-sm);
       color: var(--text-muted);
     }
 
@@ -429,7 +429,7 @@ gsap.registerPlugin(ScrollTrigger);
       max-width: 520px;
       background: var(--bg-secondary);
       border: 1px solid var(--border-subtle);
-      border-radius: 20px;
+      border-radius: var(--radius-2xl);
       overflow: hidden;
       box-shadow:
         0 0 0 1px rgba(255, 255, 255, 0.05),
@@ -440,19 +440,19 @@ gsap.registerPlugin(ScrollTrigger);
     .terminal-header {
       display: flex;
       align-items: center;
-      padding: 16px 20px;
+      padding: var(--space-4) var(--space-5);
       background: var(--bg-elevated);
       border-bottom: 1px solid var(--border-subtle);
     }
 
     .terminal-dots {
       display: flex;
-      gap: 8px;
+      gap: var(--space-2);
 
       .dot {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
+        width: var(--space-3);
+        height: var(--space-3);
+        border-radius: var(--radius-full);
 
         &.red { background: var(--terminal-red); }
         &.yellow { background: var(--terminal-yellow); }
@@ -464,30 +464,30 @@ gsap.registerPlugin(ScrollTrigger);
       flex: 1;
       text-align: center;
       font-family: var(--font-mono);
-      font-size: 13px;
+      font-size: var(--text-xs);
       color: var(--text-muted);
     }
 
     .terminal-body {
-      padding: 24px;
+      padding: var(--space-6);
       font-family: var(--font-mono);
-      font-size: 14px;
-      line-height: 1.9;
+      font-size: var(--text-sm);
+      line-height: var(--leading-loose);
       min-height: 220px;
     }
 
     .terminal-line {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: var(--space-2-5);
       opacity: 0;
       transform: translateY(10px);
-      transition: all 0.3s ease;
-      padding: 6px 0;
-      border-radius: 8px;
-      margin: 0 -10px;
-      padding-left: 10px;
-      padding-right: 10px;
+      transition: all var(--duration-normal) var(--ease-out);
+      padding: var(--space-1-5) 0;
+      border-radius: var(--radius-lg);
+      margin: 0 calc(-1 * var(--space-2-5));
+      padding-left: var(--space-2-5);
+      padding-right: var(--space-2-5);
 
       &.visible {
         opacity: 1;
@@ -533,19 +533,19 @@ gsap.registerPlugin(ScrollTrigger);
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 30px;
-      height: 30px;
+      width: var(--space-7);
+      height: var(--space-7);
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
-      border-radius: 8px;
+      border-radius: var(--radius-lg);
       cursor: pointer;
       opacity: 0;
-      transition: all 0.2s;
+      transition: all var(--duration-fast);
       color: var(--text-muted);
 
       svg {
-        width: 14px;
-        height: 14px;
+        width: var(--icon-sm);
+        height: var(--icon-sm);
       }
 
       &:hover {
@@ -576,20 +576,20 @@ gsap.registerPlugin(ScrollTrigger);
     /* Orbiting elements */
     .orbit-element {
       position: absolute;
-      width: 52px;
-      height: 52px;
+      width: var(--space-14);
+      height: var(--space-14);
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
-      border-radius: 14px;
+      border-radius: var(--radius-xl);
       display: flex;
       align-items: center;
       justify-content: center;
       color: var(--accent-cyan);
-      box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.3);
+      box-shadow: var(--shadow-lg);
 
       svg {
-        width: 24px;
-        height: 24px;
+        width: var(--icon-lg);
+        height: var(--icon-lg);
       }
 
       @media (max-width: 1024px) {
@@ -643,11 +643,11 @@ gsap.registerPlugin(ScrollTrigger);
 
     @media (max-width: 768px) {
       .cta {
-        padding: 100px 0;
+        padding: var(--section-py) 0;
       }
 
       .cta-content {
-        gap: 40px;
+        gap: var(--space-10);
       }
 
       .cta-actions {
@@ -663,7 +663,7 @@ gsap.registerPlugin(ScrollTrigger);
       .social-proof {
         flex-direction: column;
         align-items: flex-start;
-        gap: 12px;
+        gap: var(--space-3);
       }
     }
   `]

@@ -200,6 +200,50 @@ stdout = false
 # export_batch_size = 100
 # export_interval_secs = 15
 
+# -----------------------------------------------------------------------------
+# Secret Redaction (optional) - AUDIT-3
+# Prevent sensitive data from being logged (passwords, API keys, tokens)
+# Patterns are applied in order; use regex syntax
+# -----------------------------------------------------------------------------
+# [[audit.redaction_rules]]
+# name = "bearer_tokens"
+# pattern = 'Bearer\s+[A-Za-z0-9\-_.]+'
+# replacement = "Bearer [REDACTED]"
+#
+# [[audit.redaction_rules]]
+# name = "api_keys"
+# pattern = '(?i)(api[_-]?key)[=:]\s*[A-Za-z0-9_\-]{20,}'
+# replacement = "$1=[REDACTED]"
+#
+# [[audit.redaction_rules]]
+# name = "passwords"
+# pattern = '(?i)(password|passwd|secret)["\s:=]+["\']?[^"\'`,\s}{]+'
+# replacement = "$1=[REDACTED]"
+#
+# [[audit.redaction_rules]]
+# name = "aws_keys"
+# pattern = 'AKIA[0-9A-Z]{16}'
+# replacement = "[REDACTED_AWS_KEY]"
+
+# -----------------------------------------------------------------------------
+# Log Rotation (optional) - AUDIT-4
+# Prevent audit log files from growing indefinitely
+# Rotates based on size and/or age, with optional gzip compression
+# -----------------------------------------------------------------------------
+# [audit.rotation]
+# enabled = true
+# max_size_bytes = 104857600     # 100 MB - rotate when file exceeds this size
+# max_age_secs = 86400           # 1 day - rotate daily regardless of size
+# max_backups = 10               # Keep 10 rotated files
+# compress = true                # Compress rotated files with gzip
+
+# Example: Conservative rotation for cloud storage
+# [audit.rotation]
+# enabled = true
+# max_size_bytes = 52428800      # 50 MB
+# max_backups = 5
+# compress = true
+
 # =============================================================================
 # OpenTelemetry Tracing (optional) - FR-OBS-03
 # Distributed tracing with W3C trace context propagation
