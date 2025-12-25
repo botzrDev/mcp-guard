@@ -933,4 +933,4 @@ Example: If JWT fails with "token expired" but API key fails with "invalid key",
 - [Quick Start Guide](quickstart.md) - Get started in 5 minutes
 - [Configuration Reference](configuration.md) - Complete configuration options
 - [CLI Reference](cli.md) - Command-line tools
-- [Security Model](SECURITY.md) - Security architecture details
+- [Security Model](security-model.md) - Security architecture details

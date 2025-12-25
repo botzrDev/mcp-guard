@@ -114,31 +114,13 @@ Prometheus-formatted metrics.
 **Content-Type**: `text/plain; charset=utf-8`
 
 ```prometheus
-# HELP mcp_guard_requests_total Total number of HTTP requests
-# TYPE mcp_guard_requests_total counter
+# Minimal example metrics response
+# See docs/observability.md for full list of metrics and labels
 mcp_guard_requests_total{method="POST",status="200"} 1523
-mcp_guard_requests_total{method="POST",status="401"} 42
-
-# HELP mcp_guard_request_duration_seconds Request duration histogram
-# TYPE mcp_guard_request_duration_seconds histogram
-mcp_guard_request_duration_seconds_bucket{method="POST",le="0.005"} 1200
-mcp_guard_request_duration_seconds_bucket{method="POST",le="0.01"} 1400
-mcp_guard_request_duration_seconds_bucket{method="POST",le="+Inf"} 1523
-
-# HELP mcp_guard_auth_total Authentication attempts by provider
-# TYPE mcp_guard_auth_total counter
-mcp_guard_auth_total{provider="api_key",result="success"} 1500
-mcp_guard_auth_total{provider="api_key",result="failure"} 42
-
-# HELP mcp_guard_rate_limit_total Rate limit checks
-# TYPE mcp_guard_rate_limit_total counter
-mcp_guard_rate_limit_total{allowed="true"} 1520
-mcp_guard_rate_limit_total{allowed="false"} 3
-
-# HELP mcp_guard_active_identities Current number of tracked identities
-# TYPE mcp_guard_active_identities gauge
 mcp_guard_active_identities 25
 ```
+
+For a detailed breakdown of all available metrics, labels, and usage examples, refer to the **[Observability Guide](../observability.md#metrics)**.
 
 ---
 

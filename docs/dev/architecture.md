@@ -1,6 +1,31 @@
-# Architecture Overview
+# MCP Guard Architecture
 
-This document describes the internal architecture of mcp-guard for developers who want to understand or extend the codebase.
+This document describes the architecture of mcp-guard, covering both high-level design and internal implementation details.
+
+## Overview
+
+mcp-guard is a security gateway for Model Context Protocol (MCP) servers. It intercepts requests between MCP clients and servers, providing authentication, authorization, rate limiting, and observability.
+
+### Request Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                          mcp-guard                                   │
+│  ┌─────────────────────────────────────────────────────────────────┐│
+│  │                    Request Pipeline                              ││
+│  │                                                                  ││
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ ││
+│  │  │ Security │→│   Auth   │→│   Rate   │→│     Transport      │ ││
+│  │  │ Headers  │  │Middleware│  │  Limit   │  │   (send/recv)    │ ││
+│  │  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ ││
+│  │       ↓              ↓             ↓                ↓           ││
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ ││
+│  │  │ Metrics  │  │  Audit   │  │ Identity │  │  Tools Filtering │ ││
+│  │  │ Record   │  │  Logger  │  │  Store   │  │  (FR-AUTHZ-03)   │ ││
+│  │  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ ││
+│  └─────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────┘
+```
 
 ## System Context
 
@@ -282,6 +307,31 @@ See [Transport Trait Guide](./transport.md).
 ### Adding New Middleware
 
 See [Middleware Chain](./middleware.md).
+
+## Security Design
+
+### Defense in Depth
+
+1. **Transport Security**: TLS via reverse proxy
+2. **Authentication**: Multiple provider support
+3. **Authorization**: Per-tool permissions
+4. **Rate Limiting**: Per-identity limits
+5. **Input Validation**: Config validation, URL validation
+6. **Output Sanitization**: Error message filtering
+
+### Credential Handling
+
+- **API keys**: Only hashes stored
+- **JWT secrets**: JWKS preferred (no local secrets)
+- **OAuth**: Token cache with LRU eviction
+
+## SOLID Principles
+
+- **S (Single Responsibility)**: Each module has one job
+- **O (Open/Closed)**: AuthProvider trait allows extension
+- **L (Liskov Substitution)**: All auth providers interchangeable
+- **I (Interface Segregation)**: Separate Transport, AuthProvider traits
+- **D (Dependency Inversion)**: AppState depends on abstractions
 
 ## Key Files Reference
 

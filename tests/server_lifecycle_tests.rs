@@ -43,6 +43,7 @@ fn create_test_config(port: u16) -> Config {
             enabled: false,
             requests_per_second: 10,
             burst_size: 20,
+            tool_limits: Vec::new(),
         },
         audit: AuditConfig::default(),
         tracing: TracingConfig::default(),
@@ -349,8 +350,9 @@ fn test_rate_limiter_respects_identity_override() {
         enabled: true,
         requests_per_second: 10,
         burst_size: 20,
+        tool_limits: Vec::new(),
     };
-    
+
     let rate_limiter = RateLimitService::new(&config);
     
     // With identity-specific limit
@@ -370,8 +372,9 @@ fn test_rate_limiter_tracks_identities() {
         enabled: true,
         requests_per_second: 10,
         burst_size: 20,
+        tool_limits: Vec::new(),
     };
-    
+
     let rate_limiter = RateLimitService::new(&config);
     
     // Make requests from different identities

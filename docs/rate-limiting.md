@@ -235,18 +235,18 @@ Rate limits are determined in this order:
 
 ## Monitoring
 
+Monitor rate limiting performance using the built-in Prometheus metrics and audit logs.
+
 ### Prometheus Metrics
 
-Monitor rate limiting with these metrics:
+The following metrics are specifically relevant for rate limiting:
 
-**Rate limit decisions:**
+- `mcp_guard_rate_limit_total`: Tracks the number of allowed and blocked requests.
+- `mcp_guard_active_identities`: Tracks the number of unique identities currently being rate-limited.
 
-```
-mcp_guard_rate_limit_total{allowed="true"} 12345
-mcp_guard_rate_limit_total{allowed="false"} 67
-```
+For a complete list of all metrics and example queries, see the **[Observability Guide](observability.md#metrics)**.
 
-**Active identities:**
+### Audit Logs
 
 ```
 mcp_guard_active_identities 42
