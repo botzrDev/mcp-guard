@@ -7,9 +7,47 @@ import { CommonModule } from '@angular/common';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule],
   template: `
-    <!-- Simplified background - just one subtle glow -->
+    <!-- Security Grid Background -->
     <div class="hero-bg">
-      <div class="glow-orb"></div>
+      <!-- Animated grid -->
+      <div class="security-grid">
+        <div class="grid-lines"></div>
+        <div class="scan-line"></div>
+      </div>
+      
+      <!-- Shield pulse effect -->
+      <div class="shield-pulse">
+        <div class="pulse-ring pulse-1"></div>
+        <div class="pulse-ring pulse-2"></div>
+        <div class="pulse-ring pulse-3"></div>
+        <svg class="shield-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+      
+      <!-- Floating security nodes -->
+      <div class="security-nodes">
+        <div class="node node-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <div class="node node-2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+        </div>
+        <div class="node node-3">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+      </div>
+      
+      <!-- Subtle gradient accent -->
+      <div class="gradient-accent"></div>
     </div>
 
     <section class="hero">
@@ -88,15 +126,183 @@ import { CommonModule } from '@angular/common';
       pointer-events: none;
     }
 
-    .glow-orb {
+    /* Security Grid */
+    .security-grid {
       position: absolute;
-      top: 20%;
+      inset: 0;
+      opacity: 0.4;
+    }
+
+    .grid-lines {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(255, 122, 48, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 122, 48, 0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 20%, transparent 70%);
+    }
+
+    .scan-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(255, 122, 48, 0.4), var(--accent-cyan), rgba(255, 122, 48, 0.4), transparent);
+      animation: scan 4s ease-in-out infinite;
+      opacity: 0.6;
+    }
+
+    @keyframes scan {
+      0%, 100% {
+        top: 15%;
+        opacity: 0;
+      }
+      10% {
+        opacity: 0.6;
+      }
+      50% {
+        top: 55%;
+        opacity: 0.6;
+      }
+      90% {
+        opacity: 0.6;
+      }
+      100% {
+        top: 85%;
+        opacity: 0;
+      }
+    }
+
+    /* Shield Pulse Effect */
+    .shield-pulse {
+      position: absolute;
+      top: 35%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .pulse-ring {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border: 1px solid rgba(255, 122, 48, 0.15);
+    }
+
+    .pulse-1 {
+      width: 200px;
+      height: 200px;
+      animation: pulse-expand 4s ease-out infinite;
+    }
+
+    .pulse-2 {
+      width: 350px;
+      height: 350px;
+      animation: pulse-expand 4s ease-out infinite 1.3s;
+    }
+
+    .pulse-3 {
+      width: 500px;
+      height: 500px;
+      animation: pulse-expand 4s ease-out infinite 2.6s;
+    }
+
+    @keyframes pulse-expand {
+      0% {
+        opacity: 0.5;
+        transform: translate(-50%, -50%) scale(0.8);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.3);
+      }
+    }
+
+    .shield-icon {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      color: rgba(255, 122, 48, 0.15);
+      animation: shield-glow 3s ease-in-out infinite;
+    }
+
+    @keyframes shield-glow {
+      0%, 100% {
+        opacity: 0.3;
+        filter: drop-shadow(0 0 10px rgba(255, 122, 48, 0.2));
+      }
+      50% {
+        opacity: 0.6;
+        filter: drop-shadow(0 0 20px rgba(255, 122, 48, 0.4));
+      }
+    }
+
+    /* Floating Security Nodes */
+    .security-nodes {
+      position: absolute;
+      inset: 0;
+    }
+
+    .node {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      background: rgba(10, 12, 16, 0.8);
+      border: 1px solid rgba(255, 122, 48, 0.2);
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-cyan);
+      animation: float-node 6s ease-in-out infinite;
+
+      svg {
+        width: 20px;
+        height: 20px;
+      }
+    }
+
+    .node-1 {
+      top: 25%;
+      left: 12%;
+      animation-delay: 0s;
+    }
+
+    .node-2 {
+      top: 40%;
+      right: 15%;
+      animation-delay: -2s;
+    }
+
+    .node-3 {
+      bottom: 30%;
+      left: 18%;
+      animation-delay: -4s;
+    }
+
+    @keyframes float-node {
+      0%, 100% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 0.5;
+      }
+      50% {
+        transform: translateY(-15px) rotate(5deg);
+        opacity: 0.8;
+      }
+    }
+
+    /* Gradient Accent */
+    .gradient-accent {
+      position: absolute;
+      top: 30%;
       left: 50%;
       transform: translateX(-50%);
-      width: 800px;
-      height: 600px;
-      background: radial-gradient(ellipse, rgba(255, 122, 48, 0.08) 0%, transparent 60%);
-      filter: blur(60px);
+      width: 600px;
+      height: 400px;
+      background: radial-gradient(ellipse, rgba(255, 122, 48, 0.06) 0%, transparent 60%);
+      filter: blur(40px);
     }
 
     .hero {
@@ -104,7 +310,7 @@ import { CommonModule } from '@angular/common';
       min-height: 100vh;
       display: flex;
       align-items: center;
-      padding: var(--space-28) 0 var(--space-20);
+      padding: var(--space-32) 0 var(--space-24);
     }
 
     .hero-container {
@@ -127,7 +333,7 @@ import { CommonModule } from '@angular/common';
       background: rgba(255, 122, 48, 0.08);
       border: 1px solid rgba(255, 122, 48, 0.15);
       border-radius: var(--radius-full);
-      margin-bottom: var(--space-8);
+      margin-bottom: var(--space-10);
     }
 
     .badge-dot {
@@ -153,7 +359,7 @@ import { CommonModule } from '@angular/common';
 
     /* Title */
     .hero-title {
-      margin-bottom: var(--space-6);
+      margin-bottom: var(--space-8);
     }
 
     .title-line {
@@ -178,13 +384,13 @@ import { CommonModule } from '@angular/common';
       color: var(--text-secondary);
       line-height: var(--leading-relaxed);
       max-width: 600px;
-      margin: 0 auto var(--space-10);
+      margin: 0 auto var(--space-12);
     }
 
     .no-wrap {
       display: block;
       color: var(--text-muted);
-      margin-top: var(--space-2);
+      margin-top: var(--space-3);
     }
 
     /* CTAs */
@@ -192,7 +398,7 @@ import { CommonModule } from '@angular/common';
       display: flex;
       justify-content: center;
       gap: var(--space-4);
-      margin-bottom: var(--space-12);
+      margin-bottom: var(--space-14);
 
       @media (max-width: 480px) {
         flex-direction: column;
@@ -333,7 +539,7 @@ import { CommonModule } from '@angular/common';
     /* Scroll indicator */
     .scroll-indicator {
       position: absolute;
-      bottom: var(--space-10);
+      bottom: var(--space-12);
       left: 50%;
       transform: translateX(-50%);
     }
@@ -357,18 +563,37 @@ import { CommonModule } from '@angular/common';
       }
     }
 
+    /* Hide background elements on mobile for performance */
+    @media (max-width: 768px) {
+      .security-nodes {
+        display: none;
+      }
+
+      .pulse-3 {
+        display: none;
+      }
+
+      .grid-lines {
+        background-size: 40px 40px;
+      }
+    }
+
     @media (max-width: 640px) {
       .hero {
-        padding: var(--space-24) 0 var(--space-16);
+        padding: var(--space-28) 0 var(--space-20);
       }
 
       .hero-badge {
+        margin-bottom: var(--space-8);
+      }
+
+      .hero-title {
         margin-bottom: var(--space-6);
       }
 
       .hero-subtitle {
         font-size: var(--text-base);
-        margin-bottom: var(--space-8);
+        margin-bottom: var(--space-10);
       }
 
       .install-bar {
@@ -384,7 +609,26 @@ import { CommonModule } from '@angular/common';
       }
 
       .scroll-indicator {
-        bottom: var(--space-6);
+        bottom: var(--space-8);
+      }
+
+      .shield-pulse {
+        top: 30%;
+      }
+
+      .shield-icon {
+        width: 60px;
+        height: 60px;
+      }
+
+      .pulse-1 {
+        width: 120px;
+        height: 120px;
+      }
+
+      .pulse-2 {
+        width: 200px;
+        height: 200px;
       }
     }
   `]

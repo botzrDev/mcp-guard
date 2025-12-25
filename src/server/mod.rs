@@ -224,6 +224,23 @@ async fn handle_mcp_message(
         return Err(AppError::forbidden(reason));
     }
 
+    // SECURITY: Check per-tool rate limit if configured (FR-RATE-03)
+    // This allows stricter rate limits for expensive operations like execute_*
+    if let Some(tool_name) = crate::authz::extract_tool_name(&message) {
+        if let Some(tool_rate_result) = state.rate_limiter.check_tool(&identity.id, tool_name) {
+            if !tool_rate_result.allowed {
+                state.audit_logger.log_rate_limited(&identity.id);
+                tracing::warn!(
+                    identity_id = %identity.id,
+                    tool = %tool_name,
+                    retry_after = ?tool_rate_result.retry_after_secs,
+                    "Tool rate limit exceeded"
+                );
+                return Err(AppError::rate_limited_with_info(tool_rate_result));
+            }
+        }
+    }
+
     // Check if this is a tools/list request (for later filtering)
     let is_tools_list = is_tools_list_request(&message);
 
@@ -310,6 +327,24 @@ async fn handle_routed_mcp_message(
             "Authorization denied for tool call"
         );
         return Err(AppError::forbidden(reason));
+    }
+
+    // SECURITY: Check per-tool rate limit if configured (FR-RATE-03)
+    // This allows stricter rate limits for expensive operations like execute_*
+    if let Some(tool_name) = crate::authz::extract_tool_name(&message) {
+        if let Some(tool_rate_result) = state.rate_limiter.check_tool(&identity.id, tool_name) {
+            if !tool_rate_result.allowed {
+                state.audit_logger.log_rate_limited(&identity.id);
+                tracing::warn!(
+                    identity_id = %identity.id,
+                    server = %server_name,
+                    tool = %tool_name,
+                    retry_after = ?tool_rate_result.retry_after_secs,
+                    "Tool rate limit exceeded"
+                );
+                return Err(AppError::rate_limited_with_info(tool_rate_result));
+            }
+        }
     }
 
     // Check if this is a tools/list request (for later filtering)

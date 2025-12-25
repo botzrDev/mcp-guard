@@ -107,6 +107,9 @@ regex = "1.11"
 # Compression for log rotation
 flate2 = "1.0"
 
+# Glob pattern matching for tool rate limits
+glob = "0.3"
+
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile = "3.13"

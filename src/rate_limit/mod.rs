@@ -1,8 +1,9 @@
 //! Rate limiting service for mcp-guard
 //!
-//! Implements per-identity rate limiting with support for:
+//! Implements per-identity and per-tool rate limiting with support for:
 //! - Global default rate limits
 //! - Per-identity custom rate limits
+//! - Per-tool rate limits with glob pattern matching
 //! - Token bucket algorithm via Governor crate
 //! - TTL-based eviction to prevent memory growth
 //! - Background cleanup task to avoid inline latency spikes
@@ -10,6 +11,7 @@
 //! See PRD FR-RATE-01 through FR-RATE-07 for requirements.
 
 use dashmap::DashMap;
+use glob::Pattern;
 use governor::{
     clock::{Clock, DefaultClock},
     state::{InMemoryState, NotKeyed},
@@ -83,7 +85,14 @@ impl RateLimitResult {
     }
 }
 
-/// Rate limiting service with per-identity tracking
+/// Compiled tool rate limit pattern
+struct ToolPattern {
+    pattern: Pattern,
+    rps: u32,
+    burst: u32,
+}
+
+/// Rate limiting service with per-identity and per-tool tracking
 pub struct RateLimitService {
     enabled: bool,
     /// Default rate limit (requests per second)
@@ -92,6 +101,10 @@ pub struct RateLimitService {
     default_burst: u32,
     /// Per-identity rate limiters (created lazily) with last access time
     identity_limiters: DashMap<String, RateLimitEntry>,
+    /// Per-tool rate limiters (key = "identity:tool")
+    tool_limiters: DashMap<String, RateLimitEntry>,
+    /// Compiled tool patterns with their rate limits
+    tool_patterns: Vec<ToolPattern>,
     /// TTL for idle entries
     entry_ttl: Duration,
 }
@@ -99,11 +112,43 @@ pub struct RateLimitService {
 impl RateLimitService {
     /// Create a new rate limiting service
     pub fn new(config: &crate::config::RateLimitConfig) -> Self {
+        // Compile tool patterns from config
+        let tool_patterns: Vec<ToolPattern> = config
+            .tool_limits
+            .iter()
+            .filter_map(|tool_config| {
+                match Pattern::new(&tool_config.tool_pattern) {
+                    Ok(pattern) => Some(ToolPattern {
+                        pattern,
+                        rps: tool_config.requests_per_second,
+                        burst: tool_config.burst_size,
+                    }),
+                    Err(e) => {
+                        tracing::warn!(
+                            pattern = %tool_config.tool_pattern,
+                            error = %e,
+                            "Failed to compile tool rate limit pattern, skipping"
+                        );
+                        None
+                    }
+                }
+            })
+            .collect();
+
+        if !tool_patterns.is_empty() {
+            tracing::info!(
+                count = tool_patterns.len(),
+                "Compiled tool rate limit patterns"
+            );
+        }
+
         Self {
             enabled: config.enabled,
             default_rps: config.requests_per_second,
             default_burst: config.burst_size,
             identity_limiters: DashMap::new(),
+            tool_limiters: DashMap::new(),
+            tool_patterns,
             entry_ttl: DEFAULT_ENTRY_TTL,
         }
     }
@@ -149,6 +194,73 @@ impl RateLimitService {
         limiter
     }
 
+    /// Get or create a rate limiter for a specific tool, updating last access time
+    fn get_tool_limiter(&self, key: &str, rps: u32, burst: u32) -> Arc<Limiter> {
+        let now = Instant::now();
+
+        // Check if we already have a limiter for this tool
+        if let Some(mut entry) = self.tool_limiters.get_mut(key) {
+            entry.last_access = now;
+            return entry.limiter.clone();
+        }
+
+        // Create a new limiter for this tool
+        let limiter = Arc::new(Self::create_limiter(rps, burst));
+        let entry = RateLimitEntry {
+            limiter: limiter.clone(),
+            last_access: now,
+        };
+        self.tool_limiters.insert(key.to_string(), entry);
+        limiter
+    }
+
+    /// Check rate limit for a specific tool call
+    ///
+    /// Returns `Some(RateLimitResult)` if a matching tool limit exists,
+    /// `None` if no tool-specific limit applies (use identity limit instead).
+    ///
+    /// # Arguments
+    /// * `identity_id` - Unique identifier for the user/service
+    /// * `tool_name` - Name of the MCP tool being called
+    ///
+    /// # Returns
+    /// `Some(RateLimitResult)` if tool has a rate limit configured, `None` otherwise
+    pub fn check_tool(&self, identity_id: &str, tool_name: &str) -> Option<RateLimitResult> {
+        if !self.enabled || self.tool_patterns.is_empty() {
+            return None;
+        }
+
+        // Find matching tool pattern
+        let tool_config = self.tool_patterns.iter().find(|tp| tp.pattern.matches(tool_name))?;
+
+        let rps = tool_config.rps;
+        let burst = tool_config.burst;
+
+        // Create composite key: "identity:tool"
+        let key = format!("{}:{}", identity_id, tool_name);
+
+        // Calculate reset timestamp
+        let reset_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() + 1)
+            .unwrap_or(0);
+
+        // Get or create limiter for this identity:tool combination
+        let limiter = self.get_tool_limiter(&key, rps, burst);
+
+        match limiter.check() {
+            Ok(_) => {
+                let remaining = burst.saturating_sub(1);
+                Some(RateLimitResult::allowed(rps, remaining, reset_at))
+            }
+            Err(not_until) => {
+                let wait_duration = not_until.wait_time_from(DefaultClock::default().now());
+                let retry_secs = wait_duration.as_secs().max(1);
+                Some(RateLimitResult::denied(retry_secs, rps, reset_at))
+            }
+        }
+    }
+
     /// Remove expired entries that haven't been accessed within the TTL
     pub fn cleanup_expired(&self) {
         let now = Instant::now();
@@ -158,10 +270,25 @@ impl RateLimitService {
             now.duration_since(entry.last_access) < ttl
         });
 
+        self.tool_limiters.retain(|_, entry| {
+            now.duration_since(entry.last_access) < ttl
+        });
+
         tracing::debug!(
-            remaining = self.identity_limiters.len(),
+            identity_remaining = self.identity_limiters.len(),
+            tool_remaining = self.tool_limiters.len(),
             "Rate limiter cleanup completed"
         );
+    }
+
+    /// Get the number of tracked tool limiters (for monitoring)
+    pub fn tracked_tools(&self) -> usize {
+        self.tool_limiters.len()
+    }
+
+    /// Check if any tool rate limits are configured
+    pub fn has_tool_limits(&self) -> bool {
+        !self.tool_patterns.is_empty()
     }
 
     /// Check if a request should be allowed for the given identity
@@ -273,13 +400,17 @@ impl RateLimitService {
                         break;
                     }
                     _ = interval_timer.tick() => {
-                        let before = service.tracked_identities();
+                        let identity_before = service.tracked_identities();
+                        let tool_before = service.tracked_tools();
                         service.cleanup_expired();
-                        let after = service.tracked_identities();
-                        if before != after {
+                        let identity_after = service.tracked_identities();
+                        let tool_after = service.tracked_tools();
+                        if identity_before != identity_after || tool_before != tool_after {
                             tracing::debug!(
-                                removed = before - after,
-                                remaining = after,
+                                identity_removed = identity_before - identity_after,
+                                identity_remaining = identity_after,
+                                tool_removed = tool_before - tool_after,
+                                tool_remaining = tool_after,
                                 "Rate limiter cleanup task removed expired entries"
                             );
                         }
@@ -306,18 +437,25 @@ mod tests {
     //! - Per-identity isolation (separate buckets)
     //! - Custom rate limits per identity
     //! - TTL-based cleanup of idle entries
+    //! - Per-tool rate limiting with glob patterns
 
     use super::*;
-    use crate::config::RateLimitConfig;
+    use crate::config::{RateLimitConfig, ToolRateLimitConfig};
+
+    /// Helper to create a basic rate limit config for tests
+    fn test_config(enabled: bool, rps: u32, burst: u32) -> RateLimitConfig {
+        RateLimitConfig {
+            enabled,
+            requests_per_second: rps,
+            burst_size: burst,
+            tool_limits: Vec::new(),
+        }
+    }
 
     /// Verify disabled rate limiter always allows requests
     #[test]
     fn test_rate_limit_disabled() {
-        let config = RateLimitConfig {
-            enabled: false,
-            requests_per_second: 1,
-            burst_size: 1,
-        };
+        let config = test_config(false, 1, 1);
         let service = RateLimitService::new(&config);
 
         // Should always allow when disabled
@@ -331,11 +469,7 @@ mod tests {
     /// Verify enabled rate limiter respects burst then denies
     #[test]
     fn test_rate_limit_enabled() {
-        let config = RateLimitConfig {
-            enabled: true,
-            requests_per_second: 1,
-            burst_size: 2,
-        };
+        let config = test_config(true, 1, 2);
         let service = RateLimitService::new(&config);
 
         // First requests within burst should succeed
@@ -351,11 +485,7 @@ mod tests {
     /// Verify each identity gets its own rate limit bucket
     #[test]
     fn test_per_identity_isolation() {
-        let config = RateLimitConfig {
-            enabled: true,
-            requests_per_second: 1,
-            burst_size: 1,
-        };
+        let config = test_config(true, 1, 1);
         let service = RateLimitService::new(&config);
 
         // Exhaust rate limit for user A
@@ -373,11 +503,7 @@ mod tests {
     /// Verify custom rate limits override defaults
     #[test]
     fn test_custom_rate_limit() {
-        let config = RateLimitConfig {
-            enabled: true,
-            requests_per_second: 1,
-            burst_size: 1,
-        };
+        let config = test_config(true, 1, 1);
         let service = RateLimitService::new(&config);
 
         // Default user with burst=1 gets exactly 1 request
@@ -399,11 +525,7 @@ mod tests {
     /// Verify clearing an identity resets their rate limit bucket
     #[test]
     fn test_clear_identity() {
-        let config = RateLimitConfig {
-            enabled: true,
-            requests_per_second: 1,
-            burst_size: 1,
-        };
+        let config = test_config(true, 1, 1);
         let service = RateLimitService::new(&config);
 
         // Exhaust rate limit
@@ -421,11 +543,7 @@ mod tests {
     /// Verify backwards-compatible check_allowed returns simple bool
     #[test]
     fn test_check_allowed_backwards_compat() {
-        let config = RateLimitConfig {
-            enabled: true,
-            requests_per_second: 1,
-            burst_size: 1,
-        };
+        let config = test_config(true, 1, 1);
         let service = RateLimitService::new(&config);
 
         // check_allowed should return simple bool
@@ -436,11 +554,7 @@ mod tests {
     /// Verify retry_after_secs is populated when rate limited
     #[test]
     fn test_retry_after_populated() {
-        let config = RateLimitConfig {
-            enabled: true,
-            requests_per_second: 1,
-            burst_size: 1,
-        };
+        let config = test_config(true, 1, 1);
         let service = RateLimitService::new(&config);
 
         // Exhaust rate limit
@@ -456,11 +570,7 @@ mod tests {
     /// Verify TTL cleanup removes expired entries
     #[test]
     fn test_ttl_cleanup() {
-        let config = RateLimitConfig {
-            enabled: true,
-            requests_per_second: 10,
-            burst_size: 10,
-        };
+        let config = test_config(true, 10, 10);
         // Set TTL to 0 so entries are immediately expired
         let service = RateLimitService::new(&config).with_ttl(Duration::ZERO);
 
@@ -480,11 +590,7 @@ mod tests {
     /// Verify TTL cleanup preserves recently-accessed entries
     #[test]
     fn test_ttl_preserves_active_entries() {
-        let config = RateLimitConfig {
-            enabled: true,
-            requests_per_second: 10,
-            burst_size: 10,
-        };
+        let config = test_config(true, 10, 10);
         // Set a longer TTL
         let service = RateLimitService::new(&config).with_ttl(Duration::from_secs(3600));
 
@@ -498,5 +604,167 @@ mod tests {
         service.cleanup_expired();
 
         assert_eq!(service.tracked_identities(), 2);
+    }
+
+    // =========================================================================
+    // Per-tool rate limiting tests
+    // =========================================================================
+
+    /// Verify tool rate limit returns None when no tool limits configured
+    #[test]
+    fn test_tool_rate_limit_no_config() {
+        let config = test_config(true, 100, 50);
+        let service = RateLimitService::new(&config);
+
+        // Should return None when no tool limits are configured
+        assert!(service.check_tool("user", "execute_code").is_none());
+        assert!(!service.has_tool_limits());
+    }
+
+    /// Verify tool rate limit returns None when rate limiting is disabled
+    #[test]
+    fn test_tool_rate_limit_disabled() {
+        let config = RateLimitConfig {
+            enabled: false,
+            requests_per_second: 100,
+            burst_size: 50,
+            tool_limits: vec![ToolRateLimitConfig {
+                tool_pattern: "execute_*".to_string(),
+                requests_per_second: 5,
+                burst_size: 2,
+            }],
+        };
+        let service = RateLimitService::new(&config);
+
+        // Should return None when disabled
+        assert!(service.check_tool("user", "execute_code").is_none());
+    }
+
+    /// Verify per-tool rate limit with exact match
+    #[test]
+    fn test_per_tool_rate_limit_basic() {
+        let config = RateLimitConfig {
+            enabled: true,
+            requests_per_second: 100,
+            burst_size: 50,
+            tool_limits: vec![ToolRateLimitConfig {
+                tool_pattern: "execute_code".to_string(),
+                requests_per_second: 2,
+                burst_size: 2,
+            }],
+        };
+        let service = RateLimitService::new(&config);
+
+        assert!(service.has_tool_limits());
+        assert_eq!(service.tracked_tools(), 0);
+
+        // First 2 requests within burst should succeed
+        let result1 = service.check_tool("user", "execute_code").unwrap();
+        assert!(result1.allowed);
+        assert_eq!(result1.limit, 2);
+
+        let result2 = service.check_tool("user", "execute_code").unwrap();
+        assert!(result2.allowed);
+
+        // 3rd request should be denied
+        let result3 = service.check_tool("user", "execute_code").unwrap();
+        assert!(!result3.allowed);
+        assert!(result3.retry_after_secs.is_some());
+
+        // Verify tool limiter is tracked
+        assert_eq!(service.tracked_tools(), 1);
+    }
+
+    /// Verify tool rate limit with glob pattern matching
+    #[test]
+    fn test_per_tool_rate_limit_pattern_matching() {
+        let config = RateLimitConfig {
+            enabled: true,
+            requests_per_second: 100,
+            burst_size: 50,
+            tool_limits: vec![
+                ToolRateLimitConfig {
+                    tool_pattern: "execute_*".to_string(),
+                    requests_per_second: 2,
+                    burst_size: 2,
+                },
+                ToolRateLimitConfig {
+                    tool_pattern: "write_*".to_string(),
+                    requests_per_second: 5,
+                    burst_size: 3,
+                },
+            ],
+        };
+        let service = RateLimitService::new(&config);
+
+        // execute_* pattern should match execute_code
+        let result = service.check_tool("user", "execute_code").unwrap();
+        assert!(result.allowed);
+        assert_eq!(result.limit, 2);
+
+        // execute_* pattern should match execute_shell
+        let result = service.check_tool("user", "execute_shell").unwrap();
+        assert!(result.allowed);
+        assert_eq!(result.limit, 2);
+
+        // write_* pattern should match write_file
+        let result = service.check_tool("user", "write_file").unwrap();
+        assert!(result.allowed);
+        assert_eq!(result.limit, 5);
+
+        // read_file should not match any pattern
+        assert!(service.check_tool("user", "read_file").is_none());
+    }
+
+    /// Verify different identities have independent tool limiters
+    #[test]
+    fn test_tool_rate_limit_per_identity() {
+        let config = RateLimitConfig {
+            enabled: true,
+            requests_per_second: 100,
+            burst_size: 50,
+            tool_limits: vec![ToolRateLimitConfig {
+                tool_pattern: "execute_*".to_string(),
+                requests_per_second: 1,
+                burst_size: 1,
+            }],
+        };
+        let service = RateLimitService::new(&config);
+
+        // User A exhausts their tool limit
+        assert!(service.check_tool("user_a", "execute_code").unwrap().allowed);
+        assert!(!service.check_tool("user_a", "execute_code").unwrap().allowed);
+
+        // User B should have their own independent limiter
+        assert!(service.check_tool("user_b", "execute_code").unwrap().allowed);
+        assert!(!service.check_tool("user_b", "execute_code").unwrap().allowed);
+
+        // Two tool limiters should be tracked (user_a:execute_code, user_b:execute_code)
+        assert_eq!(service.tracked_tools(), 2);
+    }
+
+    /// Verify tool limiters are cleaned up by TTL
+    #[test]
+    fn test_tool_limiter_cleanup() {
+        let config = RateLimitConfig {
+            enabled: true,
+            requests_per_second: 100,
+            burst_size: 50,
+            tool_limits: vec![ToolRateLimitConfig {
+                tool_pattern: "execute_*".to_string(),
+                requests_per_second: 10,
+                burst_size: 5,
+            }],
+        };
+        let service = RateLimitService::new(&config).with_ttl(Duration::ZERO);
+
+        // Create tool limiter entries
+        service.check_tool("user_a", "execute_code");
+        service.check_tool("user_b", "execute_shell");
+        assert_eq!(service.tracked_tools(), 2);
+
+        // Cleanup should remove expired tool entries
+        service.cleanup_expired();
+        assert_eq!(service.tracked_tools(), 0);
     }
 }

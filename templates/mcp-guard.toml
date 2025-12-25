@@ -172,6 +172,33 @@ enabled = true
 requests_per_second = 100
 burst_size = 50
 
+# -----------------------------------------------------------------------------
+# Per-Tool Rate Limits (optional) - FR-RATE-03
+# Apply stricter limits to expensive or dangerous operations
+# Uses glob patterns to match tool names
+# -----------------------------------------------------------------------------
+
+# [[rate_limit.tool_limits]]
+# tool_pattern = "execute_*"     # Match any execute_* tool (execute_code, execute_shell, etc.)
+# requests_per_second = 10       # Stricter limit for execution tools
+# burst_size = 5
+
+# [[rate_limit.tool_limits]]
+# tool_pattern = "write_*"       # Match write_file, write_directory, etc.
+# requests_per_second = 20
+# burst_size = 10
+
+# [[rate_limit.tool_limits]]
+# tool_pattern = "delete_*"      # Match delete_file, delete_directory, etc.
+# requests_per_second = 5        # Very strict limit for destructive operations
+# burst_size = 2
+
+# Example: Limit database operations
+# [[rate_limit.tool_limits]]
+# tool_pattern = "db_*"
+# requests_per_second = 50
+# burst_size = 25
+
 [audit]
 enabled = true
 # SECURITY: stdout defaults to false to prevent accidental PII exposure.

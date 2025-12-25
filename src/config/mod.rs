@@ -428,6 +428,32 @@ pub struct RateLimitConfig {
     /// Burst size
     #[serde(default = "default_burst")]
     pub burst_size: u32,
+
+    /// Per-tool rate limits (optional)
+    /// Apply stricter limits to specific tools matched by glob patterns
+    #[serde(default)]
+    pub tool_limits: Vec<ToolRateLimitConfig>,
+}
+
+/// Per-tool rate limit configuration
+///
+/// Allows applying stricter rate limits to expensive or dangerous operations
+/// using glob patterns to match tool names.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolRateLimitConfig {
+    /// Glob pattern to match tool names (e.g., "execute_*", "write_*", "delete_*")
+    pub tool_pattern: String,
+
+    /// Maximum requests per second for matched tools
+    pub requests_per_second: u32,
+
+    /// Burst size for matched tools
+    #[serde(default = "default_tool_burst")]
+    pub burst_size: u32,
+}
+
+fn default_tool_burst() -> u32 {
+    5 // Conservative burst for per-tool limits
 }
 
 impl Default for RateLimitConfig {
@@ -436,6 +462,7 @@ impl Default for RateLimitConfig {
             enabled: true,
             requests_per_second: default_rps(),
             burst_size: default_burst(),
+            tool_limits: Vec::new(),
         }
     }
 }
