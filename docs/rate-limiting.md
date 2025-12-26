@@ -147,7 +147,8 @@ Retry-After: 1
 ```json
 {
   "error": "Rate limit exceeded",
-  "retry_after_secs": 1
+  "error_id": "550e8400-e29b-41d4-a716-446655440000",
+  "retry_after": 1
 }
 ```
 

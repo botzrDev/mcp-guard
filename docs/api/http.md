@@ -87,7 +87,8 @@ Kubernetes readiness probe. Returns 200 if ready to serve traffic, 503 if not re
 
 ```json
 {
-  "status": "ready"
+  "ready": true,
+  "version": "1.0.0"
 }
 ```
 
@@ -95,8 +96,8 @@ Kubernetes readiness probe. Returns 200 if ready to serve traffic, 503 if not re
 
 ```json
 {
-  "status": "not_ready",
-  "reason": "transport not connected"
+  "ready": false,
+  "version": "1.0.0"
 }
 ```
 
@@ -193,18 +194,8 @@ Lists configured server routes (multi-server mode only).
 
 ```json
 {
-  "routes": [
-    {
-      "name": "github",
-      "path_prefix": "/github",
-      "transport": "http"
-    },
-    {
-      "name": "filesystem",
-      "path_prefix": "/filesystem",
-      "transport": "stdio"
-    }
-  ]
+  "count": 2,
+  "routes": ["github", "filesystem"]
 }
 ```
 

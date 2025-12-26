@@ -184,18 +184,8 @@ curl http://localhost:3000/routes
 
 ```json
 {
-  "routes": [
-    {
-      "name": "filesystem",
-      "path_prefix": "/fs",
-      "transport": "stdio"
-    },
-    {
-      "name": "github",
-      "path_prefix": "/github",
-      "transport": "http"
-    }
-  ]
+  "count": 2,
+  "routes": ["filesystem", "github"]
 }
 ```
 

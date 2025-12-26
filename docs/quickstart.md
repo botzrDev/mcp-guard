@@ -173,7 +173,7 @@ curl http://localhost:3000/health
 **Response:**
 
 ```json
-{"status": "healthy", "version": "0.1.0", "uptime_secs": 5}
+{"status": "healthy", "version": "1.0.0", "uptime_secs": 5}
 ```
 
 ## Step 6: Test Authentication

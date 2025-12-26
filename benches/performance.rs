@@ -97,6 +97,7 @@ fn bench_rate_limiting(c: &mut Criterion) {
         enabled: true,
         requests_per_second: 1000,
         burst_size: 100,
+        tool_limits: vec![],
     };
     let rate_limiter = RateLimitService::new(&config);
 
