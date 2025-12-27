@@ -2,6 +2,9 @@
 
 Configure and tune MCP Guard's per-identity rate limiting to protect upstream servers.
 
+> [!WARNING]
+> **In-Memory State:** Rate limit state is stored in-memory and is **not persisted** across process restarts. In multi-instance deployments (e.g., behind a load balancer), each instance maintains independent rate limit counters. For coordinated rate limiting in HA scenarios, consider placing mcp-guard behind a load balancer with built-in rate limiting capabilities.
+
 ## Overview
 
 MCP Guard implements per-identity rate limiting using the token bucket algorithm. Each authenticated identity gets its own rate limiter, ensuring fair resource allocation and protection against abuse.

@@ -21,10 +21,28 @@ use serde_json::Value;
 // ============================================================================
 
 /// Check if an identity is authorized to call a specific tool
+///
+/// Supports glob patterns in allowed_tools:
+/// - `*` - matches all tools (wildcard)
+/// - `read_*` - matches tools starting with "read_"
+/// - `fs/*` - matches tools like "fs/read", "fs/write"
+/// - Exact matches also work
 pub fn authorize_tool_call(identity: &Identity, tool_name: &str) -> bool {
     match &identity.allowed_tools {
         None => true, // No restrictions
-        Some(tools) => tools.iter().any(|t| t == tool_name || t == "*"),
+        Some(tools) => tools.iter().any(|pattern| {
+            // Exact match or wildcard
+            if pattern == tool_name || pattern == "*" {
+                return true;
+            }
+            // Try glob pattern matching for patterns containing wildcards
+            if pattern.contains('*') || pattern.contains('?') || pattern.contains('[') {
+                if let Ok(glob_pattern) = glob::Pattern::new(pattern) {
+                    return glob_pattern.matches(tool_name);
+                }
+            }
+            false
+        }),
     }
 }
 

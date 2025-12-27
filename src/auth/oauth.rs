@@ -99,6 +99,13 @@ impl TokenCache {
     }
 
     fn insert(&mut self, token_hash: String, info: TokenInfo) {
+        // Proactive cleanup: if at 80% capacity, cleanup expired entries first
+        // SECURITY: This prevents cache from filling with expired tokens,
+        // ensuring space for valid tokens under normal load.
+        if self.entries.len() >= CACHE_MAX_ENTRIES * 4 / 5 {
+            self.cleanup_expired();
+        }
+
         self.entries.insert(
             token_hash,
             CachedToken {
@@ -108,7 +115,7 @@ impl TokenCache {
         );
         self.insert_count += 1;
 
-        // Periodic cleanup based on insert count
+        // Periodic cleanup based on insert count (as backup)
         if self.insert_count >= CACHE_CLEANUP_THRESHOLD {
             self.cleanup_expired();
             self.insert_count = 0;
