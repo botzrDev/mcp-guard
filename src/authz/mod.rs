@@ -333,9 +333,7 @@ mod tests {
         let tools = result["tools"].as_array().unwrap();
         assert_eq!(tools.len(), 2);
 
-        let names: Vec<&str> = tools.iter()
-            .filter_map(|t| t["name"].as_str())
-            .collect();
+        let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
         assert!(names.contains(&"read_file"));
         assert!(names.contains(&"list_files"));
         assert!(!names.contains(&"write_file"));

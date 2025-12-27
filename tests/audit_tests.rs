@@ -70,10 +70,7 @@ async fn test_audit_export_retry_logic() {
 
     let (logger, handle) = AuditLogger::with_tasks(&config).expect("Failed to create logger");
 
-    logger.log(
-        &AuditEntry::new(EventType::Error)
-            .with_message("Test retry error"),
-    );
+    logger.log(&AuditEntry::new(EventType::Error).with_message("Test retry error"));
 
     // Initial backoff is 100ms, so give it enough time (e.g., 500ms)
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -100,10 +97,7 @@ async fn test_audit_export_max_retries_exceeded() {
 
     let (logger, handle) = AuditLogger::with_tasks(&config).expect("Failed to create logger");
 
-    logger.log(
-        &AuditEntry::new(EventType::Error)
-            .with_message("This will fail"),
-    );
+    logger.log(&AuditEntry::new(EventType::Error).with_message("This will fail"));
 
     // Backoff: 100ms + 200ms + 400ms = 700ms total wait needed roughly
     // Give it 1.5s to be safe

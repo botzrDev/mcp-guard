@@ -78,7 +78,10 @@ impl TrustedProxyValidator {
                 return None;
             }
 
-            Some(TrustedRange::Cidr { network, prefix_len })
+            Some(TrustedRange::Cidr {
+                network,
+                prefix_len,
+            })
         } else {
             // Single IP
             let ip: IpAddr = s.parse().ok()?;
@@ -100,7 +103,10 @@ impl TrustedProxyValidator {
                         return true;
                     }
                 }
-                TrustedRange::Cidr { network, prefix_len } => {
+                TrustedRange::Cidr {
+                    network,
+                    prefix_len,
+                } => {
                     if Self::ip_in_cidr(ip, network, *prefix_len) {
                         return true;
                     }
@@ -201,11 +207,11 @@ impl MtlsAuthProvider {
                 .first()
                 .cloned()
                 .ok_or_else(|| AuthError::Internal("No DNS SAN in client certificate".into()))?,
-            MtlsIdentitySource::SanEmail => cert_info
-                .san_email
-                .first()
-                .cloned()
-                .ok_or_else(|| AuthError::Internal("No Email SAN in client certificate".into()))?,
+            MtlsIdentitySource::SanEmail => {
+                cert_info.san_email.first().cloned().ok_or_else(|| {
+                    AuthError::Internal("No Email SAN in client certificate".into())
+                })?
+            }
         };
 
         let allowed_tools = if self.config.allowed_tools.is_empty() {
@@ -380,10 +386,8 @@ mod tests {
 
     #[test]
     fn test_trusted_proxy_single_ip() {
-        let validator = TrustedProxyValidator::new(&[
-            "10.0.0.1".to_string(),
-            "192.168.1.100".to_string(),
-        ]);
+        let validator =
+            TrustedProxyValidator::new(&["10.0.0.1".to_string(), "192.168.1.100".to_string()]);
 
         assert!(validator.is_trusted(&"10.0.0.1".parse().unwrap()));
         assert!(validator.is_trusted(&"192.168.1.100".parse().unwrap()));
@@ -393,10 +397,8 @@ mod tests {
 
     #[test]
     fn test_trusted_proxy_cidr() {
-        let validator = TrustedProxyValidator::new(&[
-            "10.0.0.0/8".to_string(),
-            "192.168.0.0/16".to_string(),
-        ]);
+        let validator =
+            TrustedProxyValidator::new(&["10.0.0.0/8".to_string(), "192.168.0.0/16".to_string()]);
 
         // Should match 10.x.x.x
         assert!(validator.is_trusted(&"10.0.0.1".parse().unwrap()));
@@ -423,10 +425,7 @@ mod tests {
 
     #[test]
     fn test_trusted_proxy_ipv6() {
-        let validator = TrustedProxyValidator::new(&[
-            "::1".to_string(),
-            "fd00::/8".to_string(),
-        ]);
+        let validator = TrustedProxyValidator::new(&["::1".to_string(), "fd00::/8".to_string()]);
 
         assert!(validator.is_trusted(&"::1".parse().unwrap()));
         assert!(validator.is_trusted(&"fd00::1".parse().unwrap()));
@@ -452,7 +451,10 @@ mod tests {
         let cert_info = ClientCertInfo::from_headers_if_trusted(&headers, &trusted_ip, &provider);
 
         assert!(cert_info.is_some());
-        assert_eq!(cert_info.unwrap().common_name, Some("trusted-client".to_string()));
+        assert_eq!(
+            cert_info.unwrap().common_name,
+            Some("trusted-client".to_string())
+        );
     }
 
     #[test]

@@ -11,7 +11,7 @@ pub struct TestContext {
 pub async fn setup_test_context() -> TestContext {
     let work_dir = tempfile::tempdir().expect("Failed to create temp dir");
     let config_path = work_dir.path().join("config.toml");
-    
+
     TestContext {
         config_path,
         work_dir,

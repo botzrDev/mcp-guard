@@ -6,10 +6,16 @@ use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
 use mcp_guard::{
-    audit::{AuditLoggerHandle, AuditLogger},
-    auth::{ApiKeyProvider, AuthProvider, JwtProvider, MtlsAuthProvider, MultiProvider, OAuthAuthProvider},
-    cli::{generate_api_key, generate_config_with_demo_key, hash_api_key, Cli, Commands},
-    config::Config,
+    audit::{AuditLogger, AuditLoggerHandle},
+    auth::{
+        ApiKeyProvider, AuthProvider, JwtProvider, MtlsAuthProvider, MultiProvider,
+        OAuthAuthProvider,
+    },
+    cli::{
+        apply_key_to_config, generate_api_key, generate_config_with_demo_key, hash_api_key, Cli,
+        Commands,
+    },
+    config::{Config, TransportType},
     observability::{init_metrics, init_tracing},
     rate_limit::RateLimitService,
     router::ServerRouter,
@@ -37,11 +43,13 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
     // Set up OAuth provider (separate from MultiProvider for auth code flow)
     let oauth_provider: Option<Arc<OAuthAuthProvider>> =
         if let Some(oauth_config) = config.auth.oauth.clone() {
-            tracing::info!("Enabling OAuth 2.1 authentication (provider: {:?})", oauth_config.provider);
-            Some(Arc::new(
-                OAuthAuthProvider::new(oauth_config)
-                    .map_err(|e| anyhow::anyhow!("Failed to initialize OAuth provider: {}", e))?
-            ))
+            tracing::info!(
+                "Enabling OAuth 2.1 authentication (provider: {:?})",
+                oauth_config.provider
+            );
+            Some(Arc::new(OAuthAuthProvider::new(oauth_config).map_err(
+                |e| anyhow::anyhow!("Failed to initialize OAuth provider: {}", e),
+            )?))
         } else {
             None
         };
@@ -52,7 +60,10 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
 
         // Add API key provider if configured
         if !config.auth.api_keys.is_empty() {
-            tracing::info!("Enabling API key authentication ({} keys)", config.auth.api_keys.len());
+            tracing::info!(
+                "Enabling API key authentication ({} keys)",
+                config.auth.api_keys.len()
+            );
             providers.push(Arc::new(ApiKeyProvider::new(config.auth.api_keys.clone())));
         }
 
@@ -61,7 +72,7 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
             tracing::info!("Enabling JWT authentication");
             let jwt_provider = Arc::new(
                 JwtProvider::new(jwt_config.clone())
-                    .map_err(|e| anyhow::anyhow!("Failed to initialize JWT provider: {}", e))?
+                    .map_err(|e| anyhow::anyhow!("Failed to initialize JWT provider: {}", e))?,
             );
             // Start background refresh for JWKS mode with shutdown coordination
             jwt_provider.start_background_refresh(shutdown_token.clone());
@@ -75,13 +86,16 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
 
         // Select appropriate provider setup
         if providers.is_empty() {
-            tracing::warn!("No authentication providers configured - all requests will be rejected");
+            tracing::warn!(
+                "No authentication providers configured - all requests will be rejected"
+            );
             Arc::new(ApiKeyProvider::new(vec![])) // Deny all
         } else if providers.len() == 1 {
             // Safe: we just checked length is exactly 1
-            providers.into_iter().next().unwrap_or_else(|| {
-                Arc::new(ApiKeyProvider::new(vec![]))
-            })
+            providers
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| Arc::new(ApiKeyProvider::new(vec![])))
         } else {
             tracing::info!("Using multi-provider authentication");
             Arc::new(MultiProvider::new(providers))
@@ -112,70 +126,69 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
     let audit_logger = Arc::new(audit_logger);
 
     // Set up transport/router based on configuration
-    let (transport, router): (Option<Arc<dyn mcp_guard::transport::Transport>>, Option<Arc<ServerRouter>>) =
-        if config.is_multi_server() {
-            // Multi-server routing mode
+    let (transport, router): (
+        Option<Arc<dyn mcp_guard::transport::Transport>>,
+        Option<Arc<ServerRouter>>,
+    ) = if config.is_multi_server() {
+        // Multi-server routing mode
+        tracing::info!(
+            routes = config.upstream.servers.len(),
+            "Initializing multi-server routing"
+        );
+        for server in &config.upstream.servers {
             tracing::info!(
-                routes = config.upstream.servers.len(),
-                "Initializing multi-server routing"
+                name = %server.name,
+                path_prefix = %server.path_prefix,
+                transport = ?server.transport,
+                "Configuring server route"
             );
-            for server in &config.upstream.servers {
-                tracing::info!(
-                    name = %server.name,
-                    path_prefix = %server.path_prefix,
-                    transport = ?server.transport,
-                    "Configuring server route"
-                );
+        }
+        let server_router = ServerRouter::new(config.upstream.servers.clone())
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to initialize router: {}", e))?;
+        (None, Some(Arc::new(server_router)))
+    } else {
+        // Single-server mode
+        let transport: Arc<dyn mcp_guard::transport::Transport> = match &config.upstream.transport {
+            mcp_guard::config::TransportType::Stdio => {
+                let command = config.upstream.command.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!("stdio transport requires 'command' in config")
+                })?;
+                tracing::info!(command = %command, "Using stdio transport");
+                Arc::new(StdioTransport::spawn(command, &config.upstream.args).await?)
             }
-            let server_router = ServerRouter::new(config.upstream.servers.clone())
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to initialize router: {}", e))?;
-            (None, Some(Arc::new(server_router)))
-        } else {
-            // Single-server mode
-            let transport: Arc<dyn mcp_guard::transport::Transport> = match &config.upstream.transport
-            {
-                mcp_guard::config::TransportType::Stdio => {
-                    let command = config
-                        .upstream
-                        .command
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("stdio transport requires 'command' in config"))?;
-                    tracing::info!(command = %command, "Using stdio transport");
-                    Arc::new(StdioTransport::spawn(command, &config.upstream.args).await?)
-                }
-                mcp_guard::config::TransportType::Http => {
-                    let url = config
-                        .upstream
-                        .url
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("HTTP transport requires 'url' in config"))?
-                        .clone();
-                    tracing::info!(url = %url, "Using HTTP transport");
-                    #[cfg(test)]
-                    let transport = HttpTransport::new_unchecked(url);
-                    #[cfg(not(test))]
-                    let transport = HttpTransport::new(url)
-                        .map_err(|e| anyhow::anyhow!("Failed to create HTTP transport: {}", e))?;
-                    Arc::new(transport)
-                }
-                mcp_guard::config::TransportType::Sse => {
-                    let url = config
-                        .upstream
-                        .url
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("SSE transport requires 'url' in config"))?
-                        .clone();
-                    tracing::info!(url = %url, "Using SSE transport");
-                    #[cfg(test)]
-                    let transport = SseTransport::connect_unchecked(url).await?;
-                    #[cfg(not(test))]
-                    let transport = SseTransport::connect(url).await?;
-                    Arc::new(transport)
-                }
-            };
-            (Some(transport), None)
+            mcp_guard::config::TransportType::Http => {
+                let url = config
+                    .upstream
+                    .url
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("HTTP transport requires 'url' in config"))?
+                    .clone();
+                tracing::info!(url = %url, "Using HTTP transport");
+                #[cfg(test)]
+                let transport = HttpTransport::new_unchecked(url);
+                #[cfg(not(test))]
+                let transport = HttpTransport::new(url)
+                    .map_err(|e| anyhow::anyhow!("Failed to create HTTP transport: {}", e))?;
+                Arc::new(transport)
+            }
+            mcp_guard::config::TransportType::Sse => {
+                let url = config
+                    .upstream
+                    .url
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("SSE transport requires 'url' in config"))?
+                    .clone();
+                tracing::info!(url = %url, "Using SSE transport");
+                #[cfg(test)]
+                let transport = SseTransport::connect_unchecked(url).await?;
+                #[cfg(not(test))]
+                let transport = SseTransport::connect(url).await?;
+                Arc::new(transport)
+            }
         };
+        (Some(transport), None)
+    };
 
     // Create readiness state (set to true since transport is initialized)
     let ready = Arc::new(RwLock::new(true));
@@ -217,9 +230,19 @@ async fn run_cli(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         Commands::Init { format, force } => handle_init(&format, force, cli.verbose),
         Commands::Validate => handle_validate(&cli.config, cli.verbose),
-        Commands::Keygen { user_id, rate_limit, tools } => {
-            handle_keygen(&user_id, rate_limit, tools.as_deref(), cli.verbose)
-        }
+        Commands::Keygen {
+            user_id,
+            rate_limit,
+            tools,
+            apply_to_config,
+        } => handle_keygen(
+            &cli.config,
+            &user_id,
+            rate_limit,
+            tools.as_deref(),
+            apply_to_config,
+            cli.verbose,
+        ),
         Commands::HashKey { key } => handle_hash_key(&key),
         Commands::Version => handle_version(),
         Commands::CheckUpstream { timeout } => {
@@ -258,7 +281,10 @@ fn handle_init(format: &str, force: bool, verbose: bool) -> anyhow::Result<()> {
     println!();
     println!("Test with:");
     println!("  mcp-guard run");
-    println!("  curl -H \"Authorization: Bearer {}\" http://localhost:3000/health", demo_key);
+    println!(
+        "  curl -H \"Authorization: Bearer {}\" http://localhost:3000/health",
+        demo_key
+    );
     println!();
     println!("Generate production keys with:");
     println!("  mcp-guard keygen --user-id <name>");
@@ -283,9 +309,11 @@ fn handle_validate(config_path: &std::path::PathBuf, verbose: bool) -> anyhow::R
 
 /// Handle the `keygen` command: generate a new API key.
 fn handle_keygen(
+    config_path: &std::path::Path,
     user_id: &str,
     rate_limit: Option<u32>,
     tools: Option<&str>,
+    apply_to_config: bool,
     verbose: bool,
 ) -> anyhow::Result<()> {
     let _guard = init_tracing(verbose, None);
@@ -293,24 +321,62 @@ fn handle_keygen(
     let key = generate_api_key();
     let hash = hash_api_key(&key);
 
-    println!("Generated API key for '{}':", user_id);
-    println!();
-    println!("  API Key (save this, shown only once):");
-    println!("    {}", key);
-    println!();
-    println!("  Add to your config file:");
-    println!();
-    println!("  [[auth.api_keys]]");
-    println!("  id = \"{}\"", user_id);
-    println!("  key_hash = \"{}\"", hash);
+    // Parse tools if provided
+    let tool_list: Option<Vec<String>> =
+        tools.map(|t| t.split(',').map(|s| s.trim().to_string()).collect());
 
-    if let Some(limit) = rate_limit {
-        println!("  rate_limit = {}", limit);
-    }
+    if apply_to_config {
+        // Check config file exists
+        if !config_path.exists() {
+            anyhow::bail!(
+                "Config file not found: {}\n\
+                 Run 'mcp-guard init' first, or specify --config <path>",
+                config_path.display()
+            );
+        }
 
-    if let Some(tools_str) = tools {
-        let tool_list: Vec<&str> = tools_str.split(',').map(|s| s.trim()).collect();
-        println!("  allowed_tools = {:?}", tool_list);
+        // Apply key to config file
+        apply_key_to_config(
+            config_path,
+            user_id,
+            &hash,
+            rate_limit,
+            tool_list.as_deref(),
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to apply key to config: {}", e))?;
+
+        println!(
+            "✓ API key for '{}' added to {}",
+            user_id,
+            config_path.display()
+        );
+        println!();
+        println!("API Key (save this, shown only once):");
+        println!("  {}", key);
+        println!();
+        println!("Next steps:");
+        println!("  mcp-guard validate");
+        println!("  mcp-guard run");
+    } else {
+        // Original behavior - print to stdout
+        println!("Generated API key for '{}':", user_id);
+        println!();
+        println!("  API Key (save this, shown only once):");
+        println!("    {}", key);
+        println!();
+        println!("  Add to your config file:");
+        println!();
+        println!("  [[auth.api_keys]]");
+        println!("  id = \"{}\"", user_id);
+        println!("  key_hash = \"{}\"", hash);
+
+        if let Some(limit) = rate_limit {
+            println!("  rate_limit = {}", limit);
+        }
+
+        if let Some(ref tools_list) = tool_list {
+            println!("  allowed_tools = {:?}", tools_list);
+        }
     }
 
     Ok(())
@@ -342,6 +408,101 @@ fn handle_version() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Print startup summary with configuration details
+fn print_startup_summary(config: &Config) {
+    let version = env!("CARGO_PKG_VERSION");
+
+    // Header box
+    println!();
+    println!("╭──────────────────────────────────────────────╮");
+    println!("│  MCP Guard v{:<32}│", version);
+    println!("╰──────────────────────────────────────────────╯");
+    println!();
+
+    // Server address
+    println!(
+        "✓ Server:     http://{}:{}",
+        config.server.host, config.server.port
+    );
+
+    // Auth providers
+    let mut providers = Vec::new();
+    if !config.auth.api_keys.is_empty() {
+        providers.push(format!("API Keys ({})", config.auth.api_keys.len()));
+    }
+    if config.auth.jwt.is_some() {
+        providers.push("JWT".to_string());
+    }
+    if config.auth.oauth.is_some() {
+        providers.push("OAuth 2.1".to_string());
+    }
+    if config
+        .auth
+        .mtls
+        .as_ref()
+        .map(|m| m.enabled)
+        .unwrap_or(false)
+    {
+        providers.push("mTLS".to_string());
+    }
+
+    if providers.is_empty() {
+        println!("✗ Auth:       None (all requests will be rejected)");
+    } else {
+        println!("✓ Auth:       {}", providers.join(", "));
+    }
+
+    // Transport
+    if config.is_multi_server() {
+        println!(
+            "✓ Transport:  Multi-server ({} routes)",
+            config.upstream.servers.len()
+        );
+    } else {
+        match &config.upstream.transport {
+            TransportType::Stdio => {
+                let cmd = config.upstream.command.as_deref().unwrap_or("?");
+                println!("✓ Transport:  stdio → {}", cmd);
+            }
+            TransportType::Http => {
+                let url = config.upstream.url.as_deref().unwrap_or("?");
+                println!("✓ Transport:  HTTP → {}", url);
+            }
+            TransportType::Sse => {
+                let url = config.upstream.url.as_deref().unwrap_or("?");
+                println!("✓ Transport:  SSE → {}", url);
+            }
+        }
+    }
+
+    // Rate limiting
+    if config.rate_limit.enabled {
+        println!(
+            "✓ Rate Limit: {} req/s, burst {}",
+            config.rate_limit.requests_per_second, config.rate_limit.burst_size
+        );
+    } else {
+        println!("✗ Rate Limit: Disabled");
+    }
+
+    // Audit
+    if config.audit.enabled {
+        println!("✓ Audit:      Enabled");
+    } else {
+        println!("✗ Audit:      Disabled");
+    }
+
+    println!();
+    println!("Ready for requests!");
+    println!();
+    println!("Test with:");
+    println!(
+        "  curl http://{}:{}/health",
+        config.server.host, config.server.port
+    );
+    println!();
+}
+
 /// Handle the `check-upstream` command: check upstream server connectivity.
 async fn handle_check_upstream(
     config_path: &std::path::PathBuf,
@@ -360,11 +521,10 @@ async fn handle_check_upstream(
 
     match &config.upstream.transport {
         mcp_guard::config::TransportType::Stdio => {
-            let command = config
-                .upstream
-                .command
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("stdio transport requires 'command' in config"))?;
+            let command =
+                config.upstream.command.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!("stdio transport requires 'command' in config")
+                })?;
 
             println!("Transport: stdio");
             println!("Command:   {}", command);
@@ -452,7 +612,14 @@ async fn handle_run(
     }
 
     // Bootstrap the server state
-    let BootstrapResult { state, audit_handle, shutdown_token } = bootstrap(config).await?;
+    let BootstrapResult {
+        state,
+        audit_handle,
+        shutdown_token,
+    } = bootstrap(config.clone()).await?;
+
+    // Print startup summary
+    print_startup_summary(&config);
 
     // Run server with graceful shutdown handling
     tokio::select! {
@@ -489,8 +656,14 @@ async fn check_stdio_upstream(command: &str, args: &[String]) -> anyhow::Result<
         .stderr(std::process::Stdio::null())
         .spawn()?;
 
-    let mut stdin = child.stdin.take().ok_or_else(|| anyhow::anyhow!("Failed to open stdin"))?;
-    let stdout = child.stdout.take().ok_or_else(|| anyhow::anyhow!("Failed to open stdout"))?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| anyhow::anyhow!("Failed to open stdin"))?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| anyhow::anyhow!("Failed to open stdout"))?;
     let mut reader = BufReader::new(stdout);
 
     // Send MCP initialize request
@@ -528,8 +701,14 @@ async fn check_stdio_upstream(command: &str, args: &[String]) -> anyhow::Result<
             if let Some(server_info) = result.get("serverInfo") {
                 println!(
                     "Server: {} v{}",
-                    server_info.get("name").and_then(|v| v.as_str()).unwrap_or("unknown"),
-                    server_info.get("version").and_then(|v| v.as_str()).unwrap_or("unknown")
+                    server_info
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown"),
+                    server_info
+                        .get("version")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
                 );
             }
         }
@@ -578,7 +757,10 @@ async fn check_sse_upstream(url: &str) -> anyhow::Result<()> {
 
     // Check if the content type suggests SSE
     if let Some(content_type) = response.headers().get("content-type") {
-        println!("Content-Type: {}", content_type.to_str().unwrap_or("unknown"));
+        println!(
+            "Content-Type: {}",
+            content_type.to_str().unwrap_or("unknown")
+        );
     }
 
     Ok(())
@@ -592,7 +774,8 @@ mod tests {
 
     // Helper to create a minimal valid config for testing
     fn create_test_config_http(url: &str) -> Config {
-        let config_str = format!(r#"
+        let config_str = format!(
+            r#"
 [server]
 host = "127.0.0.1"
 port = 3000
@@ -603,7 +786,9 @@ url = "{}"
 
 [rate_limit]
 enabled = false
-"#, url);
+"#,
+            url
+        );
         let temp_file = NamedTempFile::new().unwrap();
         std::fs::write(temp_file.path(), &config_str).unwrap();
         Config::from_file(&temp_file.path().to_path_buf()).unwrap()
@@ -637,7 +822,7 @@ enabled = false
                 key: "test-key".to_string(),
             },
         };
-        
+
         let result = run_cli(cli).await;
         assert!(result.is_ok());
     }
@@ -649,7 +834,7 @@ enabled = false
             verbose: false,
             command: Commands::Version,
         };
-        
+
         let result = run_cli(cli).await;
         assert!(result.is_ok());
     }
@@ -663,9 +848,10 @@ enabled = false
                 user_id: "test-user".to_string(),
                 rate_limit: Some(100),
                 tools: Some("read,write".to_string()),
+                apply_to_config: false,
             },
         };
-        
+
         let result = run_cli(cli).await;
         assert!(result.is_ok());
     }
@@ -679,13 +865,14 @@ enabled = false
                 user_id: "simple-user".to_string(),
                 rate_limit: None,
                 tools: None,
+                apply_to_config: false,
             },
         };
-        
+
         let result = run_cli(cli).await;
         assert!(result.is_ok());
     }
-    
+
     #[tokio::test]
     async fn test_run_cli_validate_missing_config() {
         let cli = Cli {
@@ -693,7 +880,7 @@ enabled = false
             verbose: false,
             command: Commands::Validate,
         };
-        
+
         let result = run_cli(cli).await;
         assert!(result.is_err());
     }
@@ -715,37 +902,39 @@ enabled = false
 "#;
         let mut temp_file = NamedTempFile::new().unwrap();
         temp_file.write_all(config_str.as_bytes()).unwrap();
-        
+
         let cli = Cli {
             config: temp_file.path().to_path_buf(),
             verbose: false,
             command: Commands::Validate,
         };
-        
+
         let result = run_cli(cli).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_bootstrap_with_http_transport() {
-        use wiremock::{MockServer, Mock, ResponseTemplate};
         use wiremock::matchers::any;
-        
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
         let mock_server = MockServer::start().await;
         Mock::given(any())
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"result": {}})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"result": {}})),
+            )
             .mount(&mock_server)
             .await;
 
         let config = create_test_config_http(&mock_server.uri());
-        
+
         let result = bootstrap(config).await;
         assert!(result.is_ok(), "bootstrap failed: {:?}", result.err());
-        
+
         let bootstrap_result = result.unwrap();
         assert!(bootstrap_result.state.transport.is_some());
         assert!(bootstrap_result.state.router.is_none());
-        
+
         // Clean up
         bootstrap_result.shutdown_token.cancel();
         bootstrap_result.audit_handle.shutdown().await;
@@ -753,16 +942,17 @@ enabled = false
 
     #[tokio::test]
     async fn test_bootstrap_with_api_key_auth() {
-        use wiremock::{MockServer, Mock, ResponseTemplate};
         use wiremock::matchers::any;
-        
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
         let mock_server = MockServer::start().await;
         Mock::given(any())
             .respond_with(ResponseTemplate::new(200))
             .mount(&mock_server)
             .await;
 
-        let config_str = format!(r#"
+        let config_str = format!(
+            r#"
 [server]
 host = "127.0.0.1"
 port = 3000
@@ -777,14 +967,16 @@ enabled = false
 [[auth.api_keys]]
 id = "test-user"
 key_hash = "abc123"
-"#, mock_server.uri());
+"#,
+            mock_server.uri()
+        );
         let temp_file = NamedTempFile::new().unwrap();
         std::fs::write(temp_file.path(), &config_str).unwrap();
         let config = Config::from_file(&temp_file.path().to_path_buf()).unwrap();
-        
+
         let result = bootstrap(config).await;
         assert!(result.is_ok(), "bootstrap failed: {:?}", result.err());
-        
+
         let bootstrap_result = result.unwrap();
         bootstrap_result.shutdown_token.cancel();
         bootstrap_result.audit_handle.shutdown().await;
@@ -792,9 +984,9 @@ key_hash = "abc123"
 
     #[tokio::test]
     async fn test_bootstrap_with_no_auth() {
-        use wiremock::{MockServer, Mock, ResponseTemplate};
         use wiremock::matchers::any;
-        
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
         let mock_server = MockServer::start().await;
         Mock::given(any())
             .respond_with(ResponseTemplate::new(200))
@@ -802,21 +994,20 @@ key_hash = "abc123"
             .await;
 
         let config = create_test_config_http(&mock_server.uri());
-        
+
         let result = bootstrap(config).await;
         assert!(result.is_ok(), "bootstrap failed: {:?}", result.err());
-        
+
         let bootstrap_result = result.unwrap();
         bootstrap_result.shutdown_token.cancel();
         bootstrap_result.audit_handle.shutdown().await;
     }
 
-
     #[tokio::test]
     async fn test_check_http_upstream_success() {
-        use wiremock::{MockServer, Mock, ResponseTemplate};
         use wiremock::matchers::method;
-        
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
             .respond_with(ResponseTemplate::new(200))
@@ -829,9 +1020,9 @@ key_hash = "abc123"
 
     #[tokio::test]
     async fn test_check_http_upstream_server_error() {
-        use wiremock::{MockServer, Mock, ResponseTemplate};
         use wiremock::matchers::method;
-        
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
             .respond_with(ResponseTemplate::new(500))
@@ -845,14 +1036,13 @@ key_hash = "abc123"
 
     #[tokio::test]
     async fn test_check_sse_upstream_success() {
-        use wiremock::{MockServer, Mock, ResponseTemplate};
         use wiremock::matchers::method;
-        
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("content-type", "text/event-stream")
+                ResponseTemplate::new(200).insert_header("content-type", "text/event-stream"),
             )
             .mount(&mock_server)
             .await;
@@ -863,9 +1053,9 @@ key_hash = "abc123"
 
     #[tokio::test]
     async fn test_check_sse_upstream_no_content_type() {
-        use wiremock::{MockServer, Mock, ResponseTemplate};
         use wiremock::matchers::method;
-        
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .respond_with(ResponseTemplate::new(200))
@@ -889,7 +1079,7 @@ key_hash = "abc123"
             verbose: false,
             command: Commands::CheckUpstream { timeout: 5 },
         };
-        
+
         let result = run_cli(cli).await;
         assert!(result.is_err());
     }
@@ -916,16 +1106,17 @@ key_hash = "abc123"
 
     #[tokio::test]
     async fn test_bootstrap_with_multiple_auth_providers() {
-        use wiremock::{MockServer, Mock, ResponseTemplate};
         use wiremock::matchers::any;
-        
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
         let mock_server = MockServer::start().await;
         Mock::given(any())
             .respond_with(ResponseTemplate::new(200))
             .mount(&mock_server)
             .await;
 
-        let config_str = format!(r#"
+        let config_str = format!(
+            r#"
 [server]
 host = "127.0.0.1"
 port = 3000
@@ -946,14 +1137,16 @@ mode = "simple"
 secret = "very-long-secret-at-least-32-characters"
 issuer = "test"
 audience = "test"
-"#, mock_server.uri());
+"#,
+            mock_server.uri()
+        );
         let temp_file = NamedTempFile::new().unwrap();
         std::fs::write(temp_file.path(), &config_str).unwrap();
         let config = Config::from_file(&temp_file.path().to_path_buf()).unwrap();
-        
+
         let result = bootstrap(config).await;
         assert!(result.is_ok(), "bootstrap failed: {:?}", result.err());
-        
+
         let bootstrap_result = result.unwrap();
         bootstrap_result.shutdown_token.cancel();
         bootstrap_result.audit_handle.shutdown().await;
@@ -961,13 +1154,17 @@ audience = "test"
 
     #[tokio::test]
     async fn test_bootstrap_invalid_config() {
-        use wiremock::{MockServer, Mock, ResponseTemplate};
         use wiremock::matchers::any;
-        
-        let mock_server = MockServer::start().await;
-        Mock::given(any()).respond_with(ResponseTemplate::new(200)).mount(&mock_server).await;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
 
-        let config_str = format!(r#"
+        let mock_server = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let config_str = format!(
+            r#"
 [server]
 host = "127.0.0.1"
 port = 3000
@@ -978,12 +1175,14 @@ url = "{}"
 enabled = true
 requests_per_second = 0 # Invalid
 burst_size = 10
-"#, mock_server.uri());
-        
+"#,
+            mock_server.uri()
+        );
+
         // This should fail at Config::from_file, protecting bootstrap
         let temp_file = NamedTempFile::new().unwrap();
         std::fs::write(temp_file.path(), &config_str).unwrap();
-        
+
         let result = Config::from_file(&temp_file.path().to_path_buf());
         assert!(result.is_err());
     }
@@ -1005,12 +1204,10 @@ transport = { type = "http", url = "not-a-valid-url:::" }
 "#;
         let temp_file = NamedTempFile::new().unwrap();
         std::fs::write(temp_file.path(), config_str).unwrap();
-        
+
         if let Ok(config) = Config::from_file(&temp_file.path().to_path_buf()) {
-             let result = bootstrap(config).await;
-             assert!(result.is_err());
+            let result = bootstrap(config).await;
+            assert!(result.is_err());
         }
     }
 }
-
-

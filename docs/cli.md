@@ -140,12 +140,16 @@ mcp-guard keygen --user-id <ID> [OPTIONS]
 |--------|------|-------------|
 | `--rate-limit` | u32 | Custom rate limit in requests per second |
 | `--tools` | string | Comma-separated list of allowed tools |
+| `--apply-to-config` | flag | Automatically add the key to the config file |
 
 **Examples:**
 
 ```bash
-# Basic key generation
+# Basic key generation (prints TOML to copy)
 mcp-guard keygen --user-id alice
+
+# Auto-add key to config file (recommended)
+mcp-guard keygen --user-id alice --apply-to-config
 
 # With custom rate limit
 mcp-guard keygen --user-id bob --rate-limit 500
@@ -153,11 +157,11 @@ mcp-guard keygen --user-id bob --rate-limit 500
 # With tool restrictions
 mcp-guard keygen --user-id readonly --tools "read_file,list_directory"
 
-# With both options
-mcp-guard keygen --user-id admin --rate-limit 1000 --tools "read_file,write_file,delete_file"
+# Full example with auto-apply
+mcp-guard keygen --user-id admin --rate-limit 1000 --tools "read_file,write_file" --apply-to-config
 ```
 
-**Output:**
+**Output (without --apply-to-config):**
 
 ```
 Generated API key for 'alice':
@@ -172,6 +176,19 @@ Generated API key for 'alice':
   key_hash = "abc123def456..."
   rate_limit = 100
   allowed_tools = ["read_file", "write_file"]
+```
+
+**Output (with --apply-to-config):**
+
+```
+✓ API key for 'alice' added to mcp-guard.toml
+
+API Key (save this, shown only once):
+  mcp_AbCdEf123456789XYZ...
+
+Next steps:
+  mcp-guard validate
+  mcp-guard run
 ```
 
 **Key Format:**
@@ -276,6 +293,25 @@ mcp-guard -v --config production.toml run
 7. Initialize OpenTelemetry tracing (if configured)
 8. Bind to host:port
 9. Ready for requests
+
+**Startup Output:**
+
+```
+╭──────────────────────────────────────────────╮
+│  MCP Guard v1.0.0                            │
+╰──────────────────────────────────────────────╯
+
+✓ Server:     http://127.0.0.1:3000
+✓ Auth:       API Keys (2), JWT
+✓ Transport:  stdio → npx
+✓ Rate Limit: 100 req/s, burst 50
+✓ Audit:      Enabled
+
+Ready for requests!
+
+Test with:
+  curl http://127.0.0.1:3000/health
+```
 
 **Available Endpoints:**
 

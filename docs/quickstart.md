@@ -10,10 +10,28 @@ For a complete feature list, see the [README](../README.md).
 
 ## Prerequisites
 
-- **Rust toolchain** (1.70+) for building from source, OR a prebuilt binary
-- **An MCP server** to protect (e.g., the filesystem server from `@modelcontextprotocol/server-filesystem`)
+### Required
 
-> **Note:** First-time setup may take longer if you need to install Rust or if npm packages need to download. Subsequent runs are much faster.
+- **mcp-guard binary** (see Installation below)
+
+### For the Demo Setup
+
+- **Node.js & npm** - The default config uses `npx` to run the demo MCP filesystem server
+
+> **Don't have Node.js?** Either:
+> - Install Node.js from [nodejs.org](https://nodejs.org)
+> - Use your own MCP server (edit the `[upstream]` section in config)
+> - Use HTTP transport with an existing MCP server URL
+
+### Installation Speed
+
+| Method | Time | Best For |
+|--------|------|----------|
+| Prebuilt binary | ~30 sec | Fastest setup |
+| cargo install | 2-3 min | Rust developers |
+| Build from source | 3-5 min | Contributors |
+
+> **Tip**: Download the [prebuilt binary](https://github.com/botzrdev/mcp-guard/releases) for the fastest experience.
 
 ## Installation
 
@@ -64,10 +82,27 @@ This creates `mcp-guard.toml` in your current directory with example configurati
 Generate an API key for your first client:
 
 ```bash
+# Option A: Auto-add to config (recommended)
+mcp-guard keygen --user-id my-agent --apply-to-config
+
+# Option B: Manual (prints TOML to copy)
 mcp-guard keygen --user-id my-agent
 ```
 
-**Output:**
+**Output (with --apply-to-config):**
+
+```
+✓ API key for 'my-agent' added to mcp-guard.toml
+
+API Key (save this, shown only once):
+  mcp_AbCdEf123456...
+
+Next steps:
+  mcp-guard validate
+  mcp-guard run
+```
+
+**Output (without --apply-to-config):**
 
 ```
 Generated API key for 'my-agent':
@@ -84,7 +119,7 @@ Generated API key for 'my-agent':
 
 **Important:**
 - The **API Key** goes to your client application (store it securely)
-- The **key_hash** goes in your config file (this is safe to commit)
+- The **key_hash** is stored in the config file (safe to commit)
 
 ## Step 3: (Optional) Add JWT Authentication
 
@@ -148,7 +183,38 @@ mcp-guard validate
 
 You should see: `Configuration is valid: mcp-guard.toml`
 
-## Step 5: Start the Gateway
+## Step 5: Verify Upstream Connectivity
+
+Before starting the server, verify your MCP upstream is reachable:
+
+```bash
+mcp-guard check-upstream
+```
+
+**Expected output:**
+
+```
+Checking upstream connectivity...
+
+Transport: stdio
+Command:   npx
+Args:      ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+
+Server: @modelcontextprotocol/server-filesystem v0.6.2
+✓ Upstream is reachable and responding
+```
+
+**Common issues:**
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `command not found` | Node.js/npm not installed | Install Node.js (see [Prerequisites](#prerequisites)) |
+| `timeout` | Slow connection or unresponsive server | Use `--timeout 30` for more time |
+| `connection refused` | Wrong URL or server not running | Check upstream URL/command |
+
+> **Tip**: This step catches configuration issues before the server starts, saving debugging time.
+
+## Step 6: Start the Gateway
 
 Start MCP Guard:
 
@@ -159,9 +225,20 @@ mcp-guard run
 **Output:**
 
 ```
-2024-12-15T10:00:00Z  INFO mcp-guard: Starting server on 127.0.0.1:3000
-2024-12-15T10:00:00Z  INFO mcp-guard: Authentication: API Key
-2024-12-15T10:00:00Z  INFO mcp-guard: Transport: stdio (npx)
+╭──────────────────────────────────────────────╮
+│  MCP Guard v1.0.0                            │
+╰──────────────────────────────────────────────╯
+
+✓ Server:     http://127.0.0.1:3000
+✓ Auth:       API Keys (1)
+✓ Transport:  stdio → npx
+✓ Rate Limit: 100 req/s, burst 50
+✓ Audit:      Enabled
+
+Ready for requests!
+
+Test with:
+  curl http://127.0.0.1:3000/health
 ```
 
 Verify it's running:
@@ -176,7 +253,7 @@ curl http://localhost:3000/health
 {"status": "healthy", "version": "1.0.0", "uptime_secs": 5}
 ```
 
-## Step 6: Test Authentication
+## Step 7: Test Authentication
 
 ### Unauthenticated Request (should fail)
 

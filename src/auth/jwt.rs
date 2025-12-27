@@ -20,8 +20,7 @@ const JWKS_HTTP_TIMEOUT_SECS: u64 = 10;
 const JWKS_REFRESH_FRACTION_NUMERATOR: u64 = 3;
 const JWKS_REFRESH_FRACTION_DENOMINATOR: u64 = 4;
 use jsonwebtoken::{
-    decode, decode_header, Algorithm, DecodingKey, Validation,
-    errors::ErrorKind as JwtErrorKind,
+    decode, decode_header, errors::ErrorKind as JwtErrorKind, Algorithm, DecodingKey, Validation,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -83,13 +82,18 @@ impl JwtProvider {
                     http_client: None,
                 })
             }
-            JwtMode::Jwks { cache_duration_secs, .. } => {
+            JwtMode::Jwks {
+                cache_duration_secs,
+                ..
+            } => {
                 let cache_duration = Duration::from_secs(*cache_duration_secs);
                 let cache = Arc::new(RwLock::new(JwksCache::new(cache_duration)));
                 let client = reqwest::Client::builder()
                     .timeout(Duration::from_secs(JWKS_HTTP_TIMEOUT_SECS))
                     .build()
-                    .map_err(|e| AuthError::Internal(format!("Failed to create HTTP client: {}", e)))?;
+                    .map_err(|e| {
+                        AuthError::Internal(format!("Failed to create HTTP client: {}", e))
+                    })?;
 
                 Ok(Self {
                     config,
@@ -106,11 +110,16 @@ impl JwtProvider {
     /// The task will run until the cancellation token is triggered.
     /// Pass `CancellationToken::new()` if you don't need graceful shutdown.
     pub fn start_background_refresh(self: &Arc<Self>, cancel_token: CancellationToken) {
-        if let JwtMode::Jwks { cache_duration_secs, .. } = &self.config.mode {
+        if let JwtMode::Jwks {
+            cache_duration_secs,
+            ..
+        } = &self.config.mode
+        {
             let provider = Arc::clone(self);
             // Refresh at 75% of cache duration to ensure keys are fresh before expiry
             let refresh_interval = Duration::from_secs(
-                *cache_duration_secs * JWKS_REFRESH_FRACTION_NUMERATOR / JWKS_REFRESH_FRACTION_DENOMINATOR
+                *cache_duration_secs * JWKS_REFRESH_FRACTION_NUMERATOR
+                    / JWKS_REFRESH_FRACTION_DENOMINATOR,
             );
 
             tokio::spawn(async move {
@@ -133,37 +142,52 @@ impl JwtProvider {
 
     /// Refresh JWKS from remote endpoint
     async fn refresh_jwks(&self) -> Result<(), AuthError> {
-        let JwtMode::Jwks { jwks_url, algorithms, cache_duration_secs, .. } = &self.config.mode else {
+        let JwtMode::Jwks {
+            jwks_url,
+            algorithms,
+            cache_duration_secs,
+            ..
+        } = &self.config.mode
+        else {
             return Err(AuthError::Internal("Not in JWKS mode".into()));
         };
 
-        let client = self.http_client.as_ref()
+        let client = self
+            .http_client
+            .as_ref()
             .ok_or_else(|| AuthError::Internal("HTTP client not initialized".into()))?;
 
         tracing::debug!("Fetching JWKS from {}", jwks_url);
 
-        let response = client.get(jwks_url)
+        let response = client
+            .get(jwks_url)
             .send()
             .await
             .map_err(|e| AuthError::Internal(format!("JWKS fetch failed: {}", e)))?;
 
         if !response.status().is_success() {
             return Err(AuthError::Internal(format!(
-                "JWKS endpoint returned {}", response.status()
+                "JWKS endpoint returned {}",
+                response.status()
             )));
         }
 
-        let jwks: JwksResponse = response.json().await
+        let jwks: JwksResponse = response
+            .json()
+            .await
             .map_err(|e| AuthError::Internal(format!("JWKS parse failed: {}", e)))?;
 
         let mut new_keys = HashMap::new();
-        let allowed_algs: Vec<Algorithm> = algorithms.iter()
+        let allowed_algs: Vec<Algorithm> = algorithms
+            .iter()
             .filter_map(|a| parse_algorithm(a))
             .collect();
 
         for key in jwks.keys {
             let Some(kid) = key.kid else { continue };
-            let Some(alg) = key.alg.as_ref().and_then(|a| parse_algorithm(a)) else { continue };
+            let Some(alg) = key.alg.as_ref().and_then(|a| parse_algorithm(a)) else {
+                continue;
+            };
 
             if !allowed_algs.contains(&alg) {
                 continue;
@@ -171,22 +195,21 @@ impl JwtProvider {
 
             let decoding_key = match (&key.kty[..], &key.n, &key.e, &key.x, &key.y) {
                 // RSA key
-                ("RSA", Some(n), Some(e), _, _) => {
-                    DecodingKey::from_rsa_components(n, e)
-                        .map_err(|e| AuthError::Internal(format!("Invalid RSA key: {}", e)))?
-                }
+                ("RSA", Some(n), Some(e), _, _) => DecodingKey::from_rsa_components(n, e)
+                    .map_err(|e| AuthError::Internal(format!("Invalid RSA key: {}", e)))?,
                 // EC key
-                ("EC", _, _, Some(x), Some(y)) => {
-                    DecodingKey::from_ec_components(x, y)
-                        .map_err(|e| AuthError::Internal(format!("Invalid EC key: {}", e)))?
-                }
+                ("EC", _, _, Some(x), Some(y)) => DecodingKey::from_ec_components(x, y)
+                    .map_err(|e| AuthError::Internal(format!("Invalid EC key: {}", e)))?,
                 _ => continue, // Skip unsupported key types
             };
 
-            new_keys.insert(kid, JwksKey {
-                key: decoding_key,
-                algorithm: alg,
-            });
+            new_keys.insert(
+                kid,
+                JwksKey {
+                    key: decoding_key,
+                    algorithm: alg,
+                },
+            );
         }
 
         if new_keys.is_empty() {
@@ -194,7 +217,9 @@ impl JwtProvider {
         }
 
         // Update cache
-        let cache = self.jwks_cache.as_ref()
+        let cache = self
+            .jwks_cache
+            .as_ref()
             .ok_or_else(|| AuthError::Internal("JWKS cache not initialized".into()))?;
 
         let mut cache_guard = cache.write().await;
@@ -208,7 +233,9 @@ impl JwtProvider {
 
     /// Get decoding key for a given kid (JWKS mode)
     async fn get_jwks_key(&self, kid: &str) -> Result<(DecodingKey, Algorithm), AuthError> {
-        let cache = self.jwks_cache.as_ref()
+        let cache = self
+            .jwks_cache
+            .as_ref()
             .ok_or_else(|| AuthError::Internal("JWKS cache not initialized".into()))?;
 
         // Check if cache needs refresh
@@ -222,7 +249,9 @@ impl JwtProvider {
 
         // Get key from cache
         let cache_guard = cache.read().await;
-        cache_guard.keys.get(kid)
+        cache_guard
+            .keys
+            .get(kid)
             .map(|k| (k.key.clone(), k.algorithm))
             .ok_or_else(|| AuthError::InvalidJwt(format!("Unknown key ID: {}", kid)))
     }
@@ -242,16 +271,13 @@ impl JwtProvider {
             .get(&self.config.scopes_claim)
             .map(|v| match v {
                 // Space-separated string (OAuth2 style)
-                serde_json::Value::String(s) => {
-                    s.split_whitespace().map(String::from).collect()
-                }
+                serde_json::Value::String(s) => s.split_whitespace().map(String::from).collect(),
                 // Array of strings
-                serde_json::Value::Array(arr) => {
-                    arr.iter()
-                        .filter_map(|v| v.as_str())
-                        .map(String::from)
-                        .collect()
-                }
+                serde_json::Value::Array(arr) => arr
+                    .iter()
+                    .filter_map(|v| v.as_str())
+                    .map(String::from)
+                    .collect(),
                 _ => vec![],
             })
             .unwrap_or_default()
@@ -268,12 +294,16 @@ impl AuthProvider for JwtProvider {
         // Get decoding key and algorithm based on mode
         let (decoding_key, algorithm) = match &self.config.mode {
             JwtMode::Simple { .. } => {
-                let key = self.simple_key.as_ref()
+                let key = self
+                    .simple_key
+                    .as_ref()
                     .ok_or_else(|| AuthError::Internal("Simple key not initialized".into()))?;
                 (key.clone(), Algorithm::HS256)
             }
             JwtMode::Jwks { .. } => {
-                let kid = header.kid.as_ref()
+                let kid = header
+                    .kid
+                    .as_ref()
                     .ok_or_else(|| AuthError::InvalidJwt("JWT missing 'kid' header".into()))?;
                 self.get_jwks_key(kid).await?
             }
@@ -296,26 +326,25 @@ impl AuthProvider for JwtProvider {
 
         // Build validation and decode
         let validation = self.build_validation(algorithm);
-        let token_data = decode::<HashMap<String, serde_json::Value>>(
-            token,
-            &decoding_key,
-            &validation,
-        ).map_err(|e| {
-            match e.kind() {
-                JwtErrorKind::ExpiredSignature => AuthError::TokenExpired,
-                JwtErrorKind::InvalidIssuer => AuthError::InvalidJwt("Invalid issuer".into()),
-                JwtErrorKind::InvalidAudience => AuthError::InvalidJwt("Invalid audience".into()),
-                _ => AuthError::InvalidJwt(format!("JWT validation failed: {}", e)),
-            }
-        })?;
+        let token_data =
+            decode::<HashMap<String, serde_json::Value>>(token, &decoding_key, &validation)
+                .map_err(|e| match e.kind() {
+                    JwtErrorKind::ExpiredSignature => AuthError::TokenExpired,
+                    JwtErrorKind::InvalidIssuer => AuthError::InvalidJwt("Invalid issuer".into()),
+                    JwtErrorKind::InvalidAudience => {
+                        AuthError::InvalidJwt("Invalid audience".into())
+                    }
+                    _ => AuthError::InvalidJwt(format!("JWT validation failed: {}", e)),
+                })?;
 
         // Extract user ID
-        let user_id = token_data.claims
+        let user_id = token_data
+            .claims
             .get(&self.config.user_id_claim)
             .and_then(|v| v.as_str())
-            .ok_or_else(|| AuthError::InvalidJwt(format!(
-                "Missing '{}' claim", self.config.user_id_claim
-            )))?
+            .ok_or_else(|| {
+                AuthError::InvalidJwt(format!("Missing '{}' claim", self.config.user_id_claim))
+            })?
             .to_string();
 
         // Extract scopes and map to tools
@@ -323,7 +352,8 @@ impl AuthProvider for JwtProvider {
         let allowed_tools = map_scopes_to_tools(&scopes, &self.config.scope_tool_mapping);
 
         // Extract optional name
-        let name = token_data.claims
+        let name = token_data
+            .claims
             .get("name")
             .and_then(|v| v.as_str())
             .map(String::from);
@@ -406,7 +436,12 @@ mod tests {
 
     fn create_test_token(claims: &HashMap<String, serde_json::Value>) -> String {
         let header = Header::new(Algorithm::HS256);
-        encode(&header, claims, &EncodingKey::from_secret(TEST_SECRET.as_bytes())).unwrap()
+        encode(
+            &header,
+            claims,
+            &EncodingKey::from_secret(TEST_SECRET.as_bytes()),
+        )
+        .unwrap()
     }
 
     fn now_secs() -> i64 {
@@ -550,7 +585,10 @@ mod tests {
         claims.insert("iss".to_string(), serde_json::json!("test-issuer"));
         claims.insert("aud".to_string(), serde_json::json!("test-audience"));
         claims.insert("exp".to_string(), serde_json::json!(now + 3600));
-        claims.insert("scope".to_string(), serde_json::json!("read:files write:files"));
+        claims.insert(
+            "scope".to_string(),
+            serde_json::json!("read:files write:files"),
+        );
 
         let token = create_test_token(&claims);
         let result = provider.authenticate(&token).await;
@@ -586,7 +624,10 @@ mod tests {
         claims.insert("iss".to_string(), serde_json::json!("test-issuer"));
         claims.insert("aud".to_string(), serde_json::json!("test-audience"));
         claims.insert("exp".to_string(), serde_json::json!(now + 3600));
-        claims.insert("permissions".to_string(), serde_json::json!(["admin", "read"]));
+        claims.insert(
+            "permissions".to_string(),
+            serde_json::json!(["admin", "read"]),
+        );
 
         let token = create_test_token(&claims);
         let result = provider.authenticate(&token).await;
@@ -654,7 +695,7 @@ mod tests {
     async fn test_alg_mismatch_simple_mode() {
         let provider = create_simple_provider();
         let now = now_secs();
-        
+
         let mut claims = HashMap::new();
         claims.insert("sub".to_string(), serde_json::json!("user123"));
         claims.insert("iss".to_string(), serde_json::json!("test-issuer"));
@@ -662,11 +703,16 @@ mod tests {
         claims.insert("exp".to_string(), serde_json::json!(now + 3600));
 
         // Create token signed with RS256 (simulated by just using wrong header)
-        // Note: We can't actually sign with RS256 without a key, 
+        // Note: We can't actually sign with RS256 without a key,
         // but we can sign with HS256 and LIE in the header about the algorithm.
         // Or we can just use HS512.
         let header = Header::new(Algorithm::HS512);
-        let token = encode(&header, &claims, &EncodingKey::from_secret(TEST_SECRET.as_bytes())).unwrap();
+        let token = encode(
+            &header,
+            &claims,
+            &EncodingKey::from_secret(TEST_SECRET.as_bytes()),
+        )
+        .unwrap();
 
         let result = provider.authenticate(&token).await;
         // Should fail because validation expects HS256
@@ -688,7 +734,7 @@ mod tests {
             leeway_secs: 0,
         };
         let provider = JwtProvider::new(config).unwrap();
-        
+
         let now = now_secs();
         let mut claims = HashMap::new();
         // Provide "sub" but not "custom_id"
@@ -699,7 +745,7 @@ mod tests {
 
         let token = create_test_token(&claims);
         let result = provider.authenticate(&token).await;
-        
+
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("Missing 'custom_id' claim"));
@@ -742,7 +788,11 @@ mod tests {
         let result = provider.authenticate(&token).await;
         assert!(matches!(result, Err(AuthError::InvalidJwt(_))));
         if let Err(AuthError::InvalidJwt(msg)) = result {
-            assert!(msg.contains("Algorithm mismatch"), "Expected algorithm mismatch error, got: {}", msg);
+            assert!(
+                msg.contains("Algorithm mismatch"),
+                "Expected algorithm mismatch error, got: {}",
+                msg
+            );
         }
     }
 
@@ -804,7 +854,11 @@ mod tests {
         let result = provider.authenticate(&token).await;
         assert!(matches!(result, Err(AuthError::InvalidJwt(_))));
         if let Err(AuthError::InvalidJwt(msg)) = result {
-            assert!(msg.contains("Algorithm mismatch"), "Expected algorithm mismatch error, got: {}", msg);
+            assert!(
+                msg.contains("Algorithm mismatch"),
+                "Expected algorithm mismatch error, got: {}",
+                msg
+            );
         }
     }
 
@@ -889,10 +943,10 @@ mod tests {
             scope_tool_mapping: HashMap::new(),
             leeway_secs: 0,
         };
-        
+
         let provider = JwtProvider::new(config);
         assert!(provider.is_ok());
-        
+
         let provider = provider.unwrap();
         assert!(provider.jwks_cache.is_some());
         assert!(provider.http_client.is_some());
@@ -914,9 +968,9 @@ mod tests {
             scope_tool_mapping: HashMap::new(),
             leeway_secs: 0,
         };
-        
+
         let provider = JwtProvider::new(config).unwrap();
-        
+
         // Create a token without kid header (should fail for JWKS mode)
         let now = now_secs();
         let mut claims = HashMap::new();
@@ -924,15 +978,19 @@ mod tests {
         claims.insert("iss".to_string(), serde_json::json!("test-issuer"));
         claims.insert("aud".to_string(), serde_json::json!("test-audience"));
         claims.insert("exp".to_string(), serde_json::json!(now + 3600));
-        
+
         // Sign with HS256 (no kid)
         let header = Header::new(Algorithm::HS256);
         let token = encode(&header, &claims, &EncodingKey::from_secret(b"secret")).unwrap();
-        
+
         let result = provider.authenticate(&token).await;
         assert!(result.is_err());
         if let Err(AuthError::InvalidJwt(msg)) = result {
-            assert!(msg.contains("kid") || msg.contains("key ID"), "Expected missing kid error, got: {}", msg);
+            assert!(
+                msg.contains("kid") || msg.contains("key ID"),
+                "Expected missing kid error, got: {}",
+                msg
+            );
         }
     }
 
@@ -940,7 +998,7 @@ mod tests {
     fn test_build_validation_sets_correct_params() {
         let provider = create_simple_provider();
         let validation = provider.build_validation(Algorithm::HS256);
-        
+
         // Validation should be configured with issuer and audience
         // We can't directly inspect private fields, but we can verify it works
         assert!(!validation.algorithms.is_empty());
@@ -949,19 +1007,19 @@ mod tests {
     #[test]
     fn test_extract_scopes_with_non_standard_value() {
         let provider = create_simple_provider();
-        
+
         // Test with number value (should return empty)
         let mut claims = HashMap::new();
         claims.insert("scope".to_string(), serde_json::json!(123));
         let scopes = provider.extract_scopes(&claims);
         assert!(scopes.is_empty());
-        
+
         // Test with object value (should return empty)
         let mut claims = HashMap::new();
         claims.insert("scope".to_string(), serde_json::json!({"nested": "value"}));
         let scopes = provider.extract_scopes(&claims);
         assert!(scopes.is_empty());
-        
+
         // Test with missing scope claim (should return empty)
         let claims: HashMap<String, serde_json::Value> = HashMap::new();
         let scopes = provider.extract_scopes(&claims);
@@ -971,7 +1029,7 @@ mod tests {
     #[test]
     fn test_extract_scopes_empty_string() {
         let provider = create_simple_provider();
-        
+
         let mut claims = HashMap::new();
         claims.insert("scope".to_string(), serde_json::json!(""));
         let scopes = provider.extract_scopes(&claims);
@@ -981,7 +1039,7 @@ mod tests {
     #[test]
     fn test_extract_scopes_empty_array() {
         let provider = create_simple_provider();
-        
+
         let mut claims = HashMap::new();
         claims.insert("scope".to_string(), serde_json::json!([]));
         let scopes = provider.extract_scopes(&claims);
@@ -991,10 +1049,13 @@ mod tests {
     #[test]
     fn test_extract_scopes_array_with_non_strings() {
         let provider = create_simple_provider();
-        
+
         // Array with mixed types - only strings should be extracted
         let mut claims = HashMap::new();
-        claims.insert("scope".to_string(), serde_json::json!(["valid", 123, "also_valid", null]));
+        claims.insert(
+            "scope".to_string(),
+            serde_json::json!(["valid", 123, "also_valid", null]),
+        );
         let scopes = provider.extract_scopes(&claims);
         assert_eq!(scopes, vec!["valid", "also_valid"]);
     }
@@ -1002,15 +1063,15 @@ mod tests {
     // -------------------------------------------------------------------------
     // JWKS Integration Tests (requires wiremock)
     // -------------------------------------------------------------------------
-    
+
     #[tokio::test]
     async fn test_jwks_refresh_success() {
-        use wiremock::{MockServer, Mock, ResponseTemplate};
+        use jsonwebtoken::{encode, EncodingKey, Header};
         use wiremock::matchers::{method, path};
-        use jsonwebtoken::{encode, Header, EncodingKey};
-        
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
         let mock_server = MockServer::start().await;
-        
+
         Mock::given(method("GET"))
             .and(path("/.well-known/jwks.json"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -1032,25 +1093,29 @@ mod tests {
             scope_tool_mapping: HashMap::new(),
             leeway_secs: 0,
         };
-        
+
         let provider = JwtProvider::new(config).unwrap();
-        
-        let token = "eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMyIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIn0.signature";
+
+        let token =
+            "eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMyIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIn0.signature";
         let result = provider.authenticate(token).await;
-        
+
         assert!(result.is_err());
     }
-    
+
     #[tokio::test]
     async fn test_jwks_fetch_failure_handling() {
-        use wiremock::{MockServer, Mock, ResponseTemplate};
         use wiremock::matchers::any;
-        
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
         let mock_server = MockServer::start().await;
-        
+
         // Return 500
-        Mock::given(any()).respond_with(ResponseTemplate::new(500)).mount(&mock_server).await;
-        
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock_server)
+            .await;
+
         let config = JwtConfig {
             mode: JwtMode::Jwks {
                 jwks_url: mock_server.uri(),
@@ -1064,11 +1129,12 @@ mod tests {
             scope_tool_mapping: HashMap::new(),
             leeway_secs: 0,
         };
-        
+
         let provider = JwtProvider::new(config).unwrap();
-        
-        let token = "eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMyIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIn0.signature";
-        
+
+        let token =
+            "eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMyIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIn0.signature";
+
         let result = provider.authenticate(token).await;
         assert!(result.is_err());
     }

@@ -1,5 +1,5 @@
-use assert_cmd::Command;
 use assert_cmd::prelude::*;
+use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
 
@@ -21,10 +21,7 @@ fn test_init_creates_config() {
     // The init command writes to mcp-guard.toml in CWD.
 
     let mut cmd = common::cargo_bin("mcp-guard");
-    cmd.arg("init")
-        .current_dir(&temp)
-        .assert()
-        .success();
+    cmd.arg("init").current_dir(&temp).assert().success();
 
     let config_path = temp.path().join("mcp-guard.toml");
     assert!(config_path.exists());
@@ -39,11 +36,8 @@ fn test_init_fails_if_exists_without_force() {
     fs::write(&config_path, "existing content").unwrap();
 
     let mut cmd = common::cargo_bin("mcp-guard");
-    cmd.arg("init")
-        .current_dir(&temp)
-        .assert()
-        .failure();
-    
+    cmd.arg("init").current_dir(&temp).assert().failure();
+
     // Content should be unchanged
     let content = fs::read_to_string(config_path.clone()).unwrap();
     assert_eq!(content, "existing content");
@@ -55,7 +49,7 @@ fn test_init_fails_if_exists_without_force() {
         .current_dir(&temp)
         .assert()
         .success();
-        
+
     let content = fs::read_to_string(config_path).unwrap();
     assert!(content.contains("[server]"));
 }
@@ -83,14 +77,15 @@ fn test_validate_invalid_config() {
 #[test]
 fn test_keygen() {
     let mut cmd = common::cargo_bin("mcp-guard");
-    let output = cmd.arg("keygen")
+    let output = cmd
+        .arg("keygen")
         .arg("--user-id")
         .arg("test-user")
         .assert()
         .success()
         .get_output()
         .clone();
-        
+
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("API Key"));
     assert!(stdout.contains("key_hash"));
@@ -101,7 +96,8 @@ fn test_keygen() {
 fn test_hash_key() {
     // Generate a key first
     let mut cmd = common::cargo_bin("mcp-guard");
-    let output = cmd.arg("keygen")
+    let output = cmd
+        .arg("keygen")
         .arg("--user-id")
         .arg("test-user")
         .assert()
@@ -109,7 +105,7 @@ fn test_hash_key() {
         .get_output()
         .clone();
     let stdout = String::from_utf8(output.stdout).unwrap();
-    
+
     // Extract the key (it's on the line after "API Key...")
     let lines: Vec<&str> = stdout.lines().collect();
     let key_idx = lines.iter().position(|l| l.contains("API Key")).unwrap();
@@ -131,8 +127,8 @@ fn test_hash_key() {
 
 #[tokio::test]
 async fn test_check_upstream_http_success() {
-    use wiremock::{MockServer, Mock, ResponseTemplate};
     use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     let mock_server = MockServer::start().await;
     Mock::given(method("POST"))

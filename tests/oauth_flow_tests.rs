@@ -11,7 +11,10 @@ use axum::{
 use mcp_guard::{
     audit::AuditLogger,
     auth::{ApiKeyProvider, OAuthAuthProvider},
-    config::{AuditConfig, Config, OAuthConfig, OAuthProvider as OAuthProviderType, RateLimitConfig, TracingConfig, TransportType, UpstreamConfig},
+    config::{
+        AuditConfig, Config, OAuthConfig, OAuthProvider as OAuthProviderType, RateLimitConfig,
+        TracingConfig, TransportType, UpstreamConfig,
+    },
     observability::create_metrics_handle,
     rate_limit::RateLimitService,
     server::{build_router, new_oauth_state_store, AppState, PkceState},
@@ -101,9 +104,12 @@ async fn test_oauth_authorize_stores_pkce_state() {
         .body(Body::empty())
         .unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(
-        SocketAddr::from(([127, 0, 0, 1], 3000)),
-    ));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
 
@@ -114,7 +120,12 @@ async fn test_oauth_authorize_stores_pkce_state() {
     assert_eq!(oauth_state_store.len(), 1);
 
     // Extract state from redirect location and verify it exists in store
-    let location = response.headers().get("location").unwrap().to_str().unwrap();
+    let location = response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
     let state_param = location
         .split("state=")
         .nth(1)
@@ -186,18 +197,15 @@ async fn test_oauth_callback_successful_token_exchange() {
     let app = build_router(state);
 
     // Call /oauth/callback with valid state and code
-    let uri = format!(
-        "/oauth/callback?code=valid_auth_code&state={}",
-        test_state
-    );
-    let mut request = Request::builder()
-        .uri(&uri)
-        .body(Body::empty())
-        .unwrap();
+    let uri = format!("/oauth/callback?code=valid_auth_code&state={}", test_state);
+    let mut request = Request::builder().uri(&uri).body(Body::empty()).unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(
-        SocketAddr::from(([127, 0, 0, 1], 3000)),
-    ));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
 
@@ -262,10 +270,7 @@ async fn test_oauth_callback_rejects_ip_mismatch() {
 
     // Call from a different IP (127.0.0.1 vs 192.168.1.100)
     let uri = format!("/oauth/callback?code=code&state={}", test_state);
-    let mut request = Request::builder()
-        .uri(&uri)
-        .body(Body::empty())
-        .unwrap();
+    let mut request = Request::builder().uri(&uri).body(Body::empty()).unwrap();
 
     request.extensions_mut().insert(axum::extract::ConnectInfo(
         SocketAddr::from(([127, 0, 0, 1], 3000)), // Different IP
@@ -318,14 +323,14 @@ async fn test_oauth_callback_rejects_missing_code() {
 
     // Call without code parameter
     let uri = format!("/oauth/callback?state={}", test_state);
-    let mut request = Request::builder()
-        .uri(&uri)
-        .body(Body::empty())
-        .unwrap();
+    let mut request = Request::builder().uri(&uri).body(Body::empty()).unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(
-        SocketAddr::from(([127, 0, 0, 1], 3000)),
-    ));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
 
@@ -385,14 +390,14 @@ async fn test_oauth_callback_token_exchange_failure() {
     let app = build_router(state);
 
     let uri = format!("/oauth/callback?code=expired_code&state={}", test_state);
-    let mut request = Request::builder()
-        .uri(&uri)
-        .body(Body::empty())
-        .unwrap();
+    let mut request = Request::builder().uri(&uri).body(Body::empty()).unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(
-        SocketAddr::from(([127, 0, 0, 1], 3000)),
-    ));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
 
@@ -452,14 +457,14 @@ async fn test_oauth_callback_minimal_token_response() {
     let app = build_router(state);
 
     let uri = format!("/oauth/callback?code=code&state={}", test_state);
-    let mut request = Request::builder()
-        .uri(&uri)
-        .body(Body::empty())
-        .unwrap();
+    let mut request = Request::builder().uri(&uri).body(Body::empty()).unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(
-        SocketAddr::from(([127, 0, 0, 1], 3000)),
-    ));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
 
@@ -528,14 +533,14 @@ async fn test_oauth_callback_missing_access_token() {
     let app = build_router(state);
 
     let uri = format!("/oauth/callback?code=code&state={}", test_state);
-    let mut request = Request::builder()
-        .uri(&uri)
-        .body(Body::empty())
-        .unwrap();
+    let mut request = Request::builder().uri(&uri).body(Body::empty()).unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(
-        SocketAddr::from(([127, 0, 0, 1], 3000)),
-    ));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
 
@@ -596,14 +601,14 @@ async fn test_oauth_callback_confidential_client() {
     let app = build_router(state);
 
     let uri = format!("/oauth/callback?code=code&state={}", test_state);
-    let mut request = Request::builder()
-        .uri(&uri)
-        .body(Body::empty())
-        .unwrap();
+    let mut request = Request::builder().uri(&uri).body(Body::empty()).unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(
-        SocketAddr::from(([127, 0, 0, 1], 3000)),
-    ));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
 
@@ -669,14 +674,14 @@ async fn test_oauth_callback_public_client() {
     let app = build_router(state);
 
     let uri = format!("/oauth/callback?code=code&state={}", test_state);
-    let mut request = Request::builder()
-        .uri(&uri)
-        .body(Body::empty())
-        .unwrap();
+    let mut request = Request::builder().uri(&uri).body(Body::empty()).unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(
-        SocketAddr::from(([127, 0, 0, 1], 3000)),
-    ));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
 

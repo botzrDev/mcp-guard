@@ -37,7 +37,9 @@ const MAX_PENDING_OAUTH_STATES: usize = 10_000;
 
 use crate::audit::AuditLogger;
 use crate::auth::{AuthProvider, ClientCertInfo, Identity, MtlsAuthProvider, OAuthAuthProvider};
-use crate::authz::{authorize_request, filter_tools_list_response, is_tools_list_request, AuthzDecision};
+use crate::authz::{
+    authorize_request, filter_tools_list_response, is_tools_list_request, AuthzDecision,
+};
 use crate::config::Config;
 use crate::observability::{record_auth, record_rate_limit, record_request, set_active_identities};
 use crate::rate_limit::RateLimitService;
@@ -192,7 +194,10 @@ async fn metrics_handler(State(state): State<Arc<AppState>>) -> impl IntoRespons
     let metrics = state.metrics_handle.render();
     (
         StatusCode::OK,
-        [(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")],
+        [(
+            header::CONTENT_TYPE,
+            "text/plain; version=0.0.4; charset=utf-8",
+        )],
         metrics,
     )
 }
@@ -205,16 +210,19 @@ async fn handle_mcp_message(
     Json(message): Json<Message>,
 ) -> Result<Json<Message>, AppError> {
     // Get the transport (single-server mode)
-    let transport = state.transport.as_ref().ok_or_else(|| {
-        AppError::internal("No transport configured (use multi-server routing?)")
-    })?;
+    let transport = state
+        .transport
+        .as_ref()
+        .ok_or_else(|| AppError::internal("No transport configured (use multi-server routing?)"))?;
 
     // SECURITY: Check authorization for tools/call requests (FR-AUTHZ-02)
     // This prevents unauthorized tool execution even if tools/list was filtered
     if let AuthzDecision::Deny(reason) = authorize_request(&identity, &message) {
         // Extract tool name for audit logging (may be None for malformed requests)
         let tool_name = crate::authz::extract_tool_name(&message).unwrap_or("unknown");
-        state.audit_logger.log_authz_denied(&identity.id, tool_name, &reason);
+        state
+            .audit_logger
+            .log_authz_denied(&identity.id, tool_name, &reason);
         tracing::warn!(
             identity_id = %identity.id,
             tool = %tool_name,
@@ -296,17 +304,18 @@ async fn handle_routed_mcp_message(
     Json(message): Json<Message>,
 ) -> Result<Json<Message>, AppError> {
     // Get the router (multi-server mode)
-    let router = state.router.as_ref().ok_or_else(|| {
-        AppError::internal("No router configured (use single-server mode?)")
-    })?;
+    let router = state
+        .router
+        .as_ref()
+        .ok_or_else(|| AppError::internal("No router configured (use single-server mode?)"))?;
 
     // Build path for routing
     let path = format!("/{}", server_name);
 
     // Get the transport for this path
-    let transport = router.get_transport(&path).ok_or_else(|| {
-        AppError::not_found(format!("No server route for path: {}", path))
-    })?;
+    let transport = router
+        .get_transport(&path)
+        .ok_or_else(|| AppError::not_found(format!("No server route for path: {}", path)))?;
 
     tracing::debug!(
         server = %server_name,
@@ -318,7 +327,9 @@ async fn handle_routed_mcp_message(
     // This prevents unauthorized tool execution even if tools/list was filtered
     if let AuthzDecision::Deny(reason) = authorize_request(&identity, &message) {
         let tool_name = crate::authz::extract_tool_name(&message).unwrap_or("unknown");
-        state.audit_logger.log_authz_denied(&identity.id, tool_name, &reason);
+        state
+            .audit_logger
+            .log_authz_denied(&identity.id, tool_name, &reason);
         tracing::warn!(
             identity_id = %identity.id,
             server = %server_name,
@@ -405,8 +416,8 @@ async fn handle_routed_mcp_message(
 #[allow(clippy::manual_div_ceil)] // Manual impl for MSRV 1.75 compatibility
 fn generate_random_string(len: usize) -> String {
     use base64::Engine;
-    use rand::RngCore;
     use rand::rngs::OsRng;
+    use rand::RngCore;
 
     // Calculate bytes needed: base64 encodes 3 bytes to 4 chars
     // We need enough bytes to produce at least `len` characters
@@ -431,10 +442,8 @@ fn generate_pkce() -> (String, String) {
     let mut hasher = Sha256::new();
     hasher.update(code_verifier.as_bytes());
     let hash = hasher.finalize();
-    let code_challenge = base64::Engine::encode(
-        &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-        hash,
-    );
+    let code_challenge =
+        base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, hash);
 
     (code_verifier, code_challenge)
 }
@@ -656,14 +665,11 @@ async fn exchange_code_for_tokens(
         )));
     }
 
-    let token_response: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| {
-            // Log full error internally, return sanitized message to client
-            tracing::error!(error = %e, "Failed to parse token response");
-            AppError::internal("Invalid token response")
-        })?;
+    let token_response: serde_json::Value = response.json().await.map_err(|e| {
+        // Log full error internally, return sanitized message to client
+        tracing::error!(error = %e, "Failed to parse token response");
+        AppError::internal("Invalid token response")
+    })?;
 
     let access_token = token_response
         .get("access_token")
@@ -677,9 +683,7 @@ async fn exchange_code_for_tokens(
         .unwrap_or("Bearer")
         .to_string();
 
-    let expires_in = token_response
-        .get("expires_in")
-        .and_then(|v| v.as_u64());
+    let expires_in = token_response.get("expires_in").and_then(|v| v.as_u64());
 
     let refresh_token = token_response
         .get("refresh_token")
@@ -718,11 +722,9 @@ pub async fn auth_middleware(
     if let Some(ref mtls_provider) = state.mtls_provider {
         // SECURITY: Use the secure method that validates client IP
         let client_ip = addr.ip();
-        if let Some(cert_info) = ClientCertInfo::from_headers_if_trusted(
-            request.headers(),
-            &client_ip,
-            mtls_provider,
-        ) {
+        if let Some(cert_info) =
+            ClientCertInfo::from_headers_if_trusted(request.headers(), &client_ip, mtls_provider)
+        {
             if cert_info.verified || cert_info.common_name.is_some() {
                 match mtls_provider.extract_identity(&cert_info) {
                     Ok(identity) => {
@@ -921,10 +923,7 @@ pub async fn security_headers_middleware(request: Request<Body>, next: Next) -> 
     );
 
     // Prevent clickjacking via iframe embedding
-    headers.insert(
-        header::X_FRAME_OPTIONS,
-        HeaderValue::from_static("DENY"),
-    );
+    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
 
     // Enable browser XSS filtering (for legacy browsers)
     headers.insert(
@@ -1055,7 +1054,12 @@ impl IntoResponse for AppError {
                 });
                 (StatusCode::NOT_FOUND, Json(body)).into_response()
             }
-            AppErrorKind::RateLimited { retry_after_secs, limit, remaining, reset_at } => {
+            AppErrorKind::RateLimited {
+                retry_after_secs,
+                limit,
+                remaining,
+                reset_at,
+            } => {
                 let retry_after = retry_after_secs.unwrap_or(1);
                 tracing::debug!(error_id = %error_id, retry_after = retry_after, "Rate limit exceeded");
                 let body = serde_json::json!({
@@ -1102,8 +1106,12 @@ impl IntoResponse for AppError {
                 // Sanitize: don't expose internal paths, commands, or detailed error messages
                 let sanitized_msg = match &e {
                     crate::transport::TransportError::Timeout => "Upstream request timed out",
-                    crate::transport::TransportError::ConnectionClosed => "Upstream connection closed",
-                    crate::transport::TransportError::ProcessExited => "Upstream process unavailable",
+                    crate::transport::TransportError::ConnectionClosed => {
+                        "Upstream connection closed"
+                    }
+                    crate::transport::TransportError::ProcessExited => {
+                        "Upstream process unavailable"
+                    }
                     _ => "Upstream communication error",
                 };
                 let body = serde_json::json!({
@@ -1131,17 +1139,21 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     let is_multi_server = state.router.is_some();
 
     // Build protected routes based on mode
-    let protected_routes = if is_multi_server {
-        // Multi-server mode: route to /mcp/:server_name
-        Router::new()
-            .route("/mcp/:server_name", post(handle_routed_mcp_message))
-            .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
-    } else {
-        // Single-server mode: route to /mcp
-        Router::new()
-            .route("/mcp", post(handle_mcp_message))
-            .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
-    };
+    let protected_routes =
+        if is_multi_server {
+            // Multi-server mode: route to /mcp/:server_name
+            Router::new()
+                .route("/mcp/:server_name", post(handle_routed_mcp_message))
+                .layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    auth_middleware,
+                ))
+        } else {
+            // Single-server mode: route to /mcp
+            Router::new().route("/mcp", post(handle_mcp_message)).layer(
+                middleware::from_fn_with_state(state.clone(), auth_middleware),
+            )
+        };
 
     // OAuth routes (only added if OAuth is configured)
     let mut router = Router::new()
@@ -1181,20 +1193,26 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         if cors_config.allowed_origins.iter().any(|o| o == "*") {
             cors = cors.allow_origin(Any);
         } else if !cors_config.allowed_origins.is_empty() {
-            let origins: Vec<_> = cors_config.allowed_origins.iter()
+            let origins: Vec<_> = cors_config
+                .allowed_origins
+                .iter()
                 .filter_map(|o| o.parse().ok())
                 .collect();
             cors = cors.allow_origin(origins);
         }
 
         // Configure allowed methods
-        let methods: Vec<axum::http::Method> = cors_config.allowed_methods.iter()
+        let methods: Vec<axum::http::Method> = cors_config
+            .allowed_methods
+            .iter()
             .filter_map(|m| m.parse().ok())
             .collect();
         cors = cors.allow_methods(methods);
 
         // Configure allowed headers
-        let headers: Vec<axum::http::HeaderName> = cors_config.allowed_headers.iter()
+        let headers: Vec<axum::http::HeaderName> = cors_config
+            .allowed_headers
+            .iter()
             .filter_map(|h| h.parse().ok())
             .collect();
         cors = cors.allow_headers(headers);
@@ -1203,11 +1221,13 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         cors = cors.max_age(Duration::from_secs(cors_config.max_age));
 
         app = app.layer(cors);
-        tracing::info!("CORS enabled with {} allowed origins", cors_config.allowed_origins.len());
+        tracing::info!(
+            "CORS enabled with {} allowed origins",
+            cors_config.allowed_origins.len()
+        );
     }
 
-    app
-        .layer(middleware::from_fn(metrics_middleware))
+    app.layer(middleware::from_fn(metrics_middleware))
         .layer(middleware::from_fn(trace_context_middleware))
         .layer(middleware::from_fn(security_headers_middleware))
         .layer(TraceLayer::new_for_http())
@@ -1303,7 +1323,9 @@ mod tests {
     fn test_app_error_rate_limited() {
         let err = AppError::rate_limited(Some(5));
         match err.kind {
-            AppErrorKind::RateLimited { retry_after_secs, .. } => {
+            AppErrorKind::RateLimited {
+                retry_after_secs, ..
+            } => {
                 assert_eq!(retry_after_secs, Some(5));
             }
             _ => panic!("Expected RateLimited"),
@@ -1392,18 +1414,16 @@ mod tests {
     fn test_pkce_consistency() {
         // Verify that verifier and challenge are correctly related
         use sha2::{Digest, Sha256};
-        
+
         let (verifier, challenge) = generate_pkce();
-        
+
         // Manually compute expected challenge
         let mut hasher = Sha256::new();
         hasher.update(verifier.as_bytes());
         let hash = hasher.finalize();
-        let expected_challenge = base64::Engine::encode(
-            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-            hash,
-        );
-        
+        let expected_challenge =
+            base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, hash);
+
         assert_eq!(challenge, expected_challenge);
     }
 
@@ -1418,11 +1438,14 @@ mod tests {
         let store = new_oauth_state_store();
 
         // Add a fresh state with client IP binding
-        store.insert("fresh".to_string(), PkceState {
-            code_verifier: "verifier".to_string(),
-            created_at: Instant::now(),
-            client_ip: "127.0.0.1".parse().unwrap(),
-        });
+        store.insert(
+            "fresh".to_string(),
+            PkceState {
+                code_verifier: "verifier".to_string(),
+                created_at: Instant::now(),
+                client_ip: "127.0.0.1".parse().unwrap(),
+            },
+        );
 
         // Cleanup should keep fresh state
         cleanup_expired_oauth_states(&store);
@@ -1465,11 +1488,14 @@ mod tests {
 
         // Fill to near capacity (we don't actually fill to max to avoid test slowness)
         for i in 0..100 {
-            store.insert(format!("state_{}", i), PkceState {
-                code_verifier: "verifier".to_string(),
-                created_at: Instant::now(),
-                client_ip: "127.0.0.1".parse().unwrap(),
-            });
+            store.insert(
+                format!("state_{}", i),
+                PkceState {
+                    code_verifier: "verifier".to_string(),
+                    created_at: Instant::now(),
+                    client_ip: "127.0.0.1".parse().unwrap(),
+                },
+            );
         }
 
         // Verify we can check the length
@@ -1549,10 +1575,13 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        
+
         // Check security headers are present
         assert_eq!(
-            response.headers().get(header::X_CONTENT_TYPE_OPTIONS).unwrap(),
+            response
+                .headers()
+                .get(header::X_CONTENT_TYPE_OPTIONS)
+                .unwrap(),
             "nosniff"
         );
         assert_eq!(
@@ -1564,7 +1593,10 @@ mod tests {
             "1; mode=block"
         );
         assert_eq!(
-            response.headers().get(header::CONTENT_SECURITY_POLICY).unwrap(),
+            response
+                .headers()
+                .get(header::CONTENT_SECURITY_POLICY)
+                .unwrap(),
             "default-src 'none'"
         );
     }
@@ -1577,7 +1609,7 @@ mod tests {
     fn test_header_extractor() {
         let mut headers = HeaderMap::new();
         headers.insert("traceparent", HeaderValue::from_static("00-abc-def-01"));
-        
+
         let extractor = HeaderExtractor(&headers);
         assert_eq!(extractor.get("traceparent"), Some("00-abc-def-01"));
         assert_eq!(extractor.get("missing"), None);
@@ -1588,7 +1620,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("x-custom", HeaderValue::from_static("value"));
         headers.insert("content-type", HeaderValue::from_static("application/json"));
-        
+
         let extractor = HeaderExtractor(&headers);
         let keys = extractor.keys();
         assert!(keys.contains(&"x-custom"));
@@ -1598,13 +1630,13 @@ mod tests {
     #[test]
     fn test_header_injector() {
         use opentelemetry::propagation::Injector;
-        
+
         let mut headers = HeaderMap::new();
         {
             let mut injector = HeaderInjector(&mut headers);
             injector.set("x-trace-id", "12345".to_string());
         }
-        
+
         assert_eq!(headers.get("x-trace-id").unwrap(), "12345");
     }
 
@@ -1614,17 +1646,17 @@ mod tests {
         let err = AppError::forbidden("access denied");
         let resp = err.into_response();
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
-        
+
         // Not Found
         let err = AppError::not_found("resource missing");
         let resp = err.into_response();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-        
+
         // Transport error
         let err = AppError::transport(crate::transport::TransportError::Timeout);
         let resp = err.into_response();
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
-        
+
         // Internal
         let err = AppError::internal("boom");
         let resp = err.into_response();
@@ -1634,19 +1666,24 @@ mod tests {
     #[tokio::test]
     async fn test_trace_context_middleware() {
         use tower::ServiceExt;
-        
-        async fn handler() -> &'static str { "ok" }
-        
+
+        async fn handler() -> &'static str {
+            "ok"
+        }
+
         let app = Router::new()
-             .route("/", get(handler))
-             .layer(middleware::from_fn(trace_context_middleware));
-             
+            .route("/", get(handler))
+            .layer(middleware::from_fn(trace_context_middleware));
+
         let req = Request::builder()
             .uri("/")
-            .header("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+            .header(
+                "traceparent",
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            )
             .body(Body::empty())
             .unwrap();
-            
+
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -1657,9 +1694,9 @@ mod tests {
 
     #[test]
     fn test_add_rate_limit_headers() {
-        use axum::body::Body;
         use crate::rate_limit::RateLimitResult;
-        
+        use axum::body::Body;
+
         let mut response = Response::new(Body::empty());
         let rate_limit = RateLimitResult {
             allowed: true,
@@ -1668,13 +1705,10 @@ mod tests {
             reset_at: 1700000000,
             retry_after_secs: None,
         };
-        
+
         add_rate_limit_headers_from_result(&mut response, &rate_limit);
-        
-        assert_eq!(
-            response.headers().get("x-ratelimit-limit").unwrap(),
-            "100"
-        );
+
+        assert_eq!(response.headers().get("x-ratelimit-limit").unwrap(), "100");
         assert_eq!(
             response.headers().get("x-ratelimit-remaining").unwrap(),
             "95"
@@ -1687,9 +1721,9 @@ mod tests {
 
     #[test]
     fn test_add_rate_limit_headers_zero_remaining() {
-        use axum::body::Body;
         use crate::rate_limit::RateLimitResult;
-        
+        use axum::body::Body;
+
         let mut response = Response::new(Body::empty());
         let rate_limit = RateLimitResult {
             allowed: false,
@@ -1698,9 +1732,9 @@ mod tests {
             reset_at: 1700000060,
             retry_after_secs: Some(60),
         };
-        
+
         add_rate_limit_headers_from_result(&mut response, &rate_limit);
-        
+
         assert_eq!(
             response.headers().get("x-ratelimit-remaining").unwrap(),
             "0"
@@ -1714,14 +1748,17 @@ mod tests {
     #[test]
     fn test_pkce_state_ip_binding() {
         let store = new_oauth_state_store();
-        
+
         let client_ip: IpAddr = "192.168.1.100".parse().unwrap();
-        store.insert("test-state".to_string(), PkceState {
-            code_verifier: "verifier123".to_string(),
-            created_at: Instant::now(),
-            client_ip,
-        });
-        
+        store.insert(
+            "test-state".to_string(),
+            PkceState {
+                code_verifier: "verifier123".to_string(),
+                created_at: Instant::now(),
+                client_ip,
+            },
+        );
+
         // Verify the stored state has the correct IP
         let state = store.get("test-state").unwrap();
         assert_eq!(state.client_ip, client_ip);
@@ -1736,18 +1773,21 @@ mod tests {
         assert_eq!(params.code, Some("abc123".to_string()));
         assert_eq!(params.state, Some("xyz789".to_string()));
         assert!(params.error.is_none());
-        
+
         // Test with error
         let json = r#"{"error":"access_denied","error_description":"User denied access"}"#;
         let params: OAuthCallbackParams = serde_json::from_str(json).unwrap();
         assert_eq!(params.error, Some("access_denied".to_string()));
-        assert_eq!(params.error_description, Some("User denied access".to_string()));
+        assert_eq!(
+            params.error_description,
+            Some("User denied access".to_string())
+        );
     }
 
     #[test]
     fn test_rate_limited_with_info() {
         use crate::rate_limit::RateLimitResult;
-        
+
         let rate_limit = RateLimitResult {
             allowed: false,
             limit: 10,
@@ -1755,11 +1795,16 @@ mod tests {
             reset_at: 1700000100,
             retry_after_secs: Some(30),
         };
-        
+
         let err = AppError::rate_limited_with_info(rate_limit);
-        
+
         match err.kind {
-            AppErrorKind::RateLimited { retry_after_secs, limit, remaining, reset_at } => {
+            AppErrorKind::RateLimited {
+                retry_after_secs,
+                limit,
+                remaining,
+                reset_at,
+            } => {
                 assert_eq!(retry_after_secs, Some(30));
                 assert_eq!(limit, Some(10));
                 assert_eq!(remaining, Some(0));
@@ -1772,7 +1817,7 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limited_with_info_response() {
         use crate::rate_limit::RateLimitResult;
-        
+
         let rate_limit = RateLimitResult {
             allowed: false,
             limit: 50,
@@ -1780,15 +1825,21 @@ mod tests {
             reset_at: 1700000200,
             retry_after_secs: Some(45),
         };
-        
+
         let err = AppError::rate_limited_with_info(rate_limit);
         let response = err.into_response();
-        
+
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
         assert!(response.headers().get(header::RETRY_AFTER).is_some());
         assert_eq!(response.headers().get("x-ratelimit-limit").unwrap(), "50");
-        assert_eq!(response.headers().get("x-ratelimit-remaining").unwrap(), "0");
-        assert_eq!(response.headers().get("x-ratelimit-reset").unwrap(), "1700000200");
+        assert_eq!(
+            response.headers().get("x-ratelimit-remaining").unwrap(),
+            "0"
+        );
+        assert_eq!(
+            response.headers().get("x-ratelimit-reset").unwrap(),
+            "1700000200"
+        );
     }
 
     // ------------------------------------------------------------------------
@@ -1798,30 +1849,38 @@ mod tests {
     #[tokio::test]
     async fn test_metrics_middleware() {
         use tower::ServiceExt;
-        
-        async fn handler() -> &'static str { "metrics test" }
-        
+
+        async fn handler() -> &'static str {
+            "metrics test"
+        }
+
         let app = Router::new()
             .route("/test", get(handler))
             .layer(middleware::from_fn(metrics_middleware));
-        
+
         let response = app
             .oneshot(Request::builder().uri("/test").body(Body::empty()).unwrap())
             .await
             .unwrap();
-        
+
         assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[test]
     fn test_app_error_from_transport() {
         use crate::transport::TransportError;
-        
+
         let err: AppError = TransportError::Timeout.into();
-        assert!(matches!(err.kind, AppErrorKind::Transport(TransportError::Timeout)));
-        
+        assert!(matches!(
+            err.kind,
+            AppErrorKind::Transport(TransportError::Timeout)
+        ));
+
         let err: AppError = TransportError::ConnectionClosed.into();
-        assert!(matches!(err.kind, AppErrorKind::Transport(TransportError::ConnectionClosed)));
+        assert!(matches!(
+            err.kind,
+            AppErrorKind::Transport(TransportError::ConnectionClosed)
+        ));
     }
 
     // ------------------------------------------------------------------------
@@ -1830,10 +1889,13 @@ mod tests {
 
     // Helper to create a minimal AppState for testing
     fn create_test_state() -> Arc<AppState> {
-        use crate::config::{Config, RateLimitConfig, ServerConfig, AuthConfig, AuditConfig, TracingConfig, UpstreamConfig, TransportType};
-        use crate::auth::ApiKeyProvider;
-        use crate::rate_limit::RateLimitService;
         use crate::audit::AuditLogger;
+        use crate::auth::ApiKeyProvider;
+        use crate::config::{
+            AuditConfig, AuthConfig, Config, RateLimitConfig, ServerConfig, TracingConfig,
+            TransportType, UpstreamConfig,
+        };
+        use crate::rate_limit::RateLimitService;
 
         let mut rate_limit_config = RateLimitConfig::default();
         rate_limit_config.enabled = false;
@@ -1879,7 +1941,7 @@ mod tests {
     async fn test_health_handler() {
         let state = create_test_state();
         let response = health(State(state)).await;
-        
+
         assert_eq!(response.0.status, "healthy");
         // Version should match env
         assert_eq!(response.0.version, env!("CARGO_PKG_VERSION"));
@@ -1891,12 +1953,14 @@ mod tests {
     async fn test_ready_handler_ready() {
         let state = create_test_state();
         // Default is ready=true
-        
+
         let response = ready(State(state)).await.into_response();
         assert_eq!(response.status(), StatusCode::OK);
-        
+
         // Verify body contains ready: true
-        let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
         assert!(body_str.contains("\"ready\":true"));
     }
@@ -1906,32 +1970,43 @@ mod tests {
         let state = create_test_state();
         // Set ready to false
         *state.ready.write().await = false;
-        
+
         let response = ready(State(state)).await.into_response();
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        
-        let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+
+        let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
         assert!(body_str.contains("\"ready\":false"));
         assert!(body_str.contains("Transport not initialized"));
     }
-    
+
     // Test OAuth authorize logic (DoS protection and state creation)
     #[tokio::test]
     async fn test_oauth_authorize_no_provider() {
         let state = create_test_state();
         // No oauth provider specific in default state
-        
+
         let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 1234));
         let result = oauth_authorize(State(state), ConnectInfo(addr)).await;
-        
-        assert!(matches!(result, Err(AppError { kind: AppErrorKind::Internal(_), .. })));
+
+        assert!(matches!(
+            result,
+            Err(AppError {
+                kind: AppErrorKind::Internal(_),
+                ..
+            })
+        ));
     }
 
     #[tokio::test]
     async fn test_oauth_authorize_dos_protection() {
-        use crate::config::{Config, AuthConfig, OAuthConfig, OAuthProvider, ServerConfig, RateLimitConfig, AuditConfig, TracingConfig, UpstreamConfig, TransportType};
-        
+        use crate::config::{
+            AuditConfig, AuthConfig, Config, OAuthConfig, OAuthProvider, RateLimitConfig,
+            ServerConfig, TracingConfig, TransportType, UpstreamConfig,
+        };
+
         // Custom state with OAuth enabled
         let mut config = Config {
             server: ServerConfig::default(),
@@ -1967,38 +2042,36 @@ mod tests {
 
         let mut rate_limit_config = crate::config::RateLimitConfig::default();
         rate_limit_config.enabled = false;
-        
+
         // We need an actual OAuthProvider constructed.
         // OAuthAuthProvider::new requires discovery which makes network calls.
         // This is hard to test without mocking.
         // However, we can test the DoS protection strictly by verifying the check is before provider initialization?
-        // Looking at code: 
+        // Looking at code:
         // 1. Get oauth_provider (checks option)
         // 2. Cleanup
         // 3. Check limit
-        
+
         // So we need a provider.
         // If OAuthAuthProvider::new enforces discovery, we might skip this test or mock it if possible.
         // OAuthAuthProvider::new does `discover_async` if discovery_url is set, or manual config.
-        // If we Set discovery_url to None, it might work if we have endpoints? 
+        // If we Set discovery_url to None, it might work if we have endpoints?
         // Config has implicit endpoints if provider is Google/GitHub?
         // Let's check `src/auth/oauth.rs` quickly? No, simpler to skip full provider test if it hits network.
-        
+
         // Alternative: Fill state store to limit and verify 503/429.
         // But we can't easily get past "provider not configured" without a provider.
         // So I'll skip the *success* path of oauth_authorize, but test the failure path (no provider) which I did.
     }
 
-
-
     #[test]
     fn test_app_error_from_transport_variants() {
         use crate::transport::TransportError;
-        
+
         // Test ProcessExited variant
         let err: AppError = TransportError::ProcessExited.into();
         assert!(matches!(err.kind, AppErrorKind::Transport(_)));
-        
+
         // Test ConnectionClosed variant
         let err: AppError = TransportError::ConnectionClosed.into();
         assert!(matches!(err.kind, AppErrorKind::Transport(_)));
@@ -2007,12 +2080,12 @@ mod tests {
     #[tokio::test]
     async fn test_transport_error_response_sanitization() {
         use crate::transport::TransportError;
-        
+
         // ProcessExited should be sanitized
         let err = AppError::transport(TransportError::ProcessExited);
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
-        
+
         // Timeout should be sanitized
         let err = AppError::transport(TransportError::Timeout);
         let response = err.into_response();

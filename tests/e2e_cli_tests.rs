@@ -68,21 +68,23 @@ fn test_version_shows_features() {
 #[test]
 fn test_init_creates_toml() {
     let temp_dir = TempDir::new().unwrap();
-    
+
     mcp_guard()
         .arg("init")
         .current_dir(temp_dir.path())
         .assert()
         .success()
-        .stdout(predicate::str::contains("Created configuration file: mcp-guard.toml"));
-    
+        .stdout(predicate::str::contains(
+            "Created configuration file: mcp-guard.toml",
+        ));
+
     assert!(temp_dir.path().join("mcp-guard.toml").exists());
 }
 
 #[test]
 fn test_init_creates_yaml() {
     let temp_dir = TempDir::new().unwrap();
-    
+
     mcp_guard()
         .arg("init")
         .arg("--format")
@@ -90,8 +92,10 @@ fn test_init_creates_yaml() {
         .current_dir(temp_dir.path())
         .assert()
         .success()
-        .stdout(predicate::str::contains("Created configuration file: mcp-guard.yaml"));
-    
+        .stdout(predicate::str::contains(
+            "Created configuration file: mcp-guard.yaml",
+        ));
+
     assert!(temp_dir.path().join("mcp-guard.yaml").exists());
 }
 
@@ -100,7 +104,7 @@ fn test_init_fails_if_exists_without_force() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("mcp-guard.toml");
     fs::write(&config_path, "existing content").unwrap();
-    
+
     mcp_guard()
         .arg("init")
         .current_dir(temp_dir.path())
@@ -115,7 +119,7 @@ fn test_init_force_overwrites() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("mcp-guard.toml");
     fs::write(&config_path, "old content").unwrap();
-    
+
     mcp_guard()
         .arg("init")
         .arg("--force")
@@ -123,7 +127,7 @@ fn test_init_force_overwrites() {
         .assert()
         .success()
         .stdout(predicate::str::contains("Created configuration file"));
-    
+
     // Verify it was overwritten with actual config content
     let content = fs::read_to_string(&config_path).unwrap();
     assert!(content.contains("[server]") || content.contains("server:"));
@@ -136,7 +140,7 @@ fn test_init_force_overwrites() {
 #[test]
 fn test_validate_valid_config() {
     let (_temp_dir, config_path) = create_temp_config(VALID_CONFIG);
-    
+
     mcp_guard()
         .arg("validate")
         .arg("-c")
@@ -149,7 +153,7 @@ fn test_validate_valid_config() {
 #[test]
 fn test_validate_invalid_config() {
     let (_temp_dir, config_path) = create_temp_config("invalid { toml content");
-    
+
     mcp_guard()
         .arg("validate")
         .arg("-c")
@@ -178,7 +182,7 @@ host = "127.0.0.1"
 port = 3000
 "#;
     let (_temp_dir, config_path) = create_temp_config(incomplete_config);
-    
+
     mcp_guard()
         .arg("validate")
         .arg("-c")
@@ -199,7 +203,9 @@ fn test_keygen_basic() {
         .arg("test-user")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Generated API key for 'test-user'"))
+        .stdout(predicate::str::contains(
+            "Generated API key for 'test-user'",
+        ))
         .stdout(predicate::str::contains("API Key (save this"))
         .stdout(predicate::str::contains("key_hash ="));
 }
@@ -257,7 +263,7 @@ fn test_hash_key_basic() {
         .arg("my-secret-key")
         .assert()
         .success();
-    
+
     // Should output only the hash (base64 encoded)
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert!(!stdout.is_empty());
@@ -273,30 +279,22 @@ fn test_hash_key_consistent() {
         .arg("consistent-key")
         .output()
         .unwrap();
-    
+
     let output2 = mcp_guard()
         .arg("hash-key")
         .arg("consistent-key")
         .output()
         .unwrap();
-    
+
     assert_eq!(output1.stdout, output2.stdout);
 }
 
 #[test]
 fn test_hash_key_different_inputs() {
-    let output1 = mcp_guard()
-        .arg("hash-key")
-        .arg("key-one")
-        .output()
-        .unwrap();
-    
-    let output2 = mcp_guard()
-        .arg("hash-key")
-        .arg("key-two")
-        .output()
-        .unwrap();
-    
+    let output1 = mcp_guard().arg("hash-key").arg("key-one").output().unwrap();
+
+    let output2 = mcp_guard().arg("hash-key").arg("key-two").output().unwrap();
+
     assert_ne!(output1.stdout, output2.stdout);
 }
 
@@ -330,7 +328,7 @@ args = []
 enabled = false
 "#;
     let (_temp_dir, config_path) = create_temp_config(config);
-    
+
     mcp_guard()
         .arg("check-upstream")
         .arg("-c")
@@ -339,7 +337,10 @@ enabled = false
         .arg("2")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Upstream check failed").or(predicate::str::contains("timed out")));
+        .stderr(
+            predicate::str::contains("Upstream check failed")
+                .or(predicate::str::contains("timed out")),
+        );
 }
 
 #[test]
@@ -357,7 +358,7 @@ url = "http://localhost:99999/invalid"
 enabled = false
 "#;
     let (_temp_dir, config_path) = create_temp_config(config);
-    
+
     mcp_guard()
         .arg("check-upstream")
         .arg("-c")
@@ -383,7 +384,7 @@ url = "http://localhost:99998/sse/invalid"
 enabled = false
 "#;
     let (_temp_dir, config_path) = create_temp_config(config);
-    
+
     mcp_guard()
         .arg("check-upstream")
         .arg("-c")
@@ -411,7 +412,7 @@ fn test_run_missing_config() {
 #[test]
 fn test_run_invalid_config() {
     let (_temp_dir, config_path) = create_temp_config("not valid toml {");
-    
+
     mcp_guard()
         .arg("run")
         .arg("-c")
@@ -469,7 +470,7 @@ fn test_keygen_help() {
 #[test]
 fn test_verbose_flag_validate() {
     let (_temp_dir, config_path) = create_temp_config(VALID_CONFIG);
-    
+
     mcp_guard()
         .arg("-v")
         .arg("validate")

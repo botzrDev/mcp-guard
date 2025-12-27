@@ -73,6 +73,10 @@ pub enum Commands {
         /// Comma-separated list of allowed tools
         #[arg(long)]
         tools: Option<String>,
+
+        /// Automatically add the key to the config file
+        #[arg(long)]
+        apply_to_config: bool,
     },
 
     /// Run the MCP Guard server
@@ -136,7 +140,10 @@ pub fn hash_api_key(key: &str) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(key.as_bytes());
-    base64::Engine::encode(&base64::engine::general_purpose::STANDARD, hasher.finalize())
+    base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        hasher.finalize(),
+    )
 }
 
 // ============================================================================
@@ -307,4 +314,94 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
         );
         (config, demo_key)
     }
+}
+
+// ============================================================================
+// Config Modification
+// ============================================================================
+
+/// Apply a new API key to an existing config file
+///
+/// Uses toml_edit to preserve comments and formatting in the original file.
+/// Creates the [[auth.api_keys]] section if it doesn't exist.
+///
+/// # Arguments
+/// * `config_path` - Path to the config file
+/// * `user_id` - User/service identifier for the new key
+/// * `key_hash` - The hashed API key
+/// * `rate_limit` - Optional rate limit override
+/// * `allowed_tools` - Optional list of allowed tools
+///
+/// # Returns
+/// Ok(()) on success, or an error describing what went wrong
+pub fn apply_key_to_config(
+    config_path: &std::path::Path,
+    user_id: &str,
+    key_hash: &str,
+    rate_limit: Option<u32>,
+    allowed_tools: Option<&[String]>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use toml_edit::{Array, DocumentMut, Item, Table};
+
+    // Read existing config
+    let content = std::fs::read_to_string(config_path)?;
+    let mut doc: DocumentMut = content.parse()?;
+
+    // Create or get [auth] table
+    if doc.get("auth").is_none() {
+        doc["auth"] = Item::Table(Table::new());
+    }
+
+    // Create new key entry as a table
+    let mut new_key = Table::new();
+    new_key.insert("id", toml_edit::value(user_id));
+    new_key.insert("key_hash", toml_edit::value(key_hash));
+
+    // Add optional fields
+    if let Some(limit) = rate_limit {
+        new_key.insert("rate_limit", toml_edit::value(limit as i64));
+    }
+
+    // Add allowed_tools (empty array means all tools allowed)
+    let mut tools_arr = Array::new();
+    if let Some(tools) = allowed_tools {
+        for tool in tools {
+            tools_arr.push(tool.as_str());
+        }
+    }
+    new_key.insert("allowed_tools", toml_edit::value(tools_arr));
+
+    // Get or create [[auth.api_keys]] array of tables
+    let auth = doc["auth"]
+        .as_table_mut()
+        .ok_or("auth section is not a table")?;
+
+    if auth.get("api_keys").is_none() {
+        auth.insert(
+            "api_keys",
+            Item::ArrayOfTables(toml_edit::ArrayOfTables::new()),
+        );
+    }
+
+    // Append new key to the array
+    if let Some(api_keys) = auth
+        .get_mut("api_keys")
+        .and_then(|v| v.as_array_of_tables_mut())
+    {
+        api_keys.push(new_key);
+    } else {
+        return Err("Failed to access api_keys as array of tables".into());
+    }
+
+    // Validate the modified config before writing
+    let config_str = doc.to_string();
+    let _: crate::config::Config =
+        toml::from_str(&config_str).map_err(|e| format!("Modified config is invalid: {}", e))?;
+
+    // Write atomically using temp file + rename
+    let temp_path = config_path.with_extension("toml.tmp");
+    std::fs::write(&temp_path, &config_str)?;
+    std::fs::rename(&temp_path, config_path)?;
+
+    Ok(())
 }

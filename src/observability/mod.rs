@@ -91,7 +91,10 @@ pub fn init_tracing(verbose: bool, tracing_config: Option<&TracingConfig>) -> Tr
 }
 
 /// Initialize OpenTelemetry tracing with OTLP export
-fn init_opentelemetry_tracing(verbose: bool, config: &TracingConfig) -> Result<TracingGuard, Box<dyn std::error::Error + Send + Sync>> {
+fn init_opentelemetry_tracing(
+    verbose: bool,
+    config: &TracingConfig,
+) -> Result<TracingGuard, Box<dyn std::error::Error + Send + Sync>> {
     use opentelemetry::KeyValue;
     use opentelemetry_otlp::WithExportConfig;
 
@@ -192,8 +195,7 @@ pub fn init_metrics() -> PrometheusHandle {
 /// needs its own metrics handle. The returned handle can still render
 /// metrics but they won't be globally accessible.
 pub fn create_metrics_handle() -> PrometheusHandle {
-    let recorder = PrometheusBuilder::new()
-        .build_recorder();
+    let recorder = PrometheusBuilder::new().build_recorder();
     recorder.handle()
 }
 
@@ -373,7 +375,7 @@ mod tests {
         let guard = TracingGuard { _provider: None };
         drop(guard);
     }
-    
+
     #[test]
     fn test_init_tracing_basic() {
         // Should initialize basic logging without panic
@@ -407,7 +409,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(config.sample_rate, 0.0);
-        
+
         // Test sample rate 1.0 (always on)
         let config = TracingConfig {
             enabled: true,
@@ -415,7 +417,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(config.sample_rate, 1.0);
-        
+
         // Test middle value
         let config = TracingConfig {
             enabled: true,
@@ -434,9 +436,12 @@ mod tests {
             sample_rate: 0.1,
             propagate_context: true,
         };
-        
+
         assert!(config.enabled);
-        assert_eq!(config.otlp_endpoint, Some("http://localhost:4317".to_string()));
+        assert_eq!(
+            config.otlp_endpoint,
+            Some("http://localhost:4317".to_string())
+        );
         assert_eq!(config.service_name, "test-service");
     }
 
@@ -446,7 +451,7 @@ mod tests {
         // (subsequent calls return local recorder handles)
         let handle1 = create_metrics_handle();
         let handle2 = create_metrics_handle();
-        
+
         // Both should render valid output
         let _ = handle1.render();
         let _ = handle2.render();
@@ -459,7 +464,7 @@ mod tests {
             ..Default::default()
         };
         assert!(!config.propagate_context);
-        
+
         let config = TracingConfig {
             propagate_context: true,
             ..Default::default()
@@ -485,9 +490,8 @@ mod tests {
     fn test_init_tracing_verbose_variations() {
         let guard_false = init_tracing(false, None);
         drop(guard_false);
-        
+
         let guard_true = init_tracing(true, None);
         drop(guard_true);
     }
 }
-

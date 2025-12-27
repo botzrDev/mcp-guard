@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 use wiremock::{
-    matchers::{method, path, header, body_string_contains},
+    matchers::{body_string_contains, header, method, path},
     Mock, MockServer, ResponseTemplate,
 };
 
@@ -56,7 +56,7 @@ fn create_oauth_config_userinfo_only(mock_server_uri: &str) -> OAuthConfig {
 #[tokio::test]
 async fn test_oauth_introspect_token_success() {
     let mock_server = MockServer::start().await;
-    
+
     Mock::given(method("POST"))
         .and(path("/introspect"))
         .and(body_string_contains("token=valid-token"))
@@ -68,12 +68,12 @@ async fn test_oauth_introspect_token_success() {
         })))
         .mount(&mock_server)
         .await;
-    
+
     let config = create_oauth_config(&mock_server.uri());
     let provider = OAuthAuthProvider::new(config).unwrap();
-    
+
     let identity = provider.authenticate("valid-token").await.unwrap();
-    
+
     assert_eq!(identity.id, "user123");
     assert_eq!(identity.name, Some("testuser".to_string()));
 }
@@ -81,7 +81,7 @@ async fn test_oauth_introspect_token_success() {
 #[tokio::test]
 async fn test_oauth_introspect_token_inactive() {
     let mock_server = MockServer::start().await;
-    
+
     Mock::given(method("POST"))
         .and(path("/introspect"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -89,26 +89,26 @@ async fn test_oauth_introspect_token_inactive() {
         })))
         .mount(&mock_server)
         .await;
-    
+
     let config = create_oauth_config(&mock_server.uri());
     let provider = OAuthAuthProvider::new(config).unwrap();
-    
+
     let result = provider.authenticate("inactive-token").await;
-    
+
     assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_oauth_introspect_http_error_falls_back_to_userinfo() {
     let mock_server = MockServer::start().await;
-    
+
     // Introspection fails
     Mock::given(method("POST"))
         .and(path("/introspect"))
         .respond_with(ResponseTemplate::new(500))
         .mount(&mock_server)
         .await;
-    
+
     // UserInfo succeeds
     Mock::given(method("GET"))
         .and(path("/userinfo"))
@@ -119,12 +119,12 @@ async fn test_oauth_introspect_http_error_falls_back_to_userinfo() {
         })))
         .mount(&mock_server)
         .await;
-    
+
     let config = create_oauth_config(&mock_server.uri());
     let provider = OAuthAuthProvider::new(config).unwrap();
-    
+
     let identity = provider.authenticate("fallback-token").await.unwrap();
-    
+
     assert_eq!(identity.id, "fallback-user");
     assert_eq!(identity.name, Some("Fallback User".to_string()));
 }
@@ -136,7 +136,7 @@ async fn test_oauth_introspect_http_error_falls_back_to_userinfo() {
 #[tokio::test]
 async fn test_oauth_userinfo_success() {
     let mock_server = MockServer::start().await;
-    
+
     Mock::given(method("GET"))
         .and(path("/userinfo"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -145,30 +145,30 @@ async fn test_oauth_userinfo_success() {
         })))
         .mount(&mock_server)
         .await;
-    
+
     let config = create_oauth_config_userinfo_only(&mock_server.uri());
     let provider = OAuthAuthProvider::new(config).unwrap();
-    
+
     let identity = provider.authenticate("userinfo-token").await.unwrap();
-    
+
     assert_eq!(identity.id, "userinfo-user");
 }
 
 #[tokio::test]
 async fn test_oauth_userinfo_401_returns_expired() {
     let mock_server = MockServer::start().await;
-    
+
     Mock::given(method("GET"))
         .and(path("/userinfo"))
         .respond_with(ResponseTemplate::new(401))
         .mount(&mock_server)
         .await;
-    
+
     let config = create_oauth_config_userinfo_only(&mock_server.uri());
     let provider = OAuthAuthProvider::new(config).unwrap();
-    
+
     let result = provider.authenticate("expired-token").await;
-    
+
     assert!(result.is_err());
     // Should be a TokenExpired error
 }
@@ -176,18 +176,18 @@ async fn test_oauth_userinfo_401_returns_expired() {
 #[tokio::test]
 async fn test_oauth_userinfo_500_error() {
     let mock_server = MockServer::start().await;
-    
+
     Mock::given(method("GET"))
         .and(path("/userinfo"))
         .respond_with(ResponseTemplate::new(500))
         .mount(&mock_server)
         .await;
-    
+
     let config = create_oauth_config_userinfo_only(&mock_server.uri());
     let provider = OAuthAuthProvider::new(config).unwrap();
-    
+
     let result = provider.authenticate("error-token").await;
-    
+
     assert!(result.is_err());
 }
 
@@ -198,7 +198,7 @@ async fn test_oauth_userinfo_500_error() {
 #[tokio::test]
 async fn test_oauth_token_caching() {
     let mock_server = MockServer::start().await;
-    
+
     // Mock should only be called once due to caching
     Mock::given(method("POST"))
         .and(path("/introspect"))
@@ -210,18 +210,18 @@ async fn test_oauth_token_caching() {
         .expect(1) // Should only be called once
         .mount(&mock_server)
         .await;
-    
+
     let config = create_oauth_config(&mock_server.uri());
     let provider = OAuthAuthProvider::new(config).unwrap();
-    
+
     // First call - should hit the mock
     let identity1 = provider.authenticate("cacheable-token").await.unwrap();
     assert_eq!(identity1.id, "cached-user");
-    
+
     // Second call - should use cache
     let identity2 = provider.authenticate("cacheable-token").await.unwrap();
     assert_eq!(identity2.id, "cached-user");
-    
+
     // Third call - still cached
     let identity3 = provider.authenticate("cacheable-token").await.unwrap();
     assert_eq!(identity3.id, "cached-user");
@@ -230,7 +230,7 @@ async fn test_oauth_token_caching() {
 #[tokio::test]
 async fn test_oauth_different_tokens_not_confused() {
     let mock_server = MockServer::start().await;
-    
+
     Mock::given(method("POST"))
         .and(path("/introspect"))
         .and(body_string_contains("token=token-a"))
@@ -240,7 +240,7 @@ async fn test_oauth_different_tokens_not_confused() {
         })))
         .mount(&mock_server)
         .await;
-    
+
     Mock::given(method("POST"))
         .and(path("/introspect"))
         .and(body_string_contains("token=token-b"))
@@ -250,13 +250,13 @@ async fn test_oauth_different_tokens_not_confused() {
         })))
         .mount(&mock_server)
         .await;
-    
+
     let config = create_oauth_config(&mock_server.uri());
     let provider = OAuthAuthProvider::new(config).unwrap();
-    
+
     let identity_a = provider.authenticate("token-a").await.unwrap();
     let identity_b = provider.authenticate("token-b").await.unwrap();
-    
+
     assert_eq!(identity_a.id, "user-a");
     assert_eq!(identity_b.id, "user-b");
 }
@@ -268,7 +268,7 @@ async fn test_oauth_different_tokens_not_confused() {
 #[tokio::test]
 async fn test_oauth_github_userinfo_format() {
     let mock_server = MockServer::start().await;
-    
+
     // GitHub returns numeric ID and login instead of sub/username
     Mock::given(method("GET"))
         .and(path("/userinfo"))
@@ -279,12 +279,12 @@ async fn test_oauth_github_userinfo_format() {
         })))
         .mount(&mock_server)
         .await;
-    
+
     let config = create_oauth_config_userinfo_only(&mock_server.uri());
     let provider = OAuthAuthProvider::new(config).unwrap();
-    
+
     let identity = provider.authenticate("github-token").await.unwrap();
-    
+
     // Should extract numeric ID as string
     assert_eq!(identity.id, "12345");
     // Should use "name" for the display name
@@ -298,7 +298,7 @@ async fn test_oauth_github_userinfo_format() {
 #[tokio::test]
 async fn test_oauth_scope_to_tool_mapping() {
     let mock_server = MockServer::start().await;
-    
+
     Mock::given(method("POST"))
         .and(path("/introspect"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -308,18 +308,21 @@ async fn test_oauth_scope_to_tool_mapping() {
         })))
         .mount(&mock_server)
         .await;
-    
+
     let mut scope_mapping = HashMap::new();
-    scope_mapping.insert("read:files".to_string(), vec!["read_file".to_string(), "list_files".to_string()]);
+    scope_mapping.insert(
+        "read:files".to_string(),
+        vec!["read_file".to_string(), "list_files".to_string()],
+    );
     scope_mapping.insert("write:files".to_string(), vec!["write_file".to_string()]);
-    
+
     let mut config = create_oauth_config(&mock_server.uri());
     config.scope_tool_mapping = scope_mapping;
-    
+
     let provider = OAuthAuthProvider::new(config).unwrap();
-    
+
     let identity = provider.authenticate("scoped-token").await.unwrap();
-    
+
     assert!(identity.allowed_tools.is_some());
     let tools = identity.allowed_tools.unwrap();
     assert!(tools.contains(&"read_file".to_string()));
@@ -330,7 +333,7 @@ async fn test_oauth_scope_to_tool_mapping() {
 #[tokio::test]
 async fn test_oauth_wildcard_scope() {
     let mock_server = MockServer::start().await;
-    
+
     Mock::given(method("POST"))
         .and(path("/introspect"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -340,17 +343,17 @@ async fn test_oauth_wildcard_scope() {
         })))
         .mount(&mock_server)
         .await;
-    
+
     let mut scope_mapping = HashMap::new();
     scope_mapping.insert("admin".to_string(), vec!["*".to_string()]);
-    
+
     let mut config = create_oauth_config(&mock_server.uri());
     config.scope_tool_mapping = scope_mapping;
-    
+
     let provider = OAuthAuthProvider::new(config).unwrap();
-    
+
     let identity = provider.authenticate("admin-token").await.unwrap();
-    
+
     // Wildcard means all tools allowed (represented as None)
     assert!(identity.allowed_tools.is_none());
 }
@@ -387,13 +390,14 @@ fn test_oauth_provider_name() {
 #[tokio::test]
 async fn test_oauth_expired_token_in_response() {
     let mock_server = MockServer::start().await;
-    
+
     // Return a token with an expiration in the past
     let past_timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
-        .as_secs() as i64 - 3600; // 1 hour ago
-    
+        .as_secs() as i64
+        - 3600; // 1 hour ago
+
     Mock::given(method("POST"))
         .and(path("/introspect"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -403,12 +407,12 @@ async fn test_oauth_expired_token_in_response() {
         })))
         .mount(&mock_server)
         .await;
-    
+
     let config = create_oauth_config(&mock_server.uri());
     let provider = OAuthAuthProvider::new(config).unwrap();
-    
+
     let result = provider.authenticate("past-exp-token").await;
-    
+
     // Should fail due to expiration
     assert!(result.is_err());
 }

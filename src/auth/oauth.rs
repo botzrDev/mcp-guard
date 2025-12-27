@@ -126,7 +126,11 @@ impl TokenCache {
             .retain(|_, cached| cached.cached_at.elapsed() < self.cache_duration);
         let removed = before - self.entries.len();
         if removed > 0 {
-            tracing::debug!(removed = removed, remaining = self.entries.len(), "Token cache cleanup");
+            tracing::debug!(
+                removed = removed,
+                remaining = self.entries.len(),
+                "Token cache cleanup"
+            );
         }
     }
 
@@ -193,10 +197,11 @@ impl OAuthAuthProvider {
             .or_else(|| endpoints.as_ref().map(|e| e.userinfo_url.to_string()))
             .ok_or_else(|| AuthError::OAuth("userinfo_url required for this provider".into()))?;
 
-        let introspection_url = config
-            .introspection_url
-            .clone()
-            .or_else(|| endpoints.as_ref().and_then(|e| e.introspection_url.map(String::from)));
+        let introspection_url = config.introspection_url.clone().or_else(|| {
+            endpoints
+                .as_ref()
+                .and_then(|e| e.introspection_url.map(String::from))
+        });
 
         let http_client = reqwest::Client::builder()
             .timeout(Duration::from_secs(HTTP_REQUEST_TIMEOUT_SECS))
@@ -251,7 +256,10 @@ impl OAuthAuthProvider {
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(token.as_bytes());
-        base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, hasher.finalize())
+        base64::Engine::encode(
+            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+            hasher.finalize(),
+        )
     }
 
     /// Validate token via introspection endpoint (RFC 7662)
@@ -283,10 +291,9 @@ impl OAuthAuthProvider {
             )));
         }
 
-        let body: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| AuthError::OAuth(format!("Failed to parse introspection response: {}", e)))?;
+        let body: serde_json::Value = response.json().await.map_err(|e| {
+            AuthError::OAuth(format!("Failed to parse introspection response: {}", e))
+        })?;
 
         self.parse_token_info(&body)
     }
@@ -343,7 +350,9 @@ impl OAuthAuthProvider {
             .or_else(|| body.get("sub").and_then(|v| v.as_str()).map(String::from))
             .or_else(|| {
                 // GitHub returns "id" as a number
-                body.get("id").and_then(|v| v.as_i64()).map(|id| id.to_string())
+                body.get("id")
+                    .and_then(|v| v.as_i64())
+                    .map(|id| id.to_string())
             })
             .or_else(|| body.get("id").and_then(|v| v.as_str()).map(String::from));
 
@@ -375,11 +384,7 @@ impl OAuthAuthProvider {
         // Convert body to claims map
         let claims = body
             .as_object()
-            .map(|obj| {
-                obj.iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect()
-            })
+            .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
             .unwrap_or_default();
 
         Ok(TokenInfo {
@@ -569,7 +574,10 @@ mod tests {
         assert!(info.active);
         assert_eq!(info.user_id, Some("user123".to_string()));
         assert_eq!(info.username, Some("testuser".to_string()));
-        assert_eq!(info.scopes, vec!["read:user".to_string(), "repo".to_string()]);
+        assert_eq!(
+            info.scopes,
+            vec!["read:user".to_string(), "repo".to_string()]
+        );
     }
 
     #[test]

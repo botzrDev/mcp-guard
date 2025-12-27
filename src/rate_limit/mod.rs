@@ -116,8 +116,8 @@ impl RateLimitService {
         let tool_patterns: Vec<ToolPattern> = config
             .tool_limits
             .iter()
-            .filter_map(|tool_config| {
-                match Pattern::new(&tool_config.tool_pattern) {
+            .filter_map(
+                |tool_config| match Pattern::new(&tool_config.tool_pattern) {
                     Ok(pattern) => Some(ToolPattern {
                         pattern,
                         rps: tool_config.requests_per_second,
@@ -131,8 +131,8 @@ impl RateLimitService {
                         );
                         None
                     }
-                }
-            })
+                },
+            )
             .collect();
 
         if !tool_patterns.is_empty() {
@@ -190,7 +190,8 @@ impl RateLimitService {
             limiter: limiter.clone(),
             last_access: now,
         };
-        self.identity_limiters.insert(identity_id.to_string(), entry);
+        self.identity_limiters
+            .insert(identity_id.to_string(), entry);
         limiter
     }
 
@@ -231,7 +232,10 @@ impl RateLimitService {
         }
 
         // Find matching tool pattern
-        let tool_config = self.tool_patterns.iter().find(|tp| tp.pattern.matches(tool_name))?;
+        let tool_config = self
+            .tool_patterns
+            .iter()
+            .find(|tp| tp.pattern.matches(tool_name))?;
 
         let rps = tool_config.rps;
         let burst = tool_config.burst;
@@ -266,13 +270,11 @@ impl RateLimitService {
         let now = Instant::now();
         let ttl = self.entry_ttl;
 
-        self.identity_limiters.retain(|_, entry| {
-            now.duration_since(entry.last_access) < ttl
-        });
+        self.identity_limiters
+            .retain(|_, entry| now.duration_since(entry.last_access) < ttl);
 
-        self.tool_limiters.retain(|_, entry| {
-            now.duration_since(entry.last_access) < ttl
-        });
+        self.tool_limiters
+            .retain(|_, entry| now.duration_since(entry.last_access) < ttl);
 
         tracing::debug!(
             identity_remaining = self.identity_limiters.len(),
@@ -384,9 +386,8 @@ impl RateLimitService {
         cleanup_interval_secs: Option<u64>,
     ) -> tokio::task::JoinHandle<()> {
         let service = Arc::clone(self);
-        let interval = Duration::from_secs(
-            cleanup_interval_secs.unwrap_or(DEFAULT_CLEANUP_INTERVAL_SECS)
-        );
+        let interval =
+            Duration::from_secs(cleanup_interval_secs.unwrap_or(DEFAULT_CLEANUP_INTERVAL_SECS));
 
         tokio::spawn(async move {
             let mut interval_timer = tokio::time::interval(interval);
@@ -732,12 +733,32 @@ mod tests {
         let service = RateLimitService::new(&config);
 
         // User A exhausts their tool limit
-        assert!(service.check_tool("user_a", "execute_code").unwrap().allowed);
-        assert!(!service.check_tool("user_a", "execute_code").unwrap().allowed);
+        assert!(
+            service
+                .check_tool("user_a", "execute_code")
+                .unwrap()
+                .allowed
+        );
+        assert!(
+            !service
+                .check_tool("user_a", "execute_code")
+                .unwrap()
+                .allowed
+        );
 
         // User B should have their own independent limiter
-        assert!(service.check_tool("user_b", "execute_code").unwrap().allowed);
-        assert!(!service.check_tool("user_b", "execute_code").unwrap().allowed);
+        assert!(
+            service
+                .check_tool("user_b", "execute_code")
+                .unwrap()
+                .allowed
+        );
+        assert!(
+            !service
+                .check_tool("user_b", "execute_code")
+                .unwrap()
+                .allowed
+        );
 
         // Two tool limiters should be tracked (user_a:execute_code, user_b:execute_code)
         assert_eq!(service.tracked_tools(), 2);

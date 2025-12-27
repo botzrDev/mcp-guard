@@ -29,11 +29,7 @@ fn test_api_key_hashing() {
     assert_eq!(hash1, hash2);
 
     // Hash should be base64 encoded
-    assert!(base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        &hash1
-    )
-    .is_ok());
+    assert!(base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &hash1).is_ok());
 }
 
 #[test]
@@ -418,7 +414,10 @@ fn test_config_validation_rate_limit_zero_rps() {
 
     let result = config.validate();
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("requests_per_second"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("requests_per_second"));
 }
 
 #[test]
@@ -513,7 +512,10 @@ fn test_config_validation_audit_zero_batch_size() {
 
     let result = config.validate();
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("export_batch_size"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("export_batch_size"));
 }
 
 #[test]
@@ -634,10 +636,7 @@ fn test_tools_list_filtering_integration() {
 
     // Should only have 2 tools: read_file and list_directory
     assert_eq!(tools.len(), 2);
-    let tool_names: Vec<&str> = tools
-        .iter()
-        .filter_map(|t| t["name"].as_str())
-        .collect();
+    let tool_names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
     assert!(tool_names.contains(&"read_file"));
     assert!(tool_names.contains(&"list_directory"));
     assert!(!tool_names.contains(&"write_file"));
@@ -770,7 +769,9 @@ async fn test_health_endpoint_response_structure() {
     };
 
     assert_eq!(
-        headers.get("x-content-type-options").map(|v| v.to_str().unwrap()),
+        headers
+            .get("x-content-type-options")
+            .map(|v| v.to_str().unwrap()),
         Some("nosniff"),
         "X-Content-Type-Options header should be nosniff"
     );
@@ -785,7 +786,9 @@ async fn test_health_endpoint_response_structure() {
         "X-XSS-Protection header should be 1; mode=block"
     );
     assert_eq!(
-        headers.get("content-security-policy").map(|v| v.to_str().unwrap()),
+        headers
+            .get("content-security-policy")
+            .map(|v| v.to_str().unwrap()),
         Some("default-src 'none'"),
         "Content-Security-Policy header should be default-src 'none'"
     );
@@ -841,10 +844,7 @@ async fn test_live_endpoint() {
     let app = build_router(state);
 
     // Test /live endpoint
-    let request = Request::builder()
-        .uri("/live")
-        .body(Body::empty())
-        .unwrap();
+    let request = Request::builder().uri("/live").body(Body::empty()).unwrap();
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -1025,9 +1025,13 @@ fn test_cli_help_includes_new_commands() {
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("version"))
-        .stdout(predicate::str::contains("Show version and build information"))
+        .stdout(predicate::str::contains(
+            "Show version and build information",
+        ))
         .stdout(predicate::str::contains("check-upstream"))
-        .stdout(predicate::str::contains("Check upstream MCP server connectivity"));
+        .stdout(predicate::str::contains(
+            "Check upstream MCP server connectivity",
+        ));
 }
 
 #[test]
@@ -1065,7 +1069,10 @@ fn test_cli_check_upstream_missing_config() {
 /// (route not added, so falls through to auth middleware which rejects unauthenticated requests)
 #[tokio::test]
 async fn test_oauth_authorize_not_configured() {
-    use axum::{body::Body, http::{Request, StatusCode}};
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
     use mcp_guard::{
         audit::AuditLogger,
         auth::ApiKeyProvider,
@@ -1116,7 +1123,12 @@ async fn test_oauth_authorize_not_configured() {
         .body(Body::empty())
         .unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(std::net::SocketAddr::from(([127, 0, 0, 1], 3000))));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -1125,7 +1137,10 @@ async fn test_oauth_authorize_not_configured() {
 /// Test OAuth authorize endpoint generates proper redirect with PKCE
 #[tokio::test]
 async fn test_oauth_authorize_generates_redirect() {
-    use axum::{body::Body, http::{Request, StatusCode}};
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
     use mcp_guard::{
         audit::AuditLogger,
         auth::{ApiKeyProvider, OAuthAuthProvider},
@@ -1191,7 +1206,12 @@ async fn test_oauth_authorize_generates_redirect() {
         .body(Body::empty())
         .unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(std::net::SocketAddr::from(([127, 0, 0, 1], 3000))));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
 
@@ -1199,7 +1219,12 @@ async fn test_oauth_authorize_generates_redirect() {
     // StatusCode 307 (Temporary Redirect) preserves the request method
     assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
 
-    let location = response.headers().get("location").unwrap().to_str().unwrap();
+    let location = response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
     assert!(location.starts_with("https://github.com/login/oauth/authorize"));
     assert!(location.contains("client_id=test_client_id"));
     assert!(location.contains("redirect_uri="));
@@ -1211,7 +1236,10 @@ async fn test_oauth_authorize_generates_redirect() {
 /// Test OAuth callback rejects missing state parameter
 #[tokio::test]
 async fn test_oauth_callback_rejects_missing_state() {
-    use axum::{body::Body, http::{Request, StatusCode}};
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
     use mcp_guard::{
         audit::AuditLogger,
         auth::{ApiKeyProvider, OAuthAuthProvider},
@@ -1278,7 +1306,12 @@ async fn test_oauth_callback_rejects_missing_state() {
         .body(Body::empty())
         .unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(std::net::SocketAddr::from(([127, 0, 0, 1], 3000))));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -1287,7 +1320,10 @@ async fn test_oauth_callback_rejects_missing_state() {
 /// Test OAuth callback rejects invalid state parameter
 #[tokio::test]
 async fn test_oauth_callback_rejects_invalid_state() {
-    use axum::{body::Body, http::{Request, StatusCode}};
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
     use mcp_guard::{
         audit::AuditLogger,
         auth::{ApiKeyProvider, OAuthAuthProvider},
@@ -1354,7 +1390,12 @@ async fn test_oauth_callback_rejects_invalid_state() {
         .body(Body::empty())
         .unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(std::net::SocketAddr::from(([127, 0, 0, 1], 3000))));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -1363,7 +1404,10 @@ async fn test_oauth_callback_rejects_invalid_state() {
 /// Test OAuth callback handles provider errors gracefully
 #[tokio::test]
 async fn test_oauth_callback_handles_provider_error() {
-    use axum::{body::Body, http::{Request, StatusCode}};
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
     use mcp_guard::{
         audit::AuditLogger,
         auth::{ApiKeyProvider, OAuthAuthProvider},
@@ -1430,7 +1474,12 @@ async fn test_oauth_callback_handles_provider_error() {
         .body(Body::empty())
         .unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(std::net::SocketAddr::from(([127, 0, 0, 1], 3000))));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -1511,7 +1560,10 @@ fn test_route_matcher_longest_prefix() {
 /// Test /routes endpoint returns configured routes
 #[tokio::test]
 async fn test_routes_endpoint_lists_servers() {
-    use axum::{body::Body, http::{Request, StatusCode}};
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
     use mcp_guard::{
         audit::AuditLogger,
         auth::ApiKeyProvider,
@@ -1558,7 +1610,11 @@ async fn test_routes_endpoint_lists_servers() {
     };
 
     // Create router from server routes (using unchecked for localhost in tests)
-    let server_router = Arc::new(ServerRouter::new_unchecked(config.upstream.servers.clone()).await.unwrap());
+    let server_router = Arc::new(
+        ServerRouter::new_unchecked(config.upstream.servers.clone())
+            .await
+            .unwrap(),
+    );
 
     let state = Arc::new(AppState {
         config: config.clone(),
@@ -1602,7 +1658,10 @@ async fn test_routes_endpoint_lists_servers() {
 /// (route is only added when in multi-server mode, so falls through to auth)
 #[tokio::test]
 async fn test_routes_endpoint_unavailable_when_single_server() {
-    use axum::{body::Body, http::{Request, StatusCode}};
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
     use mcp_guard::{
         audit::AuditLogger,
         auth::ApiKeyProvider,
@@ -1653,7 +1712,12 @@ async fn test_routes_endpoint_unavailable_when_single_server() {
         .body(Body::empty())
         .unwrap();
 
-    request.extensions_mut().insert(axum::extract::ConnectInfo(std::net::SocketAddr::from(([127, 0, 0, 1], 3000))));
+    request
+        .extensions_mut()
+        .insert(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+            [127, 0, 0, 1],
+            3000,
+        ))));
 
     let response = app.oneshot(request).await.unwrap();
     // Returns 401 because the route doesn't exist and falls through to auth middleware

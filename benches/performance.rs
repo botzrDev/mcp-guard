@@ -66,7 +66,9 @@ fn bench_api_key_auth(c: &mut Criterion) {
             &valid_key,
             |b, key| {
                 b.iter(|| {
-                    let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .build()
+                        .unwrap();
                     let _ = black_box(rt.block_on(provider.authenticate(black_box(key))));
                 });
             },
@@ -78,7 +80,9 @@ fn bench_api_key_auth(c: &mut Criterion) {
             &"invalid_key",
             |b, key| {
                 b.iter(|| {
-                    let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .build()
+                        .unwrap();
                     let _ = black_box(rt.block_on(provider.authenticate(black_box(key))));
                 });
             },
@@ -171,7 +175,8 @@ fn bench_authorization(c: &mut Criterion) {
             &restricted,
             |b, identity| {
                 b.iter(|| {
-                    let result = authorize_tool_call(black_box(identity), black_box("nonexistent_tool"));
+                    let result =
+                        authorize_tool_call(black_box(identity), black_box("nonexistent_tool"));
                     black_box(result);
                 });
             },

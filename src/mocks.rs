@@ -40,10 +40,7 @@ impl MockTransport {
 
     /// Queue an error to be returned by the next `receive()` call.
     pub fn push_error(&self, error: TransportError) {
-        self.pending_responses
-            .lock()
-            .unwrap()
-            .push_back(Err(error));
+        self.pending_responses.lock().unwrap().push_back(Err(error));
     }
 
     /// Take all sent messages, clearing the internal buffer.

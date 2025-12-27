@@ -14,7 +14,9 @@ mod mtls;
 mod oauth;
 
 pub use jwt::JwtProvider;
-pub use mtls::{ClientCertInfo, MtlsAuthProvider, HEADER_CLIENT_CERT_CN, HEADER_CLIENT_CERT_VERIFIED};
+pub use mtls::{
+    ClientCertInfo, MtlsAuthProvider, HEADER_CLIENT_CERT_CN, HEADER_CLIENT_CERT_VERIFIED,
+};
 pub use oauth::OAuthAuthProvider;
 
 use async_trait::async_trait;
@@ -151,7 +153,10 @@ impl ApiKeyProvider {
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(key.as_bytes());
-        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, hasher.finalize())
+        base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            hasher.finalize(),
+        )
     }
 
     /// Constant-time comparison of two hash strings.
@@ -286,7 +291,7 @@ mod tests {
     #[test]
     fn test_constant_time_compare_different_content() {
         let a = "abc123XYZ";
-        let b = "abc123XYy";  // Last char different
+        let b = "abc123XYy"; // Last char different
         assert!(!ApiKeyProvider::constant_time_compare(a, b));
     }
 

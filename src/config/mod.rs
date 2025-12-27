@@ -498,7 +498,7 @@ pub struct AuditConfig {
     #[serde(default)]
     pub stdout: bool,
 
-    /// HTTP export URL for SIEM integration (e.g., "https://siem.example.com/logs")
+    /// HTTP export URL for SIEM integration (e.g., `<https://siem.example.com/logs>`)
     /// If set, audit logs will be batched and sent to this endpoint
     #[serde(default)]
     pub export_url: Option<String>,
@@ -535,10 +535,10 @@ pub struct RedactionRule {
     pub name: String,
 
     /// Regex pattern to match sensitive data
-    /// Uses Rust regex syntax: https://docs.rs/regex
+    /// Uses Rust regex syntax: <https://docs.rs/regex>
     pub pattern: String,
 
-    /// Replacement text (default: "[REDACTED]")
+    /// Replacement text (default: `"[REDACTED]"`)
     #[serde(default = "default_redaction_replacement")]
     pub replacement: String,
 }
@@ -727,7 +727,11 @@ impl Config {
     pub fn from_file(path: &PathBuf) -> Result<Self, ConfigError> {
         let content = std::fs::read_to_string(path)?;
 
-        let config: Config = if path.extension().map(|e| e == "yaml" || e == "yml").unwrap_or(false) {
+        let config: Config = if path
+            .extension()
+            .map(|e| e == "yaml" || e == "yml")
+            .unwrap_or(false)
+        {
             serde_yaml::from_str(&content).map_err(|e| ConfigError::Parse(e.to_string()))?
         } else {
             toml::from_str(&content).map_err(|e| ConfigError::Parse(e.to_string()))?

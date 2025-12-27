@@ -39,12 +39,17 @@ curl -fsSL https://raw.githubusercontent.com/botzrdev/mcp-guard/main/install.sh 
 # Generate config with demo API key
 mcp-guard init
 
+# Verify upstream connectivity
+mcp-guard check-upstream
+
 # Start the gateway
 mcp-guard run
 
 # Test it works (use the demo key printed by init)
 curl -H "Authorization: Bearer mcp_YOUR_DEMO_KEY" http://localhost:3000/health
 ```
+
+> **Note**: The default config uses `npx` to run a demo MCP filesystem server. Install [Node.js](https://nodejs.org) or configure your own upstream server.
 
 For production setup, see the [Quick Start Guide](docs/quickstart.md).
 

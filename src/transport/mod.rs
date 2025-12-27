@@ -3,11 +3,11 @@
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use std::time::Duration;
 
 // ============================================================================
 // Constants
@@ -153,9 +153,9 @@ pub fn validate_url_for_ssrf(url: &str) -> Result<(), TransportError> {
     }
 
     // Get the host
-    let host = parsed.host_str().ok_or_else(|| {
-        TransportError::InvalidUrl("URL has no host".to_string())
-    })?;
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| TransportError::InvalidUrl("URL has no host".to_string()))?;
 
     // Block common cloud metadata hostnames
     let blocked_hosts = [
@@ -244,12 +244,12 @@ const SHELL_METACHARACTERS: &[char] = &[
 
 /// Characters that are suspicious in commands but not always dangerous
 const SUSPICIOUS_CHARACTERS: &[char] = &[
-    '!',  // History expansion
-    '~',  // Home expansion (usually safe but can be abused)
-    '*',  // Glob
-    '?',  // Glob
-    '[',  // Glob pattern
-    ']',  // Glob pattern
+    '!', // History expansion
+    '~', // Home expansion (usually safe but can be abused)
+    '*', // Glob
+    '?', // Glob
+    '[', // Glob pattern
+    ']', // Glob pattern
 ];
 
 /// Validate a command for injection safety
@@ -294,7 +294,18 @@ pub fn validate_command_for_injection(command: &str) -> Result<(), TransportErro
     }
 
     // Block commands that try to invoke a shell directly
-    let shell_commands = ["sh", "bash", "zsh", "fish", "csh", "ksh", "dash", "cmd", "powershell", "pwsh"];
+    let shell_commands = [
+        "sh",
+        "bash",
+        "zsh",
+        "fish",
+        "csh",
+        "ksh",
+        "dash",
+        "cmd",
+        "powershell",
+        "pwsh",
+    ];
 
     // Get the command basename
     let basename = std::path::Path::new(command)
@@ -328,8 +339,7 @@ pub fn validate_args_for_injection(args: &[String]) -> Result<(), TransportError
                 };
                 return Err(TransportError::CommandValidation(format!(
                     "Argument {} contains forbidden shell metacharacter '{}'",
-                    i,
-                    char_display
+                    i, char_display
                 )));
             }
         }
@@ -365,7 +375,11 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn request(id: impl Into<serde_json::Value>, method: &str, params: Option<serde_json::Value>) -> Self {
+    pub fn request(
+        id: impl Into<serde_json::Value>,
+        method: &str,
+        params: Option<serde_json::Value>,
+    ) -> Self {
         Self {
             jsonrpc: "2.0".to_string(),
             id: Some(id.into()),
@@ -756,17 +770,13 @@ impl HttpTransport {
             request = request.header(key, value);
         }
 
-        let response = request
-            .json(message)
-            .send()
-            .await
-            .map_err(|e| {
-                if e.is_timeout() {
-                    TransportError::Timeout
-                } else {
-                    TransportError::Http(e.to_string())
-                }
-            })?;
+        let response = request.json(message).send().await.map_err(|e| {
+            if e.is_timeout() {
+                TransportError::Timeout
+            } else {
+                TransportError::Http(e.to_string())
+            }
+        })?;
 
         let status = response.status();
         if !status.is_success() {
@@ -914,17 +924,13 @@ impl SseTransport {
             request = request.header(key, value);
         }
 
-        let response = request
-            .json(message)
-            .send()
-            .await
-            .map_err(|e| {
-                if e.is_timeout() {
-                    TransportError::Timeout
-                } else {
-                    TransportError::Http(e.to_string())
-                }
-            })?;
+        let response = request.json(message).send().await.map_err(|e| {
+            if e.is_timeout() {
+                TransportError::Timeout
+            } else {
+                TransportError::Http(e.to_string())
+            }
+        })?;
 
         let status = response.status();
         if !status.is_success() {
@@ -954,7 +960,7 @@ impl SseTransport {
                 use tokio::io::AsyncBufReadExt;
 
                 let stream = tokio_util::io::StreamReader::new(
-                    bytes_stream.map(|r| r.map_err(std::io::Error::other))
+                    bytes_stream.map(|r| r.map_err(std::io::Error::other)),
                 );
                 let mut reader = BufReader::new(stream);
                 let mut line = String::new();
@@ -1139,8 +1145,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_transport_success() {
-        use wiremock::{Mock, MockServer, ResponseTemplate};
         use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
 
@@ -1169,8 +1175,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_transport_server_error() {
-        use wiremock::{Mock, MockServer, ResponseTemplate};
         use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
 
@@ -1189,8 +1195,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_transport_not_found() {
-        use wiremock::{Mock, MockServer, ResponseTemplate};
         use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
 
@@ -1212,8 +1218,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_transport_invalid_json_response() {
-        use wiremock::{Mock, MockServer, ResponseTemplate};
         use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
 
@@ -1270,7 +1276,8 @@ mod tests {
         assert!(result.is_err());
 
         // Google metadata hostname
-        let result = HttpTransport::new("http://metadata.google.internal/computeMetadata/".to_string());
+        let result =
+            HttpTransport::new("http://metadata.google.internal/computeMetadata/".to_string());
         assert!(result.is_err());
     }
 
@@ -1294,7 +1301,10 @@ mod tests {
         // The error should be about DNS, not SSRF
         if let Err(e) = result {
             let err_str = e.to_string();
-            assert!(!err_str.contains("SSRF"), "Public URL should not trigger SSRF block");
+            assert!(
+                !err_str.contains("SSRF"),
+                "Public URL should not trigger SSRF block"
+            );
         }
     }
 
@@ -1380,18 +1390,18 @@ mod tests {
         // Arguments with shell metacharacters should be blocked
         let bad_args = vec![
             "-c".to_string(),
-            "cat /etc/passwd".to_string(),  // This is fine
+            "cat /etc/passwd".to_string(), // This is fine
         ];
         assert!(validate_args_for_injection(&bad_args).is_ok());
 
         let bad_args = vec![
             "-c".to_string(),
-            "cat; rm -rf /".to_string(),  // Semicolon in arg
+            "cat; rm -rf /".to_string(), // Semicolon in arg
         ];
         assert!(validate_args_for_injection(&bad_args).is_err());
 
         let bad_args = vec![
-            "--script=$(whoami)".to_string(),  // Variable expansion
+            "--script=$(whoami)".to_string(), // Variable expansion
         ];
         assert!(validate_args_for_injection(&bad_args).is_err());
     }
@@ -1408,16 +1418,15 @@ mod tests {
         assert!(validate_args_for_injection(&safe_args).is_ok());
 
         // Arguments with spaces should be fine (shell won't split them)
-        let safe_args = vec![
-            "path with spaces/server.js".to_string(),
-        ];
+        let safe_args = vec!["path with spaces/server.js".to_string()];
         assert!(validate_args_for_injection(&safe_args).is_ok());
     }
 
     #[tokio::test]
     async fn test_stdio_spawn_validates_command() {
         // Shell commands should be blocked
-        let result = StdioTransport::spawn("bash", &["-c".to_string(), "echo test".to_string()]).await;
+        let result =
+            StdioTransport::spawn("bash", &["-c".to_string(), "echo test".to_string()]).await;
         assert!(result.is_err());
         if let Err(TransportError::CommandValidation(msg)) = result {
             assert!(msg.contains("shell"));
@@ -1434,7 +1443,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_sse_transport_connect_unchecked() {
-        let transport = SseTransport::connect_unchecked("http://localhost:8080/sse".to_string()).await;
+        let transport =
+            SseTransport::connect_unchecked("http://localhost:8080/sse".to_string()).await;
         assert!(transport.is_ok());
     }
 
@@ -1446,14 +1456,15 @@ mod tests {
             "http://localhost:8080/sse".to_string(),
             headers,
             60,
-        ).await;
+        )
+        .await;
         assert!(transport.is_ok());
     }
 
     #[tokio::test]
     async fn test_sse_transport_json_fallback() {
-        use wiremock::{Mock, MockServer, ResponseTemplate};
         use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
 
@@ -1468,12 +1479,14 @@ mod tests {
             .respond_with(
                 ResponseTemplate::new(200)
                     .set_body_json(&response_json)
-                    .insert_header("Content-Type", "application/json")
+                    .insert_header("Content-Type", "application/json"),
             )
             .mount(&mock_server)
             .await;
 
-        let transport = SseTransport::connect_unchecked(format!("{}/sse", mock_server.uri())).await.unwrap();
+        let transport = SseTransport::connect_unchecked(format!("{}/sse", mock_server.uri()))
+            .await
+            .unwrap();
         let request = Message::request(1, "test/method", None);
 
         transport.send(request).await.unwrap();
@@ -1484,7 +1497,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_sse_transport_close() {
-        let transport = SseTransport::connect_unchecked("http://localhost:8080/sse".to_string()).await.unwrap();
+        let transport = SseTransport::connect_unchecked("http://localhost:8080/sse".to_string())
+            .await
+            .unwrap();
         let result = transport.close().await;
         assert!(result.is_ok());
     }
@@ -1529,15 +1544,15 @@ mod tests {
         assert!(validate_url_for_ssrf("http://10.0.0.5/api").is_err());
         assert!(validate_url_for_ssrf("http://192.168.1.1/api").is_err());
         assert!(validate_url_for_ssrf("http://172.16.0.1/api").is_err());
-        
+
         // Cloud metadata
         assert!(validate_url_for_ssrf("http://169.254.169.254/latest/meta-data").is_err());
         assert!(validate_url_for_ssrf("http://metadata.google.internal/").is_err());
-        
+
         // Schemes
         assert!(validate_url_for_ssrf("ftp://example.com").is_err());
         assert!(validate_url_for_ssrf("file:///etc/passwd").is_err());
-        
+
         // Valid
         assert!(validate_url_for_ssrf("https://api.example.com/v1").is_ok());
         assert!(validate_url_for_ssrf("http://example.com/v1").is_ok());
@@ -1548,14 +1563,14 @@ mod tests {
         // Safe commands
         assert!(validate_command_for_injection("ls").is_ok());
         assert!(validate_command_for_injection("/usr/bin/python3").is_ok());
-        
+
         // Shell metacharacters
         assert!(validate_command_for_injection("ls; rm -rf /").is_err());
         assert!(validate_command_for_injection("ls | grep foo").is_err());
         assert!(validate_command_for_injection("echo $HOME").is_err());
         assert!(validate_command_for_injection("`whoami`").is_err());
         assert!(validate_command_for_injection("foo && bar").is_err());
-        
+
         // Direct shell execution
         assert!(validate_command_for_injection("bash").is_err());
         assert!(validate_command_for_injection("/bin/sh").is_err());
@@ -1566,7 +1581,7 @@ mod tests {
     fn test_validate_args_injection() {
         let args = vec!["-la".to_string(), "/tmp".to_string()];
         assert!(validate_args_for_injection(&args).is_ok());
-        
+
         let bad_args = vec!["-la".to_string(), "; rm -rf /".to_string()];
         assert!(validate_args_for_injection(&bad_args).is_err());
     }
@@ -1577,7 +1592,7 @@ mod tests {
         let msg = Message::request(1, "tools/list", None);
         let json = serde_json::to_string(&msg).unwrap();
         let parsed: Message = serde_json::from_str(&json).unwrap();
-        
+
         assert!(parsed.is_request());
         assert_eq!(parsed.method, Some("tools/list".to_string()));
         assert_eq!(parsed.id, Some(serde_json::json!(1)));
@@ -1686,11 +1701,8 @@ mod tests {
 
     #[test]
     fn test_message_error_response_format() {
-        let error_response = Message::error_response(
-            Some(serde_json::json!(1)),
-            -32600,
-            "Invalid Request"
-        );
+        let error_response =
+            Message::error_response(Some(serde_json::json!(1)), -32600, "Invalid Request");
 
         assert!(error_response.is_response());
         assert!(error_response.error.is_some());
@@ -1699,25 +1711,16 @@ mod tests {
 
     #[test]
     fn test_http_transport_with_config_headers() {
-        let headers = HashMap::from([
-            ("Authorization".to_string(), "Bearer token".to_string()),
-        ]);
-        let transport = HttpTransport::with_config(
-            "https://api.example.com/mcp".to_string(),
-            headers,
-            60,
-        );
+        let headers = HashMap::from([("Authorization".to_string(), "Bearer token".to_string())]);
+        let transport =
+            HttpTransport::with_config("https://api.example.com/mcp".to_string(), headers, 60);
         assert!(transport.is_ok());
     }
 
     #[test]
     fn test_http_transport_with_config_blocks_private() {
-        let transport = HttpTransport::with_config(
-            "http://192.168.1.1/mcp".to_string(),
-            HashMap::new(),
-            30,
-        );
+        let transport =
+            HttpTransport::with_config("http://192.168.1.1/mcp".to_string(), HashMap::new(), 30);
         assert!(transport.is_err());
     }
 }
-

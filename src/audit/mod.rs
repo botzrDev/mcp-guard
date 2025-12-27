@@ -66,7 +66,14 @@ impl std::fmt::Debug for CompiledRedactionRules {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CompiledRedactionRules")
             .field("rules_count", &self.rules.len())
-            .field("rule_names", &self.rules.iter().map(|(name, _, _)| name.as_str()).collect::<Vec<_>>())
+            .field(
+                "rule_names",
+                &self
+                    .rules
+                    .iter()
+                    .map(|(name, _, _)| name.as_str())
+                    .collect::<Vec<_>>(),
+            )
             .finish()
     }
 }
@@ -117,7 +124,9 @@ impl CompiledRedactionRules {
         let mut result = input.to_string();
         for (name, pattern, replacement) in &self.rules {
             let before = result.clone();
-            result = pattern.replace_all(&result, replacement.as_str()).into_owned();
+            result = pattern
+                .replace_all(&result, replacement.as_str())
+                .into_owned();
             if result != before {
                 tracing::trace!(rule = %name, "Applied redaction rule");
             }
@@ -150,10 +159,7 @@ pub struct RotatingFileWriter {
 impl RotatingFileWriter {
     /// Create a new rotating file writer
     pub fn new(path: PathBuf, config: LogRotationConfig) -> io::Result<Self> {
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)?;
+        let file = OpenOptions::new().create(true).append(true).open(&path)?;
 
         let current_size = file.metadata()?.len();
 
@@ -238,9 +244,13 @@ impl RotatingFileWriter {
 
         // Compress if configured
         if self.config.compress {
-            let compressed_path = backup_path.with_extension(
-                format!("{}.gz", backup_path.extension().unwrap_or_default().to_string_lossy())
-            );
+            let compressed_path = backup_path.with_extension(format!(
+                "{}.gz",
+                backup_path
+                    .extension()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+            ));
             if let Err(e) = Self::compress_file(&backup_path, &compressed_path) {
                 tracing::warn!(
                     error = %e,
@@ -286,7 +296,10 @@ impl RotatingFileWriter {
 
     /// Clean up old backup files, keeping only max_backups
     fn cleanup_old_backups(&self) -> io::Result<()> {
-        let parent = self.path.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let parent = self
+            .path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."));
         let base_name = self.path.file_name().unwrap_or_default().to_string_lossy();
 
         // Find all backup files
@@ -371,11 +384,11 @@ fn sanitize_audit_string(s: impl Into<String>) -> String {
     // Escape control characters that could be used for log injection
     s.chars()
         .map(|c| match c {
-            '\n' => '↵',  // Visible newline replacement
-            '\r' => ' ',  // Remove carriage returns
-            '\t' => ' ',  // Replace tabs with spaces
-            '\0' => ' ',  // Remove null bytes
-            c if c.is_control() => ' ',  // Remove other control chars
+            '\n' => '↵',                // Visible newline replacement
+            '\r' => ' ',                // Remove carriage returns
+            '\t' => ' ',                // Replace tabs with spaces
+            '\0' => ' ',                // Remove null bytes
+            c if c.is_control() => ' ', // Remove other control chars
             c => c,
         })
         .collect()
@@ -514,7 +527,9 @@ impl AuditLogger {
     ///
     /// This is the preferred constructor for production use. All file and stdout
     /// writes are performed by background tasks, avoiding blocking the async runtime.
-    pub fn with_tasks(config: &crate::config::AuditConfig) -> std::io::Result<(Self, AuditLoggerHandle)> {
+    pub fn with_tasks(
+        config: &crate::config::AuditConfig,
+    ) -> std::io::Result<(Self, AuditLoggerHandle)> {
         // Compile redaction rules first (before checking enabled)
         let redaction_rules = CompiledRedactionRules::new(&config.redaction_rules)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
@@ -551,19 +566,13 @@ impl AuditLogger {
                 } else {
                     // Rotation configured but disabled - use simple file
                     Some(FileWriter::Simple(
-                        OpenOptions::new()
-                            .create(true)
-                            .append(true)
-                            .open(path)?,
+                        OpenOptions::new().create(true).append(true).open(path)?,
                     ))
                 }
             } else {
                 // No rotation config - use simple file
                 Some(FileWriter::Simple(
-                    OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(path)?,
+                    OpenOptions::new().create(true).append(true).open(path)?,
                 ))
             }
         } else {
@@ -613,11 +622,15 @@ impl AuditLogger {
     }
 
     /// Create a new audit logger with HTTP export enabled (legacy API)
-    pub fn with_export(config: &crate::config::AuditConfig) -> std::io::Result<(Self, Option<AuditShipperHandle>)> {
+    pub fn with_export(
+        config: &crate::config::AuditConfig,
+    ) -> std::io::Result<(Self, Option<AuditShipperHandle>)> {
         let (logger, handle) = Self::with_tasks(config)?;
 
         // Convert to legacy handle format
-        let legacy_handle = handle.shipper_task.map(|task| AuditShipperHandle { _task: task });
+        let legacy_handle = handle
+            .shipper_task
+            .map(|task| AuditShipperHandle { _task: task });
 
         Ok((logger, legacy_handle))
     }
@@ -683,13 +696,25 @@ impl AuditLogger {
         AuditEntry {
             timestamp: entry.timestamp,
             event_type: entry.event_type.clone(),
-            identity_id: entry.identity_id.as_ref().map(|s| self.redaction_rules.redact(s)),
-            method: entry.method.as_ref().map(|s| self.redaction_rules.redact(s)),
+            identity_id: entry
+                .identity_id
+                .as_ref()
+                .map(|s| self.redaction_rules.redact(s)),
+            method: entry
+                .method
+                .as_ref()
+                .map(|s| self.redaction_rules.redact(s)),
             tool: entry.tool.as_ref().map(|s| self.redaction_rules.redact(s)),
             success: entry.success,
-            message: entry.message.as_ref().map(|s| self.redaction_rules.redact(s)),
+            message: entry
+                .message
+                .as_ref()
+                .map(|s| self.redaction_rules.redact(s)),
             duration_ms: entry.duration_ms,
-            request_id: entry.request_id.as_ref().map(|s| self.redaction_rules.redact(s)),
+            request_id: entry
+                .request_id
+                .as_ref()
+                .map(|s| self.redaction_rules.redact(s)),
         }
     }
 
@@ -771,9 +796,7 @@ impl FileWriter {
             FileWriter::Simple(f) => {
                 writeln!(f, "{}", line)
             }
-            FileWriter::Rotating(r) => {
-                r.write_line(line)
-            }
+            FileWriter::Rotating(r) => r.write_line(line),
         }
     }
 
@@ -958,7 +981,10 @@ impl AuditShipper {
         }
 
         // After 3 retries, log error and drop the batch
-        tracing::error!(count = count, "Failed to ship audit batch after 3 retries, dropping");
+        tracing::error!(
+            count = count,
+            "Failed to ship audit batch after 3 retries, dropping"
+        );
     }
 
     /// Send a batch to the HTTP endpoint
@@ -1029,13 +1055,12 @@ mod tests {
 
     #[test]
     fn test_redaction_rules_bearer_token() {
-        let rules = CompiledRedactionRules::new(&[
-            RedactionRule {
-                name: "bearer_tokens".to_string(),
-                pattern: r"Bearer\s+[A-Za-z0-9\-_.]+".to_string(),
-                replacement: "Bearer [REDACTED]".to_string(),
-            },
-        ]).expect("Should compile");
+        let rules = CompiledRedactionRules::new(&[RedactionRule {
+            name: "bearer_tokens".to_string(),
+            pattern: r"Bearer\s+[A-Za-z0-9\-_.]+".to_string(),
+            replacement: "Bearer [REDACTED]".to_string(),
+        }])
+        .expect("Should compile");
 
         let input = "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xyz";
         let output = rules.redact(input);
@@ -1045,13 +1070,12 @@ mod tests {
 
     #[test]
     fn test_redaction_rules_api_key() {
-        let rules = CompiledRedactionRules::new(&[
-            RedactionRule {
-                name: "api_keys".to_string(),
-                pattern: r"(?i)(api[_-]?key)[=:]\s*([a-zA-Z0-9_\-]{20,})".to_string(),
-                replacement: "$1=[REDACTED]".to_string(),
-            },
-        ]).expect("Should compile");
+        let rules = CompiledRedactionRules::new(&[RedactionRule {
+            name: "api_keys".to_string(),
+            pattern: r"(?i)(api[_-]?key)[=:]\s*([a-zA-Z0-9_\-]{20,})".to_string(),
+            replacement: "$1=[REDACTED]".to_string(),
+        }])
+        .expect("Should compile");
 
         let input = "Config: api_key=sk-1234567890abcdefghij1234567890";
         let output = rules.redact(input);
@@ -1061,13 +1085,12 @@ mod tests {
 
     #[test]
     fn test_redaction_rules_password() {
-        let rules = CompiledRedactionRules::new(&[
-            RedactionRule {
-                name: "passwords".to_string(),
-                pattern: r#"(?i)(password|passwd|secret)["\s:=]+["\']?([^"\'`,\s}{]+)"#.to_string(),
-                replacement: "$1=[REDACTED]".to_string(),
-            },
-        ]).expect("Should compile");
+        let rules = CompiledRedactionRules::new(&[RedactionRule {
+            name: "passwords".to_string(),
+            pattern: r#"(?i)(password|passwd|secret)["\s:=]+["\']?([^"\'`,\s}{]+)"#.to_string(),
+            replacement: "$1=[REDACTED]".to_string(),
+        }])
+        .expect("Should compile");
 
         let input = r#"{"password": "super_secret_123"}"#;
         let output = rules.redact(input);
@@ -1087,7 +1110,8 @@ mod tests {
                 pattern: r"api_key=\S+".to_string(),
                 replacement: "api_key=[REDACTED]".to_string(),
             },
-        ]).expect("Should compile");
+        ])
+        .expect("Should compile");
 
         let input = "Auth: Bearer xyz123 and api_key=abc456";
         let output = rules.redact(input);
@@ -1099,25 +1123,22 @@ mod tests {
 
     #[test]
     fn test_redaction_rules_invalid_regex() {
-        let result = CompiledRedactionRules::new(&[
-            RedactionRule {
-                name: "invalid".to_string(),
-                pattern: "[invalid(regex".to_string(), // Invalid regex
-                replacement: "[REDACTED]".to_string(),
-            },
-        ]);
+        let result = CompiledRedactionRules::new(&[RedactionRule {
+            name: "invalid".to_string(),
+            pattern: "[invalid(regex".to_string(), // Invalid regex
+            replacement: "[REDACTED]".to_string(),
+        }]);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_redaction_preserves_non_sensitive_data() {
-        let rules = CompiledRedactionRules::new(&[
-            RedactionRule {
-                name: "passwords".to_string(),
-                pattern: r"password=\S+".to_string(),
-                replacement: "password=[REDACTED]".to_string(),
-            },
-        ]).expect("Should compile");
+        let rules = CompiledRedactionRules::new(&[RedactionRule {
+            name: "passwords".to_string(),
+            pattern: r"password=\S+".to_string(),
+            replacement: "password=[REDACTED]".to_string(),
+        }])
+        .expect("Should compile");
 
         let input = "user=john tool=read_file status=success";
         let output = rules.redact(input);
@@ -1137,13 +1158,11 @@ mod tests {
             export_headers: HashMap::new(),
             export_batch_size: 100,
             export_interval_secs: 30,
-            redaction_rules: vec![
-                RedactionRule {
-                    name: "bearer".to_string(),
-                    pattern: r"Bearer\s+\S+".to_string(),
-                    replacement: "Bearer [REDACTED]".to_string(),
-                },
-            ],
+            redaction_rules: vec![RedactionRule {
+                name: "bearer".to_string(),
+                pattern: r"Bearer\s+\S+".to_string(),
+                replacement: "Bearer [REDACTED]".to_string(),
+            }],
             rotation: None,
         };
 
@@ -1160,7 +1179,10 @@ mod tests {
         // Verify redaction was applied
         let contents = std::fs::read_to_string(&file_path).expect("Should read file");
         assert!(!contents.contains("eyJ"), "Token should be redacted");
-        assert!(contents.contains("[REDACTED]"), "Should contain redaction marker");
+        assert!(
+            contents.contains("[REDACTED]"),
+            "Should contain redaction marker"
+        );
     }
 
     // ========================================================================
@@ -1201,7 +1223,9 @@ mod tests {
 
         // Write enough data to trigger rotation
         for i in 0..20 {
-            writer.write_line(&format!("Log line number {} with some padding", i)).expect("Should write");
+            writer
+                .write_line(&format!("Log line number {} with some padding", i))
+                .expect("Should write");
         }
         writer.flush().expect("Should flush");
 
@@ -1212,7 +1236,11 @@ mod tests {
             .collect();
 
         // Should have at least the current log file and one backup
-        assert!(files.len() >= 2, "Should have rotated files, got {}", files.len());
+        assert!(
+            files.len() >= 2,
+            "Should have rotated files, got {}",
+            files.len()
+        );
     }
 
     #[test]
@@ -1232,7 +1260,9 @@ mod tests {
 
         // Write lots of data to trigger multiple rotations
         for i in 0..50 {
-            writer.write_line(&format!("Log line {}", i)).expect("Should write");
+            writer
+                .write_line(&format!("Log line {}", i))
+                .expect("Should write");
         }
         writer.flush().expect("Should flush");
 
@@ -1244,7 +1274,11 @@ mod tests {
             .count();
 
         // Should have at most max_backups backup files
-        assert!(backup_count <= 2, "Should have at most 2 backups, got {}", backup_count);
+        assert!(
+            backup_count <= 2,
+            "Should have at most 2 backups, got {}",
+            backup_count
+        );
     }
 
     #[tokio::test]
@@ -1342,7 +1376,9 @@ mod tests {
     fn test_audit_batch_serialization() {
         let entries = vec![
             AuditEntry::new(EventType::AuthSuccess).with_identity("user1"),
-            AuditEntry::new(EventType::ToolCall).with_identity("user2").with_tool("read_file"),
+            AuditEntry::new(EventType::ToolCall)
+                .with_identity("user2")
+                .with_tool("read_file"),
         ];
 
         let batch = AuditBatch {
@@ -1468,8 +1504,14 @@ mod tests {
 
         // Verify file contents
         let contents = std::fs::read_to_string(&file_path).expect("Should read file");
-        assert!(contents.contains("file_test_user"), "File should contain user ID");
-        assert!(contents.contains("auth_success"), "File should contain event type");
+        assert!(
+            contents.contains("file_test_user"),
+            "File should contain user ID"
+        );
+        assert!(
+            contents.contains("auth_success"),
+            "File should contain event type"
+        );
     }
 
     #[tokio::test]
@@ -1519,7 +1561,10 @@ mod tests {
         );
 
         assert_eq!(shipper.headers.len(), 2);
-        assert_eq!(shipper.headers.get("Authorization"), Some(&"Bearer token123".to_string()));
+        assert_eq!(
+            shipper.headers.get("Authorization"),
+            Some(&"Bearer token123".to_string())
+        );
     }
 
     #[tokio::test]
@@ -1553,7 +1598,11 @@ mod tests {
 
         // It should be extremely fast (<< 100ms) because it's non-blocking logging
         // If it was blocking, writing 5000 lines to disk would take significantly longer
-        assert!(duration.as_millis() < 500, "Logging 5000 items took too long: {}ms (blocking?)", duration.as_millis());
+        assert!(
+            duration.as_millis() < 500,
+            "Logging 5000 items took too long: {}ms (blocking?)",
+            duration.as_millis()
+        );
 
         // Give time to process whatever got into the channel
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -1563,6 +1612,10 @@ mod tests {
         let contents = std::fs::read_to_string(temp_file.path()).expect("Should read file");
         let line_count = contents.lines().count();
         // We expect at least the channel size (1000) + some that were consumed while we were sending
-        assert!(line_count >= 1000, "Should have logged at least channel capacity, got {}", line_count);
+        assert!(
+            line_count >= 1000,
+            "Should have logged at least channel capacity, got {}",
+            line_count
+        );
     }
 }

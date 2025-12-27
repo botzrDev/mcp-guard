@@ -7,7 +7,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::config::{ServerRouteConfig, TransportType};
-use crate::transport::{HttpTransport, Message, SseTransport, StdioTransport, Transport, TransportError};
+use crate::transport::{
+    HttpTransport, Message, SseTransport, StdioTransport, Transport, TransportError,
+};
 
 /// Router error types
 #[derive(Debug, thiserror::Error)]
@@ -66,15 +68,15 @@ impl ServerRouter {
     }
 
     /// Internal constructor with configurable SSRF validation
-    async fn new_internal(configs: Vec<ServerRouteConfig>, validate_ssrf: bool) -> Result<Self, RouterError> {
+    async fn new_internal(
+        configs: Vec<ServerRouteConfig>,
+        validate_ssrf: bool,
+    ) -> Result<Self, RouterError> {
         let mut routes = Vec::new();
 
         for config in configs {
             let transport = Self::create_transport(&config, validate_ssrf).await?;
-            routes.push(ServerRoute {
-                config,
-                transport,
-            });
+            routes.push(ServerRoute { config, transport });
         }
 
         // Sort routes by path prefix length (longer = more specific = higher priority)
@@ -87,7 +89,10 @@ impl ServerRouter {
     }
 
     /// Create a transport from server route configuration
-    async fn create_transport(config: &ServerRouteConfig, validate_ssrf: bool) -> Result<Arc<dyn Transport>, RouterError> {
+    async fn create_transport(
+        config: &ServerRouteConfig,
+        validate_ssrf: bool,
+    ) -> Result<Arc<dyn Transport>, RouterError> {
         match config.transport {
             TransportType::Stdio => {
                 let command = config.command.as_ref().ok_or_else(|| {
@@ -109,8 +114,9 @@ impl ServerRouter {
                     )
                 })?;
                 let transport = if validate_ssrf {
-                    HttpTransport::new(url.clone())
-                        .map_err(|e| RouterError::TransportInit(config.name.clone(), e.to_string()))?
+                    HttpTransport::new(url.clone()).map_err(|e| {
+                        RouterError::TransportInit(config.name.clone(), e.to_string())
+                    })?
                 } else {
                     HttpTransport::new_unchecked(url.clone())
                 };
@@ -124,13 +130,15 @@ impl ServerRouter {
                     )
                 })?;
                 let transport = if validate_ssrf {
-                    SseTransport::connect(url.clone())
-                        .await
-                        .map_err(|e| RouterError::TransportInit(config.name.clone(), e.to_string()))?
+                    SseTransport::connect(url.clone()).await.map_err(|e| {
+                        RouterError::TransportInit(config.name.clone(), e.to_string())
+                    })?
                 } else {
                     SseTransport::connect_unchecked(url.clone())
                         .await
-                        .map_err(|e| RouterError::TransportInit(config.name.clone(), e.to_string()))?
+                        .map_err(|e| {
+                            RouterError::TransportInit(config.name.clone(), e.to_string())
+                        })?
                 };
                 Ok(Arc::new(transport))
             }
@@ -185,7 +193,11 @@ impl ServerRouter {
             .find_route(path)
             .ok_or_else(|| RouterError::NoRoute(path.to_string()))?;
 
-        route.transport.send(message).await.map_err(RouterError::from)
+        route
+            .transport
+            .send(message)
+            .await
+            .map_err(RouterError::from)
     }
 
     /// Receive a message from the appropriate server based on path
@@ -331,9 +343,7 @@ mod tests {
 
     #[test]
     fn test_route_matcher_exact_match() {
-        let routes = vec![
-            create_test_route("exact", "/exact", false),
-        ];
+        let routes = vec![create_test_route("exact", "/exact", false)];
         let matcher = RouteMatcher::new(&routes);
 
         assert_eq!(matcher.match_path("/exact"), Some("exact"));
@@ -357,7 +367,8 @@ mod tests {
 
     #[test]
     fn test_router_error_transport_init() {
-        let err = RouterError::TransportInit("server1".to_string(), "connection failed".to_string());
+        let err =
+            RouterError::TransportInit("server1".to_string(), "connection failed".to_string());
         let msg = format!("{}", err);
         assert!(msg.contains("server1"));
         assert!(msg.contains("connection failed"));
@@ -386,7 +397,7 @@ mod tests {
             strip_prefix: false,
         };
         assert!(config.validate().is_err());
-        
+
         config.command = Some("node".to_string());
         assert!(config.validate().is_ok());
     }
@@ -435,10 +446,15 @@ mod tests {
             url: Some("not-a-url".to_string()),
             strip_prefix: false,
         };
-        
-        let result = tokio::runtime::Runtime::new().unwrap().block_on(ServerRouter::new(vec![invalid_config]));
+
+        let result = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(ServerRouter::new(vec![invalid_config]));
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), RouterError::TransportInit(_, _)));
+        assert!(matches!(
+            result.unwrap_err(),
+            RouterError::TransportInit(_, _)
+        ));
     }
 
     #[test]
@@ -449,9 +465,9 @@ mod tests {
         };
 
         let test_message = Message::request(1, "ping", None);
-        let result = tokio::runtime::Runtime::new().unwrap().block_on(
-            router.send("/unknown", test_message)
-        );
+        let result = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(router.send("/unknown", test_message));
         assert!(matches!(result, Err(RouterError::NoRoute(_))));
     }
 
@@ -462,32 +478,32 @@ mod tests {
             default_route: None,
         };
 
-        let result = tokio::runtime::Runtime::new().unwrap().block_on(
-            router.receive("/unknown")
-        );
+        let result = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(router.receive("/unknown"));
         assert!(matches!(result, Err(RouterError::NoRoute(_))));
     }
-    
+
     #[test]
     fn test_router_transform_path() {
         use crate::mocks::MockTransport;
         let mut config = create_test_route("strip", "/strip", true);
         config.strip_prefix = true;
-        
+
         let router = ServerRouter {
             routes: vec![ServerRoute {
                 config: config.clone(),
-                transport: Arc::new(MockTransport::new()), 
+                transport: Arc::new(MockTransport::new()),
             }],
             default_route: None,
         };
-        
+
         // Should strip prefix
         assert_eq!(router.transform_path("/strip/foo"), "/foo");
-        
+
         // Should return original if no match
         assert_eq!(router.transform_path("/other/foo"), "/other/foo");
-        
+
         // Should return original if strip_prefix is false
         let config_no_strip = create_test_route("no-strip", "/no-strip", false);
         let router_no_strip = ServerRouter {
@@ -497,7 +513,10 @@ mod tests {
             }],
             default_route: None,
         };
-        assert_eq!(router_no_strip.transform_path("/no-strip/foo"), "/no-strip/foo");
+        assert_eq!(
+            router_no_strip.transform_path("/no-strip/foo"),
+            "/no-strip/foo"
+        );
     }
 
     #[test]
@@ -512,11 +531,11 @@ mod tests {
                 ServerRoute {
                     config: create_test_route("s2", "/s2", false),
                     transport: Arc::new(MockTransport::new()),
-                }
+                },
             ],
             default_route: None,
         };
-        
+
         assert_eq!(router.route_count(), 2);
         assert!(router.has_routes());
         assert_eq!(router.route_names(), vec!["s1", "s2"]);
@@ -529,31 +548,30 @@ mod tests {
     #[test]
     fn test_router_with_default_route() {
         use crate::mocks::MockTransport;
-        
+
         let default_config = create_test_route("default", "/", false);
         let default_route = ServerRoute {
             config: default_config,
             transport: Arc::new(MockTransport::new()),
         };
-        
+
         let router = ServerRouter {
-            routes: vec![
-                ServerRoute {
-                    config: create_test_route("api", "/api", false),
-                    transport: Arc::new(MockTransport::new()),
-                }
-            ],
+            routes: vec![ServerRoute {
+                config: create_test_route("api", "/api", false),
+                transport: Arc::new(MockTransport::new()),
+            }],
             default_route: None,
-        }.with_default(default_route);
-        
+        }
+        .with_default(default_route);
+
         // Verify default is set
         assert!(router.has_routes());
-        
+
         // Should find /api route
         let route = router.find_route("/api/users");
         assert!(route.is_some());
         assert_eq!(route.unwrap().config.name, "api");
-        
+
         // Unknown path should find default
         let route = router.find_route("/unknown");
         assert!(route.is_some());
@@ -563,17 +581,15 @@ mod tests {
     #[test]
     fn test_router_get_route_name() {
         use crate::mocks::MockTransport;
-        
+
         let router = ServerRouter {
-            routes: vec![
-                ServerRoute {
-                    config: create_test_route("github", "/github", false),
-                    transport: Arc::new(MockTransport::new()),
-                }
-            ],
+            routes: vec![ServerRoute {
+                config: create_test_route("github", "/github", false),
+                transport: Arc::new(MockTransport::new()),
+            }],
             default_route: None,
         };
-        
+
         assert_eq!(router.get_route_name("/github/repos"), Some("github"));
         assert_eq!(router.get_route_name("/unknown"), None);
     }
@@ -581,17 +597,15 @@ mod tests {
     #[test]
     fn test_router_get_transport() {
         use crate::mocks::MockTransport;
-        
+
         let router = ServerRouter {
-            routes: vec![
-                ServerRoute {
-                    config: create_test_route("test", "/test", false),
-                    transport: Arc::new(MockTransport::new()),
-                }
-            ],
+            routes: vec![ServerRoute {
+                config: create_test_route("test", "/test", false),
+                transport: Arc::new(MockTransport::new()),
+            }],
             default_route: None,
         };
-        
+
         // Should return transport for matching route
         assert!(router.get_transport("/test/path").is_some());
         // Should return None for non-matching route
@@ -601,17 +615,15 @@ mod tests {
     #[test]
     fn test_router_debug_formatting() {
         use crate::mocks::MockTransport;
-        
+
         let router = ServerRouter {
-            routes: vec![
-                ServerRoute {
-                    config: create_test_route("s1", "/s1", false),
-                    transport: Arc::new(MockTransport::new()),
-                }
-            ],
+            routes: vec![ServerRoute {
+                config: create_test_route("s1", "/s1", false),
+                transport: Arc::new(MockTransport::new()),
+            }],
             default_route: None,
         };
-        
+
         // Format should include route count and has_default
         let debug_str = format!("{:?}", router);
         assert!(debug_str.contains("route_count: 1"));
@@ -624,7 +636,7 @@ mod tests {
             routes: vec![],
             default_route: None,
         };
-        
+
         assert!(!router.has_routes());
         assert_eq!(router.route_count(), 0);
         assert!(router.route_names().is_empty());
@@ -633,21 +645,20 @@ mod tests {
     #[test]
     fn test_router_empty_with_default_has_routes() {
         use crate::mocks::MockTransport;
-        
+
         let default_config = create_test_route("default", "/", false);
         let default_route = ServerRoute {
             config: default_config,
             transport: Arc::new(MockTransport::new()),
         };
-        
+
         let router = ServerRouter {
             routes: vec![],
             default_route: Some(default_route),
         };
-        
+
         // Empty routes but has default means has_routes is true
         assert!(router.has_routes());
         assert_eq!(router.route_count(), 0); // route_count only counts routes, not default
     }
 }
-
