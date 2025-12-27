@@ -114,7 +114,7 @@ impl ServerRouter {
                     )
                 })?;
                 let transport = if validate_ssrf {
-                    HttpTransport::new(url.clone()).map_err(|e| {
+                    HttpTransport::new(url.clone()).await.map_err(|e| {
                         RouterError::TransportInit(config.name.clone(), e.to_string())
                     })?
                 } else {

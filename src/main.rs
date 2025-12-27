@@ -168,7 +168,7 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
                 #[cfg(test)]
                 let transport = HttpTransport::new_unchecked(url);
                 #[cfg(not(test))]
-                let transport = HttpTransport::new(url)
+                let transport = HttpTransport::new(url).await
                     .map_err(|e| anyhow::anyhow!("Failed to create HTTP transport: {}", e))?;
                 Arc::new(transport)
             }
@@ -415,7 +415,7 @@ fn print_startup_summary(config: &Config) {
     // Header box
     println!();
     println!("╭──────────────────────────────────────────────╮");
-    println!("│  MCP Guard v{:<32}│", version);
+    println!("│  MCP Guard v{:<33}│", version);
     println!("╰──────────────────────────────────────────────╯");
     println!();
 

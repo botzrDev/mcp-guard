@@ -128,15 +128,44 @@ fn is_private_ip(ip: &IpAddr) -> bool {
     }
 }
 
-/// Validate a URL for SSRF safety
+/// A URL that has been validated for SSRF with cached resolved IP addresses.
+///
+/// SECURITY: This struct prevents DNS rebinding attacks by caching the IP addresses
+/// that were validated during SSRF checks. When making HTTP requests, use these
+/// cached IPs instead of re-resolving DNS to prevent TOCTOU vulnerabilities.
+#[derive(Debug, Clone)]
+pub struct ValidatedUrl {
+    /// The original URL string
+    pub url: String,
+    /// Resolved IP addresses (if DNS resolution was performed)
+    /// These IPs have been validated as non-private and safe to connect to.
+    pub resolved_ips: Vec<std::net::SocketAddr>,
+    /// The host from the URL for DNS pinning
+    pub host: String,
+    /// The port from the URL
+    pub port: u16,
+}
+
+impl ValidatedUrl {
+    /// Get the URL string
+    pub fn as_str(&self) -> &str {
+        &self.url
+    }
+}
+
+/// Validate a URL for SSRF safety and return validated URL with resolved IPs.
 ///
 /// This function checks that a URL:
 /// - Has a valid HTTP or HTTPS scheme
 /// - Does not target private/internal IP ranges
 /// - Does not target cloud metadata endpoints
 ///
-/// Returns `Ok(())` if the URL is safe, or an error describing why it's blocked.
-pub fn validate_url_for_ssrf(url: &str) -> Result<(), TransportError> {
+/// SECURITY: Returns a `ValidatedUrl` containing cached resolved IP addresses.
+/// This prevents DNS rebinding attacks by allowing callers to pin requests to
+/// the validated IPs instead of re-resolving DNS at request time.
+///
+/// Returns `ValidatedUrl` if safe, or an error describing why it's blocked.
+pub async fn validate_url_for_ssrf(url: &str) -> Result<ValidatedUrl, TransportError> {
     // Parse the URL
     let parsed = url::Url::parse(url)
         .map_err(|e| TransportError::InvalidUrl(format!("Failed to parse URL: {}", e)))?;
@@ -177,6 +206,12 @@ pub fn validate_url_for_ssrf(url: &str) -> Result<(), TransportError> {
         }
     }
 
+    // Determine port (use URL's port or default based on scheme)
+    let port = parsed.port().unwrap_or(match parsed.scheme() {
+        "https" => 443,
+        _ => 80,
+    });
+
     // If the host is an IP address, check if it's private
     if let Ok(ip) = host.parse::<IpAddr>() {
         if is_private_ip(&ip) {
@@ -185,24 +220,23 @@ pub fn validate_url_for_ssrf(url: &str) -> Result<(), TransportError> {
                 ip
             )));
         }
+        // Direct IP - create socket addr and return
+        let socket_addr = std::net::SocketAddr::new(ip, port);
+        return Ok(ValidatedUrl {
+            url: url.to_string(),
+            resolved_ips: vec![socket_addr],
+            host: host.to_string(),
+            port,
+        });
     }
 
-    // For hostnames, we perform DNS resolution to check the resolved IP
-    // Note: This is done synchronously here for simplicity. In production,
-    // you might want to use async DNS resolution.
-    // However, DNS resolution at construction time provides defense-in-depth.
-    if host.parse::<IpAddr>().is_err() {
-        // It's a hostname, try to resolve it
-        use std::net::ToSocketAddrs;
-
-        // Add a port for resolution (use the URL's port or default)
-        let port = parsed.port().unwrap_or(match parsed.scheme() {
-            "https" => 443,
-            _ => 80,
-        });
-
-        let socket_addr = format!("{}:{}", host, port);
-        if let Ok(addrs) = socket_addr.to_socket_addrs() {
+    // For hostnames, perform DNS resolution and validate all resolved IPs
+    // SECURITY: We cache the resolved IPs to prevent DNS rebinding attacks.
+    let socket_addr_str = format!("{}:{}", host, port);
+    
+    match tokio::net::lookup_host(socket_addr_str).await {
+        Ok(addrs) => {
+            let mut validated_ips = Vec::new();
             for addr in addrs {
                 if is_private_ip(&addr.ip()) {
                     return Err(TransportError::SsrfBlocked(format!(
@@ -211,14 +245,38 @@ pub fn validate_url_for_ssrf(url: &str) -> Result<(), TransportError> {
                         addr.ip()
                     )));
                 }
+                validated_ips.push(addr);
             }
+            
+            if validated_ips.is_empty() {
+                return Err(TransportError::InvalidUrl(format!(
+                    "DNS resolution for '{}' returned no addresses",
+                    host
+                )));
+            }
+            
+            tracing::debug!(
+                "Validated URL '{}' with {} resolved IPs: {:?}",
+                url,
+                validated_ips.len(),
+                validated_ips
+            );
+            
+            Ok(ValidatedUrl {
+                url: url.to_string(),
+                resolved_ips: validated_ips,
+                host: host.to_string(),
+                port,
+            })
         }
-        // If DNS resolution fails, we allow it to fail later during the actual request
-        // This prevents DNS-based DoS but may allow some SSRF via DNS rebinding
-        // For production, consider using a DNS resolver with SSRF protection
+        Err(e) => {
+            // DNS resolution failed - this is now an error since we need IPs to pin
+            Err(TransportError::InvalidUrl(format!(
+                "DNS resolution failed for '{}': {}",
+                host, e
+            )))
+        }
     }
-
-    Ok(())
 }
 
 // ============================================================================
@@ -692,8 +750,12 @@ impl Transport for StdioTransport {
 /// This transport sends JSON-RPC messages via HTTP POST requests and receives
 /// responses in the HTTP response body. It implements a request-response pattern
 /// suitable for standard HTTP endpoints.
+///
+/// SECURITY: When created via `new()` or `with_config()`, this transport uses
+/// DNS pinning to prevent DNS rebinding attacks. The resolved IP addresses from
+/// SSRF validation are cached and used for all subsequent requests.
 pub struct HttpTransport {
-    /// Reusable HTTP client with connection pooling
+    /// Reusable HTTP client with connection pooling and optional DNS pinning
     client: reqwest::Client,
     /// Base URL of the upstream MCP server (e.g., "http://localhost:8080/mcp")
     url: String,
@@ -706,15 +768,42 @@ pub struct HttpTransport {
 }
 
 impl HttpTransport {
-    /// Create a new HTTP transport
+    /// Build a reqwest client with DNS pinning for the validated URL
+    ///
+    /// SECURITY: This prevents DNS rebinding attacks by configuring the client
+    /// to use the IP addresses that were validated during SSRF checks.
+    fn build_pinned_client(validated_url: &ValidatedUrl) -> reqwest::Client {
+        let mut builder = reqwest::Client::builder();
+        
+        // Pin DNS resolution to the first validated IP address
+        // This prevents DNS rebinding attacks where the DNS changes between
+        // validation and actual request
+        if let Some(first_addr) = validated_url.resolved_ips.first() {
+            tracing::debug!(
+                "Pinning DNS for '{}' to {}",
+                validated_url.host,
+                first_addr.ip()
+            );
+            builder = builder.resolve(&validated_url.host, *first_addr);
+        }
+        
+        builder.build().unwrap_or_else(|_| reqwest::Client::new())
+    }
+
+    /// Create a new HTTP transport with SSRF validation and DNS pinning
+    ///
+    /// SECURITY: This validates the URL against SSRF attacks and pins DNS
+    /// resolution to prevent DNS rebinding attacks.
     ///
     /// # Errors
     /// Returns `TransportError::SsrfBlocked` if the URL targets a private/internal IP range
     /// or cloud metadata endpoint.
-    pub fn new(url: String) -> Result<Self, TransportError> {
-        validate_url_for_ssrf(&url)?;
+    pub async fn new(url: String) -> Result<Self, TransportError> {
+        let validated_url = validate_url_for_ssrf(&url).await?;
+        let client = Self::build_pinned_client(&validated_url);
+        
         Ok(Self {
-            client: reqwest::Client::new(),
+            client,
             url,
             headers: HashMap::new(),
             timeout: std::time::Duration::from_secs(HTTP_REQUEST_TIMEOUT_SECS),
@@ -722,11 +811,12 @@ impl HttpTransport {
         })
     }
 
-    /// Create a new HTTP transport without SSRF validation
+    /// Create a new HTTP transport without SSRF validation or DNS pinning
     ///
     /// # Safety
-    /// This bypasses SSRF protection. Only use when the URL is from a trusted source
-    /// (e.g., hardcoded in the application) or when connecting to localhost for testing.
+    /// This bypasses SSRF protection and DNS pinning. Only use when the URL is
+    /// from a trusted source (e.g., hardcoded in the application) or when
+    /// connecting to localhost for testing.
     pub fn new_unchecked(url: String) -> Self {
         Self {
             client: reqwest::Client::new(),
@@ -737,19 +827,24 @@ impl HttpTransport {
         }
     }
 
-    /// Create a new HTTP transport with custom configuration
+    /// Create a new HTTP transport with custom configuration, SSRF validation, and DNS pinning
+    ///
+    /// SECURITY: This validates the URL against SSRF attacks and pins DNS
+    /// resolution to prevent DNS rebinding attacks.
     ///
     /// # Errors
     /// Returns `TransportError::SsrfBlocked` if the URL targets a private/internal IP range
     /// or cloud metadata endpoint.
-    pub fn with_config(
+    pub async fn with_config(
         url: String,
         headers: HashMap<String, String>,
         timeout_secs: u64,
     ) -> Result<Self, TransportError> {
-        validate_url_for_ssrf(&url)?;
+        let validated_url = validate_url_for_ssrf(&url).await?;
+        let client = Self::build_pinned_client(&validated_url);
+        
         Ok(Self {
-            client: reqwest::Client::new(),
+            client,
             url,
             headers,
             timeout: std::time::Duration::from_secs(timeout_secs),
@@ -836,13 +931,17 @@ impl Transport for HttpTransport {
 /// - Requests are sent via HTTP POST
 /// - Responses can be either JSON (immediate) or SSE stream (streaming)
 ///
+/// SECURITY: When created via `connect()` or `connect_with_config()`, this transport uses
+/// DNS pinning to prevent DNS rebinding attacks. The resolved IP addresses from
+/// SSRF validation are cached and used for all subsequent requests.
+///
 /// The SSE format follows the standard:
 /// ```text
 /// event: message
 /// data: {"jsonrpc": "2.0", "id": 1, "result": {...}}
 /// ```
 pub struct SseTransport {
-    /// Reusable HTTP client with connection pooling
+    /// Reusable HTTP client with connection pooling and optional DNS pinning
     client: reqwest::Client,
     /// Base URL of the upstream MCP server SSE endpoint
     url: String,
@@ -857,7 +956,30 @@ pub struct SseTransport {
 }
 
 impl SseTransport {
-    /// Create a new SSE transport
+    /// Build a reqwest client with DNS pinning for the validated URL
+    ///
+    /// SECURITY: This prevents DNS rebinding attacks by configuring the client
+    /// to use the IP addresses that were validated during SSRF checks.
+    fn build_pinned_client(validated_url: &ValidatedUrl) -> reqwest::Client {
+        let mut builder = reqwest::Client::builder();
+        
+        // Pin DNS resolution to the first validated IP address
+        if let Some(first_addr) = validated_url.resolved_ips.first() {
+            tracing::debug!(
+                "Pinning SSE DNS for '{}' to {}",
+                validated_url.host,
+                first_addr.ip()
+            );
+            builder = builder.resolve(&validated_url.host, *first_addr);
+        }
+        
+        builder.build().unwrap_or_else(|_| reqwest::Client::new())
+    }
+
+    /// Create a new SSE transport with SSRF validation and DNS pinning
+    ///
+    /// SECURITY: This validates the URL against SSRF attacks and pins DNS
+    /// resolution to prevent DNS rebinding attacks.
     ///
     /// # Errors
     /// Returns `TransportError::SsrfBlocked` if the URL targets a private/internal IP range
@@ -866,16 +988,20 @@ impl SseTransport {
         Self::connect_with_config(url, HashMap::new(), 30).await
     }
 
-    /// Create a new SSE transport without SSRF validation
+    /// Create a new SSE transport without SSRF validation or DNS pinning
     ///
     /// # Safety
-    /// This bypasses SSRF protection. Only use when the URL is from a trusted source
-    /// (e.g., hardcoded in the application) or when connecting to localhost for testing.
+    /// This bypasses SSRF protection and DNS pinning. Only use when the URL is
+    /// from a trusted source (e.g., hardcoded in the application) or when
+    /// connecting to localhost for testing.
     pub async fn connect_unchecked(url: String) -> Result<Self, TransportError> {
         Self::connect_with_config_unchecked(url, HashMap::new(), 30).await
     }
 
-    /// Create a new SSE transport with custom configuration
+    /// Create a new SSE transport with custom configuration, SSRF validation, and DNS pinning
+    ///
+    /// SECURITY: This validates the URL against SSRF attacks and pins DNS
+    /// resolution to prevent DNS rebinding attacks.
     ///
     /// # Errors
     /// Returns `TransportError::SsrfBlocked` if the URL targets a private/internal IP range
@@ -885,8 +1011,8 @@ impl SseTransport {
         headers: HashMap<String, String>,
         timeout_secs: u64,
     ) -> Result<Self, TransportError> {
-        validate_url_for_ssrf(&url)?;
-        Self::connect_with_config_unchecked(url, headers, timeout_secs).await
+        let validated_url = validate_url_for_ssrf(&url).await?;
+        Self::connect_with_config_internal(url, headers, timeout_secs, Some(&validated_url)).await
     }
 
     /// Create a new SSE transport with custom configuration without SSRF validation
@@ -898,10 +1024,25 @@ impl SseTransport {
         headers: HashMap<String, String>,
         timeout_secs: u64,
     ) -> Result<Self, TransportError> {
+        Self::connect_with_config_internal(url, headers, timeout_secs, None).await
+    }
+
+    /// Internal constructor that optionally applies DNS pinning
+    async fn connect_with_config_internal(
+        url: String,
+        headers: HashMap<String, String>,
+        timeout_secs: u64,
+        validated_url: Option<&ValidatedUrl>,
+    ) -> Result<Self, TransportError> {
         let (tx, rx) = mpsc::channel::<Message>(TRANSPORT_CHANNEL_SIZE);
+        
+        let client = match validated_url {
+            Some(v) => Self::build_pinned_client(v),
+            None => reqwest::Client::new(),
+        };
 
         Ok(Self {
-            client: reqwest::Client::new(),
+            client,
             url,
             headers,
             timeout: std::time::Duration::from_secs(timeout_secs),
@@ -1254,71 +1395,71 @@ mod tests {
     // SSRF Prevention Tests
     // ------------------------------------------------------------------------
 
-    #[test]
-    fn test_ssrf_blocks_private_ipv4() {
+    #[tokio::test]
+    async fn test_ssrf_blocks_private_ipv4() {
         // RFC 1918 private ranges
-        assert!(HttpTransport::new("http://10.0.0.1/api".to_string()).is_err());
-        assert!(HttpTransport::new("http://172.16.0.1/api".to_string()).is_err());
-        assert!(HttpTransport::new("http://192.168.1.1/api".to_string()).is_err());
+        assert!(HttpTransport::new("http://10.0.0.1/api".to_string()).await.is_err());
+        assert!(HttpTransport::new("http://172.16.0.1/api".to_string()).await.is_err());
+        assert!(HttpTransport::new("http://192.168.1.1/api".to_string()).await.is_err());
 
         // Loopback
-        assert!(HttpTransport::new("http://127.0.0.1/api".to_string()).is_err());
-        assert!(HttpTransport::new("http://127.0.0.53/api".to_string()).is_err());
+        assert!(HttpTransport::new("http://127.0.0.1/api".to_string()).await.is_err());
+        assert!(HttpTransport::new("http://127.0.0.53/api".to_string()).await.is_err());
 
         // Link-local (cloud metadata)
-        assert!(HttpTransport::new("http://169.254.169.254/api".to_string()).is_err());
+        assert!(HttpTransport::new("http://169.254.169.254/api".to_string()).await.is_err());
     }
 
-    #[test]
-    fn test_ssrf_blocks_cloud_metadata() {
+    #[tokio::test]
+    async fn test_ssrf_blocks_cloud_metadata() {
         // AWS/GCP metadata endpoint
-        let result = HttpTransport::new("http://169.254.169.254/latest/meta-data/".to_string());
+        let result = HttpTransport::new("http://169.254.169.254/latest/meta-data/".to_string()).await;
         assert!(result.is_err());
 
         // Google metadata hostname
         let result =
-            HttpTransport::new("http://metadata.google.internal/computeMetadata/".to_string());
+            HttpTransport::new("http://metadata.google.internal/computeMetadata/".to_string()).await;
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_ssrf_blocks_invalid_schemes() {
+    #[tokio::test]
+    async fn test_ssrf_blocks_invalid_schemes() {
         // file:// scheme
-        let result = HttpTransport::new("file:///etc/passwd".to_string());
+        let result = HttpTransport::new("file:///etc/passwd".to_string()).await;
         assert!(result.is_err());
 
         // ftp:// scheme
-        let result = HttpTransport::new("ftp://example.com/file".to_string());
+        let result = HttpTransport::new("ftp://example.com/file".to_string()).await;
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_ssrf_allows_public_urls() {
+    #[tokio::test]
+    async fn test_ssrf_allows_public_urls() {
         // Public URLs should be allowed
         // Note: These may fail if DNS resolution fails, but shouldn't fail SSRF validation
-        let result = HttpTransport::new("https://api.example.com/v1".to_string());
+        let result = HttpTransport::new("https://api.example.com/v1".to_string()).await;
         // This will fail DNS resolution but should not fail SSRF validation
         // The error should be about DNS, not SSRF
         if let Err(e) = result {
             let err_str = e.to_string();
             assert!(
                 !err_str.contains("SSRF"),
-                "Public URL should not trigger SSRF block"
+                "Public URL should not trigger SSRF block: {}", err_str
             );
         }
     }
 
-    #[test]
-    fn test_validate_url_for_ssrf_direct() {
+    #[tokio::test]
+    async fn test_validate_url_for_ssrf_direct() {
         // Test the validation function directly
-        assert!(validate_url_for_ssrf("http://10.0.0.1/api").is_err());
-        assert!(validate_url_for_ssrf("http://192.168.1.1/api").is_err());
-        assert!(validate_url_for_ssrf("http://127.0.0.1/api").is_err());
-        assert!(validate_url_for_ssrf("http://169.254.169.254/latest/meta-data/").is_err());
-        assert!(validate_url_for_ssrf("file:///etc/passwd").is_err());
+        assert!(validate_url_for_ssrf("http://10.0.0.1/api").await.is_err());
+        assert!(validate_url_for_ssrf("http://192.168.1.1/api").await.is_err());
+        assert!(validate_url_for_ssrf("http://127.0.0.1/api").await.is_err());
+        assert!(validate_url_for_ssrf("http://169.254.169.254/latest/meta-data/").await.is_err());
+        assert!(validate_url_for_ssrf("file:///etc/passwd").await.is_err());
 
         // Invalid URL
-        assert!(validate_url_for_ssrf("not-a-url").is_err());
+        assert!(validate_url_for_ssrf("not-a-url").await.is_err());
     }
 
     // ------------------------------------------------------------------------
@@ -1536,26 +1677,26 @@ mod tests {
         assert!(matches!(transport_err, TransportError::Spawn(_)));
     }
 
-    #[test]
-    fn test_validate_url_ssrf_protection() {
+    #[tokio::test]
+    async fn test_validate_url_ssrf_protection() {
         // Private IP ranges
-        assert!(validate_url_for_ssrf("http://127.0.0.1/api").is_err());
-        assert!(validate_url_for_ssrf("http://localhost/api").is_err()); // resolves to 127.0.0.1
-        assert!(validate_url_for_ssrf("http://10.0.0.5/api").is_err());
-        assert!(validate_url_for_ssrf("http://192.168.1.1/api").is_err());
-        assert!(validate_url_for_ssrf("http://172.16.0.1/api").is_err());
+        assert!(validate_url_for_ssrf("http://127.0.0.1/api").await.is_err());
+        assert!(validate_url_for_ssrf("http://localhost/api").await.is_err()); // resolves to 127.0.0.1
+        assert!(validate_url_for_ssrf("http://10.0.0.5/api").await.is_err());
+        assert!(validate_url_for_ssrf("http://192.168.1.1/api").await.is_err());
+        assert!(validate_url_for_ssrf("http://172.16.0.1/api").await.is_err());
 
         // Cloud metadata
-        assert!(validate_url_for_ssrf("http://169.254.169.254/latest/meta-data").is_err());
-        assert!(validate_url_for_ssrf("http://metadata.google.internal/").is_err());
+        assert!(validate_url_for_ssrf("http://169.254.169.254/latest/meta-data").await.is_err());
+        assert!(validate_url_for_ssrf("http://metadata.google.internal/").await.is_err());
 
         // Schemes
-        assert!(validate_url_for_ssrf("ftp://example.com").is_err());
-        assert!(validate_url_for_ssrf("file:///etc/passwd").is_err());
+        assert!(validate_url_for_ssrf("ftp://example.com").await.is_err());
+        assert!(validate_url_for_ssrf("file:///etc/passwd").await.is_err());
 
         // Valid
-        assert!(validate_url_for_ssrf("https://api.example.com/v1").is_ok());
-        assert!(validate_url_for_ssrf("http://example.com/v1").is_ok());
+        assert!(validate_url_for_ssrf("https://api.example.com/v1").await.is_ok());
+        assert!(validate_url_for_ssrf("http://example.com/v1").await.is_ok());
     }
 
     #[test]
@@ -1673,14 +1814,14 @@ mod tests {
         assert!(is_private_ipv4(&reserved));
     }
 
-    #[test]
-    fn test_ssrf_blocks_alibaba_metadata() {
-        assert!(validate_url_for_ssrf("http://100.100.100.200/").is_err());
+    #[tokio::test]
+    async fn test_ssrf_blocks_alibaba_metadata() {
+        assert!(validate_url_for_ssrf("http://100.100.100.200/").await.is_err());
     }
 
-    #[test]
-    fn test_ssrf_blocks_azure_metadata() {
-        assert!(validate_url_for_ssrf("http://metadata.azure.internal/").is_err());
+    #[tokio::test]
+    async fn test_ssrf_blocks_azure_metadata() {
+        assert!(validate_url_for_ssrf("http://metadata.azure.internal/").await.is_err());
     }
 
     #[test]
@@ -1709,18 +1850,18 @@ mod tests {
         assert!(!error_response.is_request());
     }
 
-    #[test]
-    fn test_http_transport_with_config_headers() {
+    #[tokio::test]
+    async fn test_http_transport_with_config_headers() {
         let headers = HashMap::from([("Authorization".to_string(), "Bearer token".to_string())]);
         let transport =
-            HttpTransport::with_config("https://api.example.com/mcp".to_string(), headers, 60);
+            HttpTransport::with_config("https://api.example.com/mcp".to_string(), headers, 60).await;
         assert!(transport.is_ok());
     }
 
-    #[test]
-    fn test_http_transport_with_config_blocks_private() {
+    #[tokio::test]
+    async fn test_http_transport_with_config_blocks_private() {
         let transport =
-            HttpTransport::with_config("http://192.168.1.1/mcp".to_string(), HashMap::new(), 30);
+            HttpTransport::with_config("http://192.168.1.1/mcp".to_string(), HashMap::new(), 30).await;
         assert!(transport.is_err());
     }
 }

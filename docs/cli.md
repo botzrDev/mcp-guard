@@ -174,9 +174,9 @@ Generated API key for 'alice':
   [[auth.api_keys]]
   id = "alice"
   key_hash = "abc123def456..."
-  rate_limit = 100
-  allowed_tools = ["read_file", "write_file"]
 ```
+
+> **Note**: `rate_limit` and `allowed_tools` are shown only when specified via `--rate-limit` and `--tools` options.
 
 **Output (with --apply-to-config):**
 
@@ -302,7 +302,7 @@ mcp-guard -v --config production.toml run
 ╰──────────────────────────────────────────────╯
 
 ✓ Server:     http://127.0.0.1:3000
-✓ Auth:       API Keys (2), JWT
+✓ Auth:       API Keys (1)
 ✓ Transport:  stdio → npx
 ✓ Rate Limit: 100 req/s, burst 50
 ✓ Audit:      Enabled
