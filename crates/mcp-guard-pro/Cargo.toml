@@ -1,0 +1,54 @@
+[package]
+name = "mcp-guard-pro"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.75"
+authors = ["Austin Green <austin@botzr.dev>"]
+description = "Pro tier features for mcp-guard - OAuth 2.1, HTTP/SSE transports, per-identity rate limiting"
+license = "LicenseRef-Commercial"
+repository = "https://github.com/botzrdev/mcp-guard"
+homepage = "https://mcp-guard.io"
+documentation = "https://docs.mcp-guard.io"
+readme = "README.md"
+keywords = ["mcp", "security", "gateway", "oauth", "enterprise"]
+categories = ["authentication", "web-programming"]
+publish = false  # Not published to crates.io - commercial distribution
+
+[dependencies]
+# Core library (AGPL)
+mcp-guard-core = { path = "../mcp-guard-core" }
+
+# Async runtime
+tokio = { version = "1.41", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+
+# Cryptography for license validation
+ed25519-dalek = { version = "2.1", features = ["pkcs8", "pem"] }
+base64 = "0.22"
+
+# Time for license expiry
+chrono = { version = "0.4", features = ["serde"] }
+
+# HTTP client for online license validation (optional)
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false, optional = true }
+
+# Async trait
+async-trait = "0.1"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.13"
+
+[features]
+default = []
+online-validation = ["reqwest"]

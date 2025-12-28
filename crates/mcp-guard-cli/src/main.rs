@@ -393,20 +393,62 @@ fn handle_hash_key(key: &str) -> anyhow::Result<()> {
 
 /// Handle the `version` command: print version information.
 fn handle_version() -> anyhow::Result<()> {
+    use mcp_guard_core::tier;
+
     println!("mcp-guard {}", env!("CARGO_PKG_VERSION"));
     println!();
     println!("Build Information:");
     println!("  Package:     {}", env!("CARGO_PKG_NAME"));
     println!("  Version:     {}", env!("CARGO_PKG_VERSION"));
+    println!("  Tier:        {}", tier::current_tier());
     println!("  Description: {}", env!("CARGO_PKG_DESCRIPTION"));
     println!("  License:     {}", env!("CARGO_PKG_LICENSE"));
     println!("  Repository:  {}", env!("CARGO_PKG_REPOSITORY"));
     println!();
-    println!("Features:");
-    println!("  Auth providers: API Key, JWT (HS256/JWKS), OAuth 2.1 (PKCE), mTLS");
-    println!("  Transports:     Stdio, HTTP, SSE");
-    println!("  Rate limiting:  Per-identity, token bucket");
-    println!("  Observability:  Prometheus metrics, OpenTelemetry tracing");
+
+    // Show features based on current tier
+    println!("Available Features:");
+
+    // Free tier features (always available)
+    println!("  [Free]");
+    println!("    - API Key authentication");
+    println!("    - JWT HS256 (simple mode)");
+    println!("    - Stdio transport");
+    println!("    - Global rate limiting");
+    println!("    - File/console audit logging");
+    println!("    - Prometheus metrics");
+
+    // Pro tier features
+    if tier::is_feature_available("oauth") {
+        println!("  [Pro]");
+        println!("    - OAuth 2.1 + PKCE authentication");
+        println!("    - JWT JWKS mode (RS256/ES256)");
+        println!("    - HTTP/SSE transports");
+        println!("    - Per-identity rate limiting");
+    } else {
+        println!("  [Pro] (upgrade at https://mcp-guard.io/pricing)");
+        println!("    - OAuth 2.1 + PKCE authentication");
+        println!("    - JWT JWKS mode (RS256/ES256)");
+        println!("    - HTTP/SSE transports");
+    }
+
+    // Enterprise tier features
+    if tier::is_feature_available("mtls") {
+        println!("  [Enterprise]");
+        println!("    - mTLS client certificate authentication");
+        println!("    - Multi-server routing");
+        println!("    - SIEM audit log shipping");
+        println!("    - OpenTelemetry tracing");
+        println!("    - Per-tool rate limiting");
+        println!("    - Admin guard tools");
+    } else {
+        println!("  [Enterprise] (upgrade at https://mcp-guard.io/pricing)");
+        println!("    - mTLS client certificate authentication");
+        println!("    - Multi-server routing");
+        println!("    - SIEM audit log shipping");
+        println!("    - OpenTelemetry tracing");
+    }
+
     Ok(())
 }
 
@@ -979,6 +1021,8 @@ enabled = false
         assert!(result.is_ok());
     }
 
+    // HTTP transport tests only run with pro feature
+    #[cfg(feature = "pro")]
     #[tokio::test]
     async fn test_bootstrap_with_http_transport() {
         use wiremock::matchers::any;
@@ -1008,24 +1052,16 @@ enabled = false
 
     #[tokio::test]
     async fn test_bootstrap_with_api_key_auth() {
-        use wiremock::matchers::any;
-        use wiremock::{Mock, MockServer, ResponseTemplate};
-
-        let mock_server = MockServer::start().await;
-        Mock::given(any())
-            .respond_with(ResponseTemplate::new(200))
-            .mount(&mock_server)
-            .await;
-
-        let config_str = format!(
-            r#"
+        // Use stdio transport which is available in free tier
+        let config_str = r#"
 [server]
 host = "127.0.0.1"
 port = 3000
 
 [upstream]
-transport = "http"
-url = "{}"
+transport = "stdio"
+command = "/bin/echo"
+args = []
 
 [rate_limit]
 enabled = false
@@ -1033,11 +1069,9 @@ enabled = false
 [[auth.api_keys]]
 id = "test-user"
 key_hash = "abc123"
-"#,
-            mock_server.uri()
-        );
+"#;
         let temp_file = NamedTempFile::new().unwrap();
-        std::fs::write(temp_file.path(), &config_str).unwrap();
+        std::fs::write(temp_file.path(), config_str).unwrap();
         let config = Config::from_file(&temp_file.path().to_path_buf()).unwrap();
 
         let result = bootstrap(config).await;
@@ -1050,16 +1084,8 @@ key_hash = "abc123"
 
     #[tokio::test]
     async fn test_bootstrap_with_no_auth() {
-        use wiremock::matchers::any;
-        use wiremock::{Mock, MockServer, ResponseTemplate};
-
-        let mock_server = MockServer::start().await;
-        Mock::given(any())
-            .respond_with(ResponseTemplate::new(200))
-            .mount(&mock_server)
-            .await;
-
-        let config = create_test_config_http(&mock_server.uri());
+        // Use stdio transport which is available in free tier
+        let config = create_test_config_stdio();
 
         let result = bootstrap(config).await;
         assert!(result.is_ok(), "bootstrap failed: {:?}", result.err());
@@ -1172,24 +1198,16 @@ key_hash = "abc123"
 
     #[tokio::test]
     async fn test_bootstrap_with_multiple_auth_providers() {
-        use wiremock::matchers::any;
-        use wiremock::{Mock, MockServer, ResponseTemplate};
-
-        let mock_server = MockServer::start().await;
-        Mock::given(any())
-            .respond_with(ResponseTemplate::new(200))
-            .mount(&mock_server)
-            .await;
-
-        let config_str = format!(
-            r#"
+        // Use stdio transport which is available in free tier
+        let config_str = r#"
 [server]
 host = "127.0.0.1"
 port = 3000
 
 [upstream]
-transport = "http"
-url = "{}"
+transport = "stdio"
+command = "/bin/echo"
+args = []
 
 [rate_limit]
 enabled = false
@@ -1203,11 +1221,9 @@ mode = "simple"
 secret = "very-long-secret-at-least-32-characters"
 issuer = "test"
 audience = "test"
-"#,
-            mock_server.uri()
-        );
+"#;
         let temp_file = NamedTempFile::new().unwrap();
-        std::fs::write(temp_file.path(), &config_str).unwrap();
+        std::fs::write(temp_file.path(), config_str).unwrap();
         let config = Config::from_file(&temp_file.path().to_path_buf()).unwrap();
 
         let result = bootstrap(config).await;
@@ -1220,39 +1236,31 @@ audience = "test"
 
     #[tokio::test]
     async fn test_bootstrap_invalid_config() {
-        use wiremock::matchers::any;
-        use wiremock::{Mock, MockServer, ResponseTemplate};
-
-        let mock_server = MockServer::start().await;
-        Mock::given(any())
-            .respond_with(ResponseTemplate::new(200))
-            .mount(&mock_server)
-            .await;
-
-        let config_str = format!(
-            r#"
+        // Use stdio transport which is available in free tier
+        let config_str = r#"
 [server]
 host = "127.0.0.1"
 port = 3000
 [upstream]
-transport = "http"
-url = "{}"
+transport = "stdio"
+command = "/bin/echo"
+args = []
 [rate_limit]
 enabled = true
-requests_per_second = 0 # Invalid
+requests_per_second = 0
 burst_size = 10
-"#,
-            mock_server.uri()
-        );
+"#;
 
         // This should fail at Config::from_file, protecting bootstrap
         let temp_file = NamedTempFile::new().unwrap();
-        std::fs::write(temp_file.path(), &config_str).unwrap();
+        std::fs::write(temp_file.path(), config_str).unwrap();
 
         let result = Config::from_file(&temp_file.path().to_path_buf());
         assert!(result.is_err());
     }
 
+    // Multi-server routing tests only run with enterprise feature
+    #[cfg(feature = "enterprise")]
     #[tokio::test]
     async fn test_bootstrap_fail_router_init_multi_server() {
         let config_str = r#"
@@ -1262,7 +1270,7 @@ port = 3000
 [rate_limit]
 enabled = false
 [upstream]
-transport = "http" # Ignored in multi-server
+transport = "http"
 [[upstream.servers]]
 name = "server1"
 path_prefix = "/s1"
@@ -1275,5 +1283,82 @@ transport = { type = "http", url = "not-a-valid-url:::" }
             let result = bootstrap(config).await;
             assert!(result.is_err());
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Tier Validation Tests
+    // -------------------------------------------------------------------------
+
+    #[cfg(not(feature = "pro"))]
+    #[test]
+    fn test_tier_validation_http_requires_pro() {
+        let config_str = r#"
+[server]
+host = "127.0.0.1"
+port = 3000
+[upstream]
+transport = "http"
+url = "http://localhost:8080"
+[rate_limit]
+enabled = false
+"#;
+        let temp_file = NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), config_str).unwrap();
+
+        let result = Config::from_file(&temp_file.path().to_path_buf());
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Pro license"), "Expected Pro license error: {}", err);
+    }
+
+    #[cfg(not(feature = "enterprise"))]
+    #[test]
+    fn test_tier_validation_multi_server_requires_enterprise() {
+        let config_str = r#"
+[server]
+host = "127.0.0.1"
+port = 3000
+[rate_limit]
+enabled = false
+[upstream]
+transport = "stdio"
+command = "/bin/echo"
+[[upstream.servers]]
+name = "server1"
+path_prefix = "/s1"
+transport = "stdio"
+command = "echo"
+"#;
+        let temp_file = NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), config_str).unwrap();
+
+        let result = Config::from_file(&temp_file.path().to_path_buf());
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("Enterprise license"),
+            "Expected Enterprise license error: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_tier_validation_stdio_always_allowed() {
+        let config_str = r#"
+[server]
+host = "127.0.0.1"
+port = 3000
+[upstream]
+transport = "stdio"
+command = "/bin/echo"
+args = []
+[rate_limit]
+enabled = false
+"#;
+        let temp_file = NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), config_str).unwrap();
+
+        let result = Config::from_file(&temp_file.path().to_path_buf());
+        assert!(result.is_ok(), "stdio should always be allowed: {:?}", result.err());
     }
 }

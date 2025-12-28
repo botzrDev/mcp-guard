@@ -18,8 +18,14 @@ name = "mcp-guard"
 path = "src/main.rs"
 
 [dependencies]
-# Core library
+# Core library (with feature passthrough)
 mcp-guard-core = { path = "../mcp-guard-core" }
+
+# Pro features (optional)
+mcp-guard-pro = { path = "../mcp-guard-pro", optional = true }
+
+# Enterprise features (optional)
+mcp-guard-enterprise = { path = "../mcp-guard-enterprise", optional = true }
 
 # Async runtime
 tokio = { version = "1.41", features = ["full"] }
@@ -51,5 +57,5 @@ jsonwebtoken = "9.3"
 
 [features]
 default = []
-pro = []
-enterprise = ["pro"]
+pro = ["mcp-guard-pro", "mcp-guard-core/pro"]
+enterprise = ["pro", "mcp-guard-enterprise", "mcp-guard-core/enterprise"]

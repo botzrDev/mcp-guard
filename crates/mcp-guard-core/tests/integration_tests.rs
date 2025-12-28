@@ -85,6 +85,8 @@ fn test_config_validation_stdio_missing_command() {
     assert!(result.unwrap_err().to_string().contains("command"));
 }
 
+// HTTP missing URL test only makes sense with Pro feature
+#[cfg(feature = "pro")]
 #[test]
 fn test_config_validation_http_missing_url() {
     // Invalid: http without url
@@ -294,12 +296,13 @@ fn test_metrics_prometheus_format() {
 }
 
 // =============================================================================
-// HTTP/SSE Transport Tests (Sprint 5)
+// HTTP/SSE Transport Tests (Sprint 5) - Pro tier only
 // =============================================================================
 
+#[cfg(feature = "pro")]
 #[test]
 fn test_config_validation_http_valid() {
-    // Valid HTTP config
+    // Valid HTTP config (requires Pro tier)
     let config = Config {
         server: Default::default(),
         auth: Default::default(),
@@ -318,9 +321,10 @@ fn test_config_validation_http_valid() {
     assert!(config.validate().is_ok());
 }
 
+#[cfg(feature = "pro")]
 #[test]
 fn test_config_validation_sse_valid() {
-    // Valid SSE config
+    // Valid SSE config (requires Pro tier)
     let config = Config {
         server: Default::default(),
         auth: Default::default(),
@@ -339,6 +343,55 @@ fn test_config_validation_sse_valid() {
     assert!(config.validate().is_ok());
 }
 
+// Test that HTTP/SSE require Pro tier
+#[cfg(not(feature = "pro"))]
+#[test]
+fn test_config_validation_http_requires_pro() {
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: Default::default(),
+        audit: Default::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Http,
+            command: None,
+            args: vec![],
+            url: Some("http://localhost:8080/mcp".to_string()),
+            servers: vec![],
+        },
+    };
+
+    let result = config.validate();
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Pro"));
+}
+
+#[cfg(not(feature = "pro"))]
+#[test]
+fn test_config_validation_sse_requires_pro() {
+    let config = Config {
+        server: Default::default(),
+        auth: Default::default(),
+        rate_limit: Default::default(),
+        audit: Default::default(),
+        tracing: TracingConfig::default(),
+        upstream: UpstreamConfig {
+            transport: TransportType::Sse,
+            command: None,
+            args: vec![],
+            url: Some("http://localhost:8080/mcp/stream".to_string()),
+            servers: vec![],
+        },
+    };
+
+    let result = config.validate();
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Pro"));
+}
+
+// SSE missing URL test only makes sense with Pro feature
+#[cfg(feature = "pro")]
 #[test]
 fn test_config_validation_sse_missing_url() {
     // Invalid: SSE without URL
@@ -447,6 +500,7 @@ fn test_config_validation_rate_limit_zero_burst() {
     assert!(result.unwrap_err().to_string().contains("burst_size"));
 }
 
+#[cfg(feature = "enterprise")]
 #[test]
 fn test_config_validation_audit_invalid_export_url() {
     use mcp_guard_core::config::AuditConfig;
@@ -481,6 +535,7 @@ fn test_config_validation_audit_invalid_export_url() {
     assert!(result.unwrap_err().to_string().contains("export_url"));
 }
 
+#[cfg(feature = "enterprise")]
 #[test]
 fn test_config_validation_audit_zero_batch_size() {
     use mcp_guard_core::config::AuditConfig;
@@ -1008,10 +1063,10 @@ fn test_cli_version_command() {
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("mcp-guard"))
-        .stdout(predicate::str::contains("1.0.0"))
         .stdout(predicate::str::contains("Build Information"))
         .stdout(predicate::str::contains("Features"))
-        .stdout(predicate::str::contains("Auth providers"));
+        .stdout(predicate::str::contains("[Free]"))
+        .stdout(predicate::str::contains("API Key authentication"));
 }
 
 #[test]

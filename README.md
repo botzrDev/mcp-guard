@@ -69,28 +69,57 @@ Model Context Protocol (MCP) is powerful, but most servers are deployed with **z
 - **Observability**: Prometheus metrics + OpenTelemetry tracing
 - **Audit Logging**: Track every request with correlation IDs
 
-## Features
+## Features by Tier
 
-| Feature | Status |
-|---------|--------|
-| API Key Authentication | ✅ |
-| JWT Authentication (HS256) | ✅ |
-| JWT Authentication (JWKS/RS256/ES256) | ✅ |
-| OAuth 2.1 with PKCE | ✅ |
-| mTLS Client Certificate Auth | ✅ |
-| Per-Identity Rate Limiting | ✅ |
-| Per-Tool Authorization | ✅ |
-| Tools/List Filtering | ✅ |
-| Prometheus Metrics | ✅ |
-| OpenTelemetry Tracing | ✅ |
-| W3C Trace Context Propagation | ✅ |
-| Audit Logging | ✅ |
-| Audit Log Shipping (SIEM integration) | ✅ |
-| Stdio Transport | ✅ |
-| HTTP Transport | ✅ |
-| SSE Transport | ✅ |
-| Multi-Server Routing | ✅ |
-| Health Check Endpoints (/health, /live, /ready) | ✅ |
+| Feature | Free | Pro | Enterprise |
+|---------|------|-----|------------|
+| **Authentication** | | | |
+| API Key Authentication | ✅ | ✅ | ✅ |
+| JWT Authentication (HS256) | ✅ | ✅ | ✅ |
+| JWT Authentication (JWKS/RS256/ES256) | | ✅ | ✅ |
+| OAuth 2.1 with PKCE | | ✅ | ✅ |
+| mTLS Client Certificate Auth | | | ✅ |
+| **Transport** | | | |
+| Stdio Transport | ✅ | ✅ | ✅ |
+| HTTP Transport | | ✅ | ✅ |
+| SSE Transport | | ✅ | ✅ |
+| Multi-Server Routing | | | ✅ |
+| **Security** | | | |
+| Per-Tool Authorization | ✅ | ✅ | ✅ |
+| Tools/List Filtering | ✅ | ✅ | ✅ |
+| Global Rate Limiting | ✅ | ✅ | ✅ |
+| Per-Identity Rate Limiting | | ✅ | ✅ |
+| **Observability** | | | |
+| Prometheus Metrics | ✅ | ✅ | ✅ |
+| Health Check Endpoints | ✅ | ✅ | ✅ |
+| Audit Logging (file/console) | ✅ | ✅ | ✅ |
+| OpenTelemetry Tracing | | | ✅ |
+| Audit Log Shipping (SIEM) | | | ✅ |
+
+---
+
+## Pricing
+
+| Tier | Price | Best For |
+|------|-------|----------|
+| **Free** | $0 | Individual developers, hobbyists |
+| **Pro** | $12/month | Small teams, production apps |
+| **Enterprise** | $29+/user/month | Large teams, compliance requirements |
+
+```bash
+# Free tier - install from crates.io
+cargo install mcp-guard
+
+# Pro tier - requires license key
+curl -fsSL https://mcp-guard.io/install-pro.sh | bash
+export MCP_GUARD_LICENSE_KEY="pro_xxx..."
+
+# Enterprise tier - requires license key
+curl -fsSL https://mcp-guard.io/install-enterprise.sh | bash
+export MCP_GUARD_LICENSE_KEY="ent_xxx..."
+```
+
+→ [Get your license at mcp-guard.io/pricing](https://mcp-guard.io/pricing)
 
 ## Getting Started
 

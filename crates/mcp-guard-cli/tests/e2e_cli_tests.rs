@@ -55,10 +55,11 @@ fn test_version_shows_features() {
         .arg("version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Auth providers:"))
-        .stdout(predicate::str::contains("Transports:"))
-        .stdout(predicate::str::contains("Rate limiting:"))
-        .stdout(predicate::str::contains("Observability:"));
+        // Shows tiered features
+        .stdout(predicate::str::contains("[Free]"))
+        .stdout(predicate::str::contains("API Key authentication"))
+        .stdout(predicate::str::contains("[Pro]"))
+        .stdout(predicate::str::contains("[Enterprise]"));
 }
 
 // =============================================================================

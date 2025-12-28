@@ -341,7 +341,7 @@ Press `Ctrl+C` or send `SIGTERM` to stop the server gracefully:
 
 ### version
 
-Display version and build information.
+Display version, build information, and available features by tier.
 
 **Usage:**
 
@@ -352,27 +352,40 @@ mcp-guard version
 **Output:**
 
 ```
-mcp-guard 0.1.0
+mcp-guard 1.0.0
 
 Build Information:
   Package:     mcp-guard
-  Version:     0.1.0
-  Description: Security gateway for MCP servers
+  Version:     1.0.0
+  Tier:        Free
+  Description: A lightweight, high-performance security gateway for MCP servers
   License:     AGPL-3.0
   Repository:  https://github.com/botzrdev/mcp-guard
 
-Features:
-  Auth providers: API Key, JWT (HS256/JWKS), OAuth 2.1 (PKCE), mTLS
-  Transports:     Stdio, HTTP, SSE
-  Rate limiting:  Per-identity, token bucket
-  Observability:  Prometheus metrics, OpenTelemetry tracing
+Available Features:
+  [Free]
+    - API Key authentication
+    - JWT HS256 (simple mode)
+    - Stdio transport
+    - Global rate limiting
+    - File/console audit logging
+    - Prometheus metrics
+  [Pro] (upgrade at https://mcp-guard.io/pricing)
+    - OAuth 2.1 + PKCE authentication
+    - JWT JWKS mode (RS256/ES256)
+    - HTTP/SSE transports
+  [Enterprise] (upgrade at https://mcp-guard.io/pricing)
+    - mTLS client certificate authentication
+    - Multi-server routing
+    - OpenTelemetry tracing
+    - SIEM audit log shipping
 ```
 
 **Use Cases:**
 
 - CI/CD pipelines (verify correct version deployed)
-- Troubleshooting (confirm feature availability)
-- Support requests (include version info)
+- Troubleshooting (confirm feature availability and tier)
+- Support requests (include version and tier info)
 
 ---
 
@@ -556,8 +569,46 @@ mcp-guard run --port $MCP_GUARD_PORT
 
 ---
 
+## Licensing
+
+mcp-guard is available in three tiers:
+
+| Tier | Price | Key Features |
+|------|-------|--------------|
+| **Free** | $0 | API Key, JWT HS256, Stdio transport, Prometheus metrics |
+| **Pro** | $12/mo | + OAuth 2.1, JWT JWKS, HTTP/SSE transports |
+| **Enterprise** | $29+/user/mo | + mTLS, multi-server routing, SIEM, OpenTelemetry |
+
+### Setting Up a License
+
+For Pro and Enterprise tiers, set the `MCP_GUARD_LICENSE_KEY` environment variable:
+
+```bash
+export MCP_GUARD_LICENSE_KEY="pro_xxx..."
+# or
+export MCP_GUARD_LICENSE_KEY="ent_xxx..."
+```
+
+### Upgrade Prompts
+
+When you try to use a feature that requires a higher tier, mcp-guard provides a helpful error message with upgrade instructions:
+
+```
+Error: HTTP transport requires a Pro license.
+
+The free tier supports stdio transport only.
+
+Upgrade to Pro for $12/month:
+→ https://mcp-guard.io/pricing
+```
+
+For detailed tier comparison, see [Pricing & Tiers](pricing.md).
+
+---
+
 ## See Also
 
 - [Quick Start Guide](quickstart.md) - Get started in 5 minutes
 - [Configuration Reference](configuration.md) - Complete configuration options
 - [Authentication Guide](authentication.md) - Authentication provider details
+- [Pricing & Tiers](pricing.md) - Feature comparison and licensing

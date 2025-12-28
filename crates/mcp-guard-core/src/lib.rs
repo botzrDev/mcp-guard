@@ -14,6 +14,7 @@ pub mod observability;
 pub mod rate_limit;
 pub mod router;
 pub mod server;
+pub mod tier;
 pub mod transport;
 
 #[cfg(test)]

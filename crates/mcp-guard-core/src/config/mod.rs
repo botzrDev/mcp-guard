@@ -743,6 +743,10 @@ impl Config {
 
     /// Validate the configuration
     pub fn validate(&self) -> Result<(), ConfigError> {
+        // First validate tier/license requirements
+        crate::tier::validate_tier(self)?;
+
+        // Then validate individual sections
         self.validate_server()?;
         self.validate_rate_limit()?;
         self.validate_jwt()?;
@@ -978,6 +982,26 @@ mod tests {
     use super::*;
 
     fn create_valid_config() -> Config {
+        // Use stdio transport which is available in free tier
+        Config {
+            server: ServerConfig::default(),
+            auth: AuthConfig::default(),
+            rate_limit: RateLimitConfig::default(),
+            audit: AuditConfig::default(),
+            tracing: TracingConfig::default(),
+            upstream: UpstreamConfig {
+                transport: TransportType::Stdio,
+                command: Some("/bin/echo".to_string()),
+                args: vec![],
+                url: None,
+                servers: vec![],
+            },
+        }
+    }
+
+    // Create a config with HTTP transport for Pro tier tests
+    #[cfg(feature = "pro")]
+    fn create_valid_config_http() -> Config {
         Config {
             server: ServerConfig::default(),
             auth: AuthConfig::default(),
@@ -1186,6 +1210,8 @@ mod tests {
         assert!(config.validate().is_err());
     }
 
+    // mTLS tests require Enterprise feature
+    #[cfg(feature = "enterprise")]
     #[test]
     fn test_config_validation_mtls_requires_trusted_proxy_ips() {
         let mut config = create_valid_config();
@@ -1225,18 +1251,36 @@ mod tests {
         assert!(config.validate().is_ok());
     }
 
+    // Verify mTLS requires Enterprise in free tier
+    #[cfg(not(feature = "enterprise"))]
+    #[test]
+    fn test_config_validation_mtls_requires_enterprise() {
+        let mut config = create_valid_config();
+        config.auth.mtls = Some(MtlsConfig {
+            enabled: true,
+            identity_source: MtlsIdentitySource::Cn,
+            allowed_tools: vec![],
+            rate_limit: None,
+            trusted_proxy_ips: vec!["10.0.0.0/8".to_string()],
+        });
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Enterprise"));
+    }
+
     #[test]
     fn test_config_is_multi_server() {
         let mut config = create_valid_config();
         assert!(!config.is_multi_server());
 
+        // Just test the method, not validation
         config.upstream.servers.push(ServerRouteConfig {
             name: "test".to_string(),
             path_prefix: "/test".to_string(),
-            transport: TransportType::Http,
-            command: None,
+            transport: TransportType::Stdio,
+            command: Some("/bin/echo".to_string()),
             args: vec![],
-            url: Some("http://localhost:8080".to_string()),
+            url: None,
             strip_prefix: false,
         });
         assert!(config.is_multi_server());

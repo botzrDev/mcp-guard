@@ -125,6 +125,8 @@ fn test_hash_key() {
         .stdout(predicate::str::contains(original_hash));
 }
 
+// HTTP transport tests only run with pro feature
+#[cfg(feature = "pro")]
 #[tokio::test]
 async fn test_check_upstream_http_success() {
     use wiremock::matchers::method;
@@ -165,6 +167,8 @@ enabled = false
         .stdout(predicate::str::contains("Upstream is reachable"));
 }
 
+// HTTP transport tests only run with pro feature
+#[cfg(feature = "pro")]
 #[tokio::test]
 async fn test_check_upstream_http_failure() {
     // Config pointing to a dead port (hopefully)
@@ -194,4 +198,34 @@ enabled = false
         .assert()
         .failure()
         .stderr(predicate::str::contains("Upstream check failed"));
+}
+
+// Test that free tier rejects HTTP transport with helpful error
+#[cfg(not(feature = "pro"))]
+#[test]
+fn test_check_upstream_http_requires_pro() {
+    let config_content = r#"
+[server]
+host = "127.0.0.1"
+port = 3000
+
+[upstream]
+transport = "http"
+url = "http://localhost:8080"
+
+[rate_limit]
+enabled = false
+"#;
+
+    let temp = tempfile::tempdir().unwrap();
+    let config_path = temp.path().join("mcp-guard.toml");
+    fs::write(&config_path, config_content).unwrap();
+
+    let mut cmd = common::cargo_bin("mcp-guard");
+    cmd.arg("check-upstream")
+        .arg("--config")
+        .arg(config_path)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Pro license"));
 }

@@ -2,6 +2,8 @@
 members = [
     "crates/mcp-guard-core",
     "crates/mcp-guard-cli",
+    "crates/mcp-guard-pro",
+    "crates/mcp-guard-enterprise",
 ]
 resolver = "2"
 
