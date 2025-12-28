@@ -1,15 +1,17 @@
-# Cloudflare Workers Sites configuration for MCP Guard Landing
+# Cloudflare Workers configuration for MCP Guard Landing
+# Uses modern Assets approach (not legacy Workers Sites)
 # Deploy with: npx wrangler deploy
-# Local dev: cd landing && npm run cf:dev
 
 name = "mcp-guard-landing"
-main = "landing/src/worker.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Workers Sites configuration - serves static assets from KV
-[site]
-bucket = "./landing/dist/landing/browser"
+# Modern Assets configuration (replaces legacy [site])
+[assets]
+directory = "./landing/dist/landing/browser"
+# Enable SPA routing - serves index.html for navigation requests
+html_handling = "auto-trailing-slash"
+not_found_handling = "single-page-application"
 
 # Build command executed before deployment
 [build]
