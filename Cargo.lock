@@ -1525,6 +1525,27 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
+ "clap",
+ "jsonwebtoken",
+ "mcp-guard-core",
+ "predicates",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-test",
+ "tokio-util",
+ "tracing",
+ "wiremock",
+]
+
+[[package]]
+name = "mcp-guard-core"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "assert_cmd",
  "async-trait",
  "axum",
  "axum-test",

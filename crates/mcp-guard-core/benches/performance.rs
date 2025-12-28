@@ -8,7 +8,7 @@
 //! - Memory: <50MB RSS (not measured here)
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use mcp_guard::{
+use mcp_guard_core::{
     auth::{ApiKeyProvider, AuthProvider, Identity},
     authz::{authorize_tool_call, filter_tools_list_response},
     cli::{generate_api_key, hash_api_key},

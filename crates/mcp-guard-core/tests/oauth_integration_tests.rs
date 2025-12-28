@@ -8,7 +8,7 @@ use wiremock::{
     Mock, MockServer, ResponseTemplate,
 };
 
-use mcp_guard::{
+use mcp_guard_core::{
     auth::{AuthProvider, OAuthAuthProvider},
     config::{OAuthConfig, OAuthProvider},
 };

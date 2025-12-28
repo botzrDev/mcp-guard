@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
-use mcp_guard::{
+use mcp_guard_core::{
     audit::AuditLogger,
     auth::{ApiKeyProvider, AuthProvider},
     cli::hash_api_key,
@@ -31,7 +31,7 @@ fn create_test_config(port: u16) -> Config {
             url: None,
             servers: vec![],
         },
-        auth: mcp_guard::config::AuthConfig {
+        auth: mcp_guard_core::config::AuthConfig {
             api_keys: vec![ApiKeyConfig {
                 id: "test-client".to_string(),
                 key_hash: hash_api_key("test-api-key"),
@@ -147,7 +147,7 @@ async fn test_app_state_readiness_transition() {
 
 #[tokio::test]
 async fn test_multi_provider_auth_fallback() {
-    use mcp_guard::auth::MultiProvider;
+    use mcp_guard_core::auth::MultiProvider;
 
     // Create two API key providers with different keys
     let provider1 = Arc::new(ApiKeyProvider::new(vec![ApiKeyConfig {
@@ -284,7 +284,7 @@ fn test_config_is_multi_server() {
     config
         .upstream
         .servers
-        .push(mcp_guard::config::ServerRouteConfig {
+        .push(mcp_guard_core::config::ServerRouteConfig {
             name: "server1".to_string(),
             path_prefix: "/api".to_string(),
             transport: TransportType::Http,
@@ -419,7 +419,7 @@ fn test_upstream_config_multi_server() {
         args: vec![],
         url: None,
         servers: vec![
-            mcp_guard::config::ServerRouteConfig {
+            mcp_guard_core::config::ServerRouteConfig {
                 name: "server1".to_string(),
                 path_prefix: "/api1".to_string(),
                 transport: TransportType::Http,
@@ -428,7 +428,7 @@ fn test_upstream_config_multi_server() {
                 url: Some("http://localhost:8081".to_string()),
                 strip_prefix: true,
             },
-            mcp_guard::config::ServerRouteConfig {
+            mcp_guard_core::config::ServerRouteConfig {
                 name: "server2".to_string(),
                 path_prefix: "/api2".to_string(),
                 transport: TransportType::Http,

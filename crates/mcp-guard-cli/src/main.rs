@@ -5,7 +5,7 @@ use std::time::Instant;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
-use mcp_guard::{
+use mcp_guard_core::{
     audit::{AuditLogger, AuditLoggerHandle},
     auth::{
         ApiKeyProvider, AuthProvider, JwtProvider, MtlsAuthProvider, MultiProvider,
@@ -16,11 +16,12 @@ use mcp_guard::{
         Commands,
     },
     config::{Config, TransportType},
+    mcp_server::{McpServer, McpServerConfig},
     observability::{init_metrics, init_tracing},
     rate_limit::RateLimitService,
     router::ServerRouter,
     server::{self, new_oauth_state_store, AppState},
-    transport::{HttpTransport, SseTransport, StdioTransport},
+    transport::{HttpTransport, SseTransport, StdioTransport, Transport},
 };
 
 /// Result of bootstrapping the server state.
@@ -127,7 +128,7 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
 
     // Set up transport/router based on configuration
     let (transport, router): (
-        Option<Arc<dyn mcp_guard::transport::Transport>>,
+        Option<Arc<dyn Transport>>,
         Option<Arc<ServerRouter>>,
     ) = if config.is_multi_server() {
         // Multi-server routing mode
@@ -149,15 +150,15 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
         (None, Some(Arc::new(server_router)))
     } else {
         // Single-server mode
-        let transport: Arc<dyn mcp_guard::transport::Transport> = match &config.upstream.transport {
-            mcp_guard::config::TransportType::Stdio => {
+        let transport: Arc<dyn Transport> = match &config.upstream.transport {
+            mcp_guard_core::config::TransportType::Stdio => {
                 let command = config.upstream.command.as_ref().ok_or_else(|| {
                     anyhow::anyhow!("stdio transport requires 'command' in config")
                 })?;
                 tracing::info!(command = %command, "Using stdio transport");
                 Arc::new(StdioTransport::spawn(command, &config.upstream.args).await?)
             }
-            mcp_guard::config::TransportType::Http => {
+            mcp_guard_core::config::TransportType::Http => {
                 let url = config
                     .upstream
                     .url
@@ -172,7 +173,7 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
                     .map_err(|e| anyhow::anyhow!("Failed to create HTTP transport: {}", e))?;
                 Arc::new(transport)
             }
-            mcp_guard::config::TransportType::Sse => {
+            mcp_guard_core::config::TransportType::Sse => {
                 let url = config
                     .upstream
                     .url
@@ -249,6 +250,7 @@ async fn run_cli(cli: Cli) -> anyhow::Result<()> {
             handle_check_upstream(&cli.config, timeout, cli.verbose).await
         }
         Commands::Run { host, port } => handle_run(&cli.config, host, port, cli.verbose).await,
+        Commands::Serve => handle_serve(&cli.config, cli.verbose).await,
     }
 }
 
@@ -520,7 +522,7 @@ async fn handle_check_upstream(
     let timeout_duration = std::time::Duration::from_secs(timeout);
 
     match &config.upstream.transport {
-        mcp_guard::config::TransportType::Stdio => {
+        mcp_guard_core::config::TransportType::Stdio => {
             let command =
                 config.upstream.command.as_ref().ok_or_else(|| {
                     anyhow::anyhow!("stdio transport requires 'command' in config")
@@ -542,7 +544,7 @@ async fn handle_check_upstream(
                 Err(_) => anyhow::bail!("✗ Upstream check timed out after {}s", timeout),
             }
         }
-        mcp_guard::config::TransportType::Http => {
+        mcp_guard_core::config::TransportType::Http => {
             let url = config
                 .upstream
                 .url
@@ -559,7 +561,7 @@ async fn handle_check_upstream(
                 Err(_) => anyhow::bail!("✗ Upstream check timed out after {}s", timeout),
             }
         }
-        mcp_guard::config::TransportType::Sse => {
+        mcp_guard_core::config::TransportType::Sse => {
             let url = config
                 .upstream
                 .url
@@ -640,6 +642,70 @@ async fn handle_run(
     audit_handle.shutdown().await;
 
     tracing::info!("Shutdown complete");
+    Ok(())
+}
+
+/// Handle the `serve` command: run as an MCP server over stdio.
+///
+/// This mode is designed for use with Claude Desktop or other MCP clients
+/// that spawn mcp-guard as a subprocess and communicate via stdin/stdout.
+async fn handle_serve(
+    config_path: &std::path::PathBuf,
+    verbose: bool,
+) -> anyhow::Result<()> {
+    let config = Config::from_file(config_path)?;
+
+    // Initialize minimal tracing for stdio mode (logs go to stderr to not interfere with MCP)
+    let _tracing_guard = init_tracing(verbose, Some(&config.tracing));
+
+    // Initialize metrics (always available in serve mode)
+    let metrics_handle = Some(std::sync::Arc::new(init_metrics()));
+
+    // Set up upstream transport if configured
+    let upstream: Option<std::sync::Arc<dyn Transport>> = match config.upstream.transport {
+        TransportType::Stdio => {
+            if let Some(command) = &config.upstream.command {
+                tracing::info!(
+                    command = %command,
+                    args = ?config.upstream.args,
+                    "Connecting to upstream MCP server via stdio"
+                );
+                let transport = StdioTransport::spawn(command, &config.upstream.args).await?;
+                Some(std::sync::Arc::new(transport))
+            } else {
+                tracing::warn!("Stdio transport configured but no command specified");
+                None
+            }
+        }
+        TransportType::Http => {
+            if let Some(url) = &config.upstream.url {
+                tracing::info!(url = %url, "Connecting to upstream MCP server via HTTP");
+                let transport = HttpTransport::new(url.clone()).await?;
+                Some(std::sync::Arc::new(transport))
+            } else {
+                tracing::warn!("HTTP transport configured but no URL specified");
+                None
+            }
+        }
+        TransportType::Sse => {
+            if let Some(url) = &config.upstream.url {
+                tracing::info!(url = %url, "Connecting to upstream MCP server via SSE");
+                let transport = SseTransport::connect(url.clone()).await?;
+                Some(std::sync::Arc::new(transport))
+            } else {
+                tracing::warn!("SSE transport configured but no URL specified");
+                None
+            }
+        }
+    };
+
+    // Create and run MCP server
+    let server_config = McpServerConfig::default();
+    let server = McpServer::new(server_config, upstream, metrics_handle);
+
+    tracing::info!("Starting MCP server in stdio mode");
+    server.run().await?;
+
     Ok(())
 }
 

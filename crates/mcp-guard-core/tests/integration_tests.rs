@@ -1,6 +1,6 @@
 //! Integration tests for mcp-guard
 
-use mcp_guard::{
+use mcp_guard_core::{
     auth::Identity,
     authz::{filter_tools_list_response, is_tools_list_request},
     cli::{generate_api_key, hash_api_key},
@@ -120,7 +120,7 @@ fn test_rate_limit_config_defaults() {
 
 #[tokio::test]
 async fn test_auth_provider_api_key() {
-    use mcp_guard::auth::{ApiKeyProvider, AuthProvider};
+    use mcp_guard_core::auth::{ApiKeyProvider, AuthProvider};
 
     let key = "test_secret_key";
     let hash = hash_api_key(key);
@@ -146,7 +146,7 @@ async fn test_auth_provider_api_key() {
 
 #[tokio::test]
 async fn test_auth_provider_invalid_key() {
-    use mcp_guard::auth::{ApiKeyProvider, AuthProvider};
+    use mcp_guard_core::auth::{ApiKeyProvider, AuthProvider};
 
     let hash = hash_api_key("correct_key");
 
@@ -166,8 +166,8 @@ async fn test_auth_provider_invalid_key() {
 
 #[test]
 fn test_authz_tool_authorization() {
-    use mcp_guard::auth::Identity;
-    use mcp_guard::authz::authorize_tool_call;
+    use mcp_guard_core::auth::Identity;
+    use mcp_guard_core::authz::authorize_tool_call;
 
     // Unrestricted identity
     let unrestricted = Identity {
@@ -197,7 +197,7 @@ fn test_authz_tool_authorization() {
 
 #[test]
 fn test_rate_limiter() {
-    use mcp_guard::rate_limit::RateLimitService;
+    use mcp_guard_core::rate_limit::RateLimitService;
 
     let config = RateLimitConfig {
         enabled: true,
@@ -220,7 +220,7 @@ fn test_rate_limiter() {
 
 #[test]
 fn test_rate_limiter_disabled() {
-    use mcp_guard::rate_limit::RateLimitService;
+    use mcp_guard_core::rate_limit::RateLimitService;
 
     let config = RateLimitConfig {
         enabled: false,
@@ -239,7 +239,7 @@ fn test_rate_limiter_disabled() {
 
 #[test]
 fn test_mcp_message_types() {
-    use mcp_guard::transport::Message;
+    use mcp_guard_core::transport::Message;
 
     // Request
     let request = Message::request(1, "tools/call", Some(serde_json::json!({"name": "read"})));
@@ -261,7 +261,7 @@ fn test_mcp_message_types() {
 
 #[test]
 fn test_metrics_initialization_and_rendering() {
-    use mcp_guard::observability::init_metrics;
+    use mcp_guard_core::observability::init_metrics;
 
     // Initialize metrics (can only be done once per process, so this test
     // must be careful). We use a different approach - test that the handle
@@ -276,7 +276,7 @@ fn test_metrics_initialization_and_rendering() {
 
 #[test]
 fn test_metrics_prometheus_format() {
-    use mcp_guard::observability::{
+    use mcp_guard_core::observability::{
         record_auth, record_rate_limit, record_request, set_active_identities,
     };
 
@@ -364,7 +364,7 @@ fn test_config_validation_sse_missing_url() {
 
 #[test]
 fn test_config_validation_port_zero() {
-    use mcp_guard::config::ServerConfig;
+    use mcp_guard_core::config::ServerConfig;
 
     let config = Config {
         server: ServerConfig {
@@ -449,7 +449,7 @@ fn test_config_validation_rate_limit_zero_burst() {
 
 #[test]
 fn test_config_validation_audit_invalid_export_url() {
-    use mcp_guard::config::AuditConfig;
+    use mcp_guard_core::config::AuditConfig;
 
     let config = Config {
         server: Default::default(),
@@ -483,7 +483,7 @@ fn test_config_validation_audit_invalid_export_url() {
 
 #[test]
 fn test_config_validation_audit_zero_batch_size() {
-    use mcp_guard::config::AuditConfig;
+    use mcp_guard_core::config::AuditConfig;
 
     let config = Config {
         server: Default::default(),
@@ -661,19 +661,19 @@ fn test_tools_list_filtering_integration() {
 
 #[test]
 fn test_http_transport_instantiation() {
-    use mcp_guard::transport::HttpTransport;
+    use mcp_guard_core::transport::HttpTransport;
 
     // Should be able to create HTTP transport (using unchecked for localhost in tests)
     let transport = HttpTransport::new_unchecked("http://localhost:8080/mcp".to_string());
 
     // Transport should implement the Transport trait
-    fn _assert_transport<T: mcp_guard::transport::Transport>(_t: &T) {}
+    fn _assert_transport<T: mcp_guard_core::transport::Transport>(_t: &T) {}
     _assert_transport(&transport);
 }
 
 #[tokio::test]
 async fn test_sse_transport_instantiation() {
-    use mcp_guard::transport::SseTransport;
+    use mcp_guard_core::transport::SseTransport;
 
     // Should be able to create SSE transport (using unchecked for localhost in tests)
     let transport = SseTransport::connect_unchecked("http://localhost:8080/mcp/stream".to_string())
@@ -681,7 +681,7 @@ async fn test_sse_transport_instantiation() {
         .expect("Should create SSE transport");
 
     // Transport should implement the Transport trait
-    fn _assert_transport<T: mcp_guard::transport::Transport>(_t: &T) {}
+    fn _assert_transport<T: mcp_guard_core::transport::Transport>(_t: &T) {}
     _assert_transport(&transport);
 }
 
@@ -695,7 +695,7 @@ async fn test_health_endpoint_response_structure() {
         body::Body,
         http::{Request, StatusCode},
     };
-    use mcp_guard::{
+    use mcp_guard_core::{
         audit::AuditLogger,
         auth::ApiKeyProvider,
         config::{AuditConfig, Config},
@@ -800,7 +800,7 @@ async fn test_live_endpoint() {
         body::Body,
         http::{Request, StatusCode},
     };
-    use mcp_guard::{
+    use mcp_guard_core::{
         audit::AuditLogger,
         auth::ApiKeyProvider,
         config::{AuditConfig, Config},
@@ -863,7 +863,7 @@ async fn test_ready_endpoint_when_ready() {
         body::Body,
         http::{Request, StatusCode},
     };
-    use mcp_guard::{
+    use mcp_guard_core::{
         audit::AuditLogger,
         auth::ApiKeyProvider,
         config::{AuditConfig, Config},
@@ -931,7 +931,7 @@ async fn test_ready_endpoint_when_not_ready() {
         body::Body,
         http::{Request, StatusCode},
     };
-    use mcp_guard::{
+    use mcp_guard_core::{
         audit::AuditLogger,
         auth::ApiKeyProvider,
         config::{AuditConfig, Config},
@@ -1073,7 +1073,7 @@ async fn test_oauth_authorize_not_configured() {
         body::Body,
         http::{Request, StatusCode},
     };
-    use mcp_guard::{
+    use mcp_guard_core::{
         audit::AuditLogger,
         auth::ApiKeyProvider,
         config::{AuditConfig, Config},
@@ -1141,7 +1141,7 @@ async fn test_oauth_authorize_generates_redirect() {
         body::Body,
         http::{Request, StatusCode},
     };
-    use mcp_guard::{
+    use mcp_guard_core::{
         audit::AuditLogger,
         auth::{ApiKeyProvider, OAuthAuthProvider},
         config::{AuditConfig, Config, OAuthConfig, OAuthProvider as OAuthProviderType},
@@ -1240,7 +1240,7 @@ async fn test_oauth_callback_rejects_missing_state() {
         body::Body,
         http::{Request, StatusCode},
     };
-    use mcp_guard::{
+    use mcp_guard_core::{
         audit::AuditLogger,
         auth::{ApiKeyProvider, OAuthAuthProvider},
         config::{AuditConfig, Config, OAuthConfig, OAuthProvider as OAuthProviderType},
@@ -1324,7 +1324,7 @@ async fn test_oauth_callback_rejects_invalid_state() {
         body::Body,
         http::{Request, StatusCode},
     };
-    use mcp_guard::{
+    use mcp_guard_core::{
         audit::AuditLogger,
         auth::{ApiKeyProvider, OAuthAuthProvider},
         config::{AuditConfig, Config, OAuthConfig, OAuthProvider as OAuthProviderType},
@@ -1408,7 +1408,7 @@ async fn test_oauth_callback_handles_provider_error() {
         body::Body,
         http::{Request, StatusCode},
     };
-    use mcp_guard::{
+    use mcp_guard_core::{
         audit::AuditLogger,
         auth::{ApiKeyProvider, OAuthAuthProvider},
         config::{AuditConfig, Config, OAuthConfig, OAuthProvider as OAuthProviderType},
@@ -1492,8 +1492,8 @@ async fn test_oauth_callback_handles_provider_error() {
 /// Test route matcher finds correct route by prefix
 #[test]
 fn test_route_matcher_basic() {
-    use mcp_guard::config::{ServerRouteConfig, TransportType};
-    use mcp_guard::router::RouteMatcher;
+    use mcp_guard_core::config::{ServerRouteConfig, TransportType};
+    use mcp_guard_core::router::RouteMatcher;
 
     let routes = vec![
         ServerRouteConfig {
@@ -1526,8 +1526,8 @@ fn test_route_matcher_basic() {
 /// Test route matcher uses longest prefix match
 #[test]
 fn test_route_matcher_longest_prefix() {
-    use mcp_guard::config::{ServerRouteConfig, TransportType};
-    use mcp_guard::router::RouteMatcher;
+    use mcp_guard_core::config::{ServerRouteConfig, TransportType};
+    use mcp_guard_core::router::RouteMatcher;
 
     let routes = vec![
         ServerRouteConfig {
@@ -1564,7 +1564,7 @@ async fn test_routes_endpoint_lists_servers() {
         body::Body,
         http::{Request, StatusCode},
     };
-    use mcp_guard::{
+    use mcp_guard_core::{
         audit::AuditLogger,
         auth::ApiKeyProvider,
         config::{AuditConfig, Config, ServerRouteConfig},
@@ -1662,7 +1662,7 @@ async fn test_routes_endpoint_unavailable_when_single_server() {
         body::Body,
         http::{Request, StatusCode},
     };
-    use mcp_guard::{
+    use mcp_guard_core::{
         audit::AuditLogger,
         auth::ApiKeyProvider,
         config::{AuditConfig, Config},
@@ -1727,7 +1727,7 @@ async fn test_routes_endpoint_unavailable_when_single_server() {
 /// Test ServerRouteConfig validation
 #[test]
 fn test_server_route_config_validation() {
-    use mcp_guard::config::{ServerRouteConfig, TransportType};
+    use mcp_guard_core::config::{ServerRouteConfig, TransportType};
 
     // Valid config
     let valid = ServerRouteConfig {

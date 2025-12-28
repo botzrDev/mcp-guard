@@ -1,0 +1,17 @@
+[server]
+host = "127.0.0.1"
+port = 3000
+
+[upstream]
+transport = "stdio"
+command = "echo"
+args = ["hello"]
+
+[rate_limit]
+enabled = true
+requests_per_second = 100
+burst_size = 50
+
+[audit]
+enabled = true
+stdout = true

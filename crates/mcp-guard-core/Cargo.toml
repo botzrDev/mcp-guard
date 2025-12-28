@@ -1,0 +1,113 @@
+[package]
+name = "mcp-guard-core"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.75"
+authors = ["Austin Green <austin@botzr.dev>"]
+description = "Core library for mcp-guard - A lightweight, high-performance security gateway for MCP servers"
+license = "AGPL-3.0"
+repository = "https://github.com/botzrdev/mcp-guard"
+homepage = "https://github.com/botzrdev/mcp-guard"
+documentation = "https://docs.rs/mcp-guard-core"
+readme = "../../README.md"
+keywords = ["mcp", "security", "gateway", "proxy", "authentication"]
+categories = ["authentication", "web-programming"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.41", features = ["full"] }
+
+# Web framework
+axum = { version = "0.7", features = ["macros"] }
+tower = { version = "0.5", features = ["util", "timeout", "limit"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "request-id", "limit"] }
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+toml = "0.8"
+toml_edit = "0.22"
+
+# Configuration
+config = "0.14"
+
+# Authentication
+jsonwebtoken = "9.3"
+oauth2 = "5.0"
+
+# Rate limiting
+governor = "0.6"
+dashmap = "5.5"
+
+# Cryptography
+sha2 = "0.10"
+hmac = "0.12"
+subtle = "2.5"
+base64 = "0.22"
+rand = "0.8"
+
+# URL encoding and parsing
+urlencoding = "2.1"
+url = "2.5"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-opentelemetry = "0.28"
+metrics = "0.23"
+metrics-exporter-prometheus = "0.15"
+opentelemetry = "0.27"
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", features = ["tonic", "trace"] }
+
+# Async utilities
+async-trait = "0.1"
+futures = "0.3"
+
+# Platform-specific (Unix signals for graceful shutdown)
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# HTTP client (for JWKS fetching)
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
+
+# Stream utilities (for SSE) and cancellation token
+tokio-util = { version = "0.7", features = ["io"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID
+uuid = { version = "1.11", features = ["v4", "serde"] }
+
+# Regex for secret redaction
+regex = "1.11"
+
+# Compression for log rotation
+flate2 = "1.0"
+
+# Glob pattern matching for tool rate limits
+glob = "0.3"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.13"
+wiremock = "0.6"
+axum-test = "16.1"
+hyper = { version = "1.0", features = ["client"] }
+tower = { version = "0.5", features = ["util"] }
+criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
+assert_cmd = "2.0"
+predicates = "3.1"
+
+[[bench]]
+name = "performance"
+harness = false

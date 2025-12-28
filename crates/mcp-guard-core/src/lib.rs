@@ -8,6 +8,8 @@ pub mod auth;
 pub mod authz;
 pub mod cli;
 pub mod config;
+pub mod guard_tools;
+pub mod mcp_server;
 pub mod observability;
 pub mod rate_limit;
 pub mod router;

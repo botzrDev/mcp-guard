@@ -1,0 +1,55 @@
+[package]
+name = "mcp-guard"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.75"
+authors = ["Austin Green <austin@botzr.dev>"]
+description = "A lightweight, high-performance security gateway for MCP servers"
+license = "AGPL-3.0"
+repository = "https://github.com/botzrdev/mcp-guard"
+homepage = "https://github.com/botzrdev/mcp-guard"
+documentation = "https://docs.rs/mcp-guard"
+readme = "../../README.md"
+keywords = ["mcp", "security", "gateway", "proxy", "authentication"]
+categories = ["authentication", "web-programming", "command-line-utilities"]
+
+[[bin]]
+name = "mcp-guard"
+path = "src/main.rs"
+
+[dependencies]
+# Core library
+mcp-guard-core = { path = "../mcp-guard-core" }
+
+# Async runtime
+tokio = { version = "1.41", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+
+# Observability
+tracing = "0.1"
+
+# HTTP client (for check-upstream)
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.13"
+assert_cmd = "2.0"
+predicates = "3.1"
+wiremock = "0.6"
+jsonwebtoken = "9.3"
+
+[features]
+default = []
+pro = []
+enterprise = ["pro"]

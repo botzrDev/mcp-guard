@@ -7,17 +7,21 @@
 //! - `validate` - Validate configuration file syntax and semantics
 //! - `keygen` - Generate a new API key with its hash for configuration
 //! - `hash-key` - Hash an existing API key for configuration
-//! - `run` - Start the MCP Guard server
+//! - `run` - Start the MCP Guard HTTP proxy server
+//! - `serve` - Run as an MCP server (stdio mode) for use with Claude Desktop
 //! - `version` - Show version and build information
 //! - `check-upstream` - Test upstream MCP server connectivity
 //!
 //! # Example
 //!
 //! ```bash
-//! # Generate config and start server
+//! # Generate config and start HTTP proxy server
 //! mcp-guard init
 //! mcp-guard validate
 //! mcp-guard run
+//!
+//! # Run as stdio MCP server (for Claude Desktop)
+//! mcp-guard serve
 //! ```
 
 use clap::{Parser, Subcommand};
@@ -105,6 +109,12 @@ pub enum Commands {
         #[arg(short, long, default_value = "10")]
         timeout: u64,
     },
+
+    /// Run as an MCP server (stdio mode) for use with Claude Desktop
+    ///
+    /// This mode allows mcp-guard to be launched as a subprocess by MCP clients.
+    /// It communicates via stdin/stdout using JSON-RPC 2.0.
+    Serve,
 }
 
 impl Cli {

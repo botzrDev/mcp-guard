@@ -8,7 +8,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use mcp_guard::{
+use mcp_guard_core::{
     audit::AuditLogger,
     auth::{ApiKeyProvider, OAuthAuthProvider},
     config::{

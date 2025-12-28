@@ -30,7 +30,7 @@ async fn spawn_server() -> (std::process::Child, String, String) {
     new_config.push_str("\n[[auth.api_keys]]\n");
     new_config.push_str("id = \"test-client\"\n");
     // SHA256 of "secret" (Base64 encoded)
-    let hash = mcp_guard::cli::hash_api_key("secret");
+    let hash = mcp_guard_core::cli::hash_api_key("secret");
     new_config.push_str(&format!("key_hash = \"{}\"\n", hash));
 
     fs::write(&config_path, new_config).unwrap();

@@ -10,7 +10,7 @@ use wiremock::{
     Mock, MockServer, ResponseTemplate,
 };
 
-use mcp_guard::{
+use mcp_guard_core::{
     auth::{AuthProvider, JwtProvider},
     config::{JwtConfig, JwtMode},
 };

@@ -1,5 +1,5 @@
-use mcp_guard::audit::{AuditEntry, AuditLogger, EventType};
-use mcp_guard::config::AuditConfig;
+use mcp_guard_core::audit::{AuditEntry, AuditLogger, EventType};
+use mcp_guard_core::config::AuditConfig;
 use std::collections::HashMap;
 use std::time::Duration;
 use wiremock::matchers::{method, path};

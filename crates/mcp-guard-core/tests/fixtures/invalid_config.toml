@@ -1,0 +1,7 @@
+[server]
+host = "127.0.0.1"
+# Missing port
+# Invalid upstream
+
+[upstream]
+transport = "unknown_transport"

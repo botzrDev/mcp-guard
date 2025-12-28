@@ -1,4 +1,4 @@
-use mcp_guard::transport::{StdioTransport, Transport};
+use mcp_guard_core::transport::{StdioTransport, Transport};
 use std::time::Duration;
 use tokio::time::timeout;
 
@@ -31,7 +31,7 @@ async fn test_stdio_transport_echo() {
     // And `tx` and `rx` are private fields of `StdioTransport`.
     // I should use `Transport` trait methods `send` and `receive`.
 
-    use mcp_guard::transport::Message;
+    use mcp_guard_core::transport::Message;
 
     // Send a message
     // Message::request(id, method, params)
