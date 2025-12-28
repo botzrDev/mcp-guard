@@ -5,17 +5,14 @@ import {
   OnInit,
   OnDestroy,
   inject,
-  NgZone,
   ElementRef,
   AfterViewInit,
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IconComponent } from '../../shared/icon/icon.component';
-import { gsap } from 'gsap';
+import { ScrollAnimationService } from '../../shared/scroll-animation.service';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
 
 interface Step {
   number: number;
@@ -780,7 +777,7 @@ export class HowItWorksComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('panelsTrack') panelsTrackRef!: ElementRef<HTMLElement>;
 
   private el = inject(ElementRef);
-  private ngZone = inject(NgZone);
+  private scrollService = inject(ScrollAnimationService);
   private scrollTrigger: ScrollTrigger | null = null;
   private tween: gsap.core.Tween | null = null;
 
@@ -821,43 +818,23 @@ export class HowItWorksComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnDestroy() {
-    this.scrollTrigger?.kill();
-    this.tween?.kill();
+    this.scrollService.killTrigger(this.scrollTrigger);
+    this.scrollService.killTween(this.tween);
   }
 
   private initHorizontalScroll() {
-    this.ngZone.runOutsideAngular(() => {
-      const container = this.panelsContainerRef.nativeElement;
-      const track = this.panelsTrackRef.nativeElement;
-      const panels = track.querySelectorAll('.step-panel');
-      const progressTrack = this.el.nativeElement.querySelector('.progress-track');
+    const container = this.panelsContainerRef.nativeElement;
+    const track = this.panelsTrackRef.nativeElement;
+    const progressTrack = this.el.nativeElement.querySelector('.progress-track');
 
-      // Calculate total scroll distance
-      const totalWidth = track.scrollWidth - container.offsetWidth;
-
-      // Create the horizontal scroll animation
-      this.tween = gsap.to(track, {
-        x: -totalWidth,
-        ease: 'none',
-      });
-
-      // Create ScrollTrigger
-      this.scrollTrigger = ScrollTrigger.create({
-        trigger: container,
-        start: 'top top',
-        end: () => `+=${totalWidth}`,
-        pin: true,
-        animation: this.tween,
-        scrub: 1,
-        onUpdate: (self) => {
-          this.ngZone.run(() => {
-            const progress = self.progress;
-            this.progressPercent.set(progress * 100);
-
-            // Determine active step based on progress
-            const stepProgress = progress * (panels.length);
-            this.activeStep.set(Math.floor(stepProgress));
-          });
+    // Use the service's horizontal scroll helper with proper resize handling
+    const result = this.scrollService.createHorizontalScrollWithTrigger(
+      container,
+      track,
+      {
+        onUpdate: (progress, activeStepIndex) => {
+          this.progressPercent.set(progress * 100);
+          this.activeStep.set(activeStepIndex);
         },
         onEnter: () => {
           progressTrack?.classList.add('visible');
@@ -871,7 +848,10 @@ export class HowItWorksComponent implements OnInit, OnDestroy, AfterViewInit {
         onLeaveBack: () => {
           progressTrack?.classList.remove('visible');
         },
-      });
-    });
+      }
+    );
+
+    this.tween = result.tween;
+    this.scrollTrigger = result.trigger;
   }
 }

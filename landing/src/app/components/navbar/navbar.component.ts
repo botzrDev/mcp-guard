@@ -919,6 +919,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   private ngZone = inject(NgZone);
   private lastScrollY = 0;
+  private lastProgress = 0;
+  private rafId: number | null = null;
+  private pendingUpdate = false;
 
   toggleNav() {
     this.isNavExpanded.update((v) => !v);
@@ -969,31 +972,45 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     window.removeEventListener('scroll', this.onScroll);
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+    }
   }
 
   onScroll = () => {
-    const scrollTop = window.scrollY;
+    // Throttle updates using requestAnimationFrame
+    if (this.pendingUpdate) return;
+    this.pendingUpdate = true;
 
-    // Detect scroll direction for mobile dock
-    const isScrollingDown = scrollTop > this.lastScrollY && scrollTop > 100;
-    this.lastScrollY = scrollTop;
+    this.rafId = requestAnimationFrame(() => {
+      this.pendingUpdate = false;
 
-    // Optimization: Calculate values first
-    const isScrolled = scrollTop > 50;
+      const scrollTop = window.scrollY;
 
-    // Only re-enter zone if state needs to change
-    if (this.isScrolled() !== isScrolled || this.isScrollingDown() !== isScrollingDown) {
-      this.ngZone.run(() => {
-        this.isScrolled.set(isScrolled);
-        this.isScrollingDown.set(isScrollingDown);
-      });
-    }
+      // Detect scroll direction for mobile dock
+      const isScrollingDown = scrollTop > this.lastScrollY && scrollTop > 100;
+      this.lastScrollY = scrollTop;
 
-    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-    const progress = (scrollTop / docHeight) * 100;
+      // Calculate values
+      const isScrolled = scrollTop > 50;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = docHeight > 0 ? Math.round((scrollTop / docHeight) * 100) : 0;
 
-    this.ngZone.run(() => {
-      this.scrollProgress.set(progress);
+      // Batch all state changes into a single zone entry
+      const needsScrolledUpdate = this.isScrolled() !== isScrolled;
+      const needsDirectionUpdate = this.isScrollingDown() !== isScrollingDown;
+      const needsProgressUpdate = Math.abs(this.lastProgress - progress) >= 1; // Only update if changed by 1%+
+
+      if (needsScrolledUpdate || needsDirectionUpdate || needsProgressUpdate) {
+        this.ngZone.run(() => {
+          if (needsScrolledUpdate) this.isScrolled.set(isScrolled);
+          if (needsDirectionUpdate) this.isScrollingDown.set(isScrollingDown);
+          if (needsProgressUpdate) {
+            this.scrollProgress.set(progress);
+            this.lastProgress = progress;
+          }
+        });
+      }
     });
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable, NgZone, inject } from '@angular/core';
+import { Injectable, NgZone, inject, OnDestroy } from '@angular/core';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
@@ -7,12 +7,16 @@ gsap.registerPlugin(ScrollTrigger);
 @Injectable({
     providedIn: 'root'
 })
-export class ScrollAnimationService {
+export class ScrollAnimationService implements OnDestroy {
     private ngZone = inject(NgZone);
     private initialized = false;
+    private resizeTimeout: ReturnType<typeof setTimeout> | null = null;
+    private resizeHandler: (() => void) | null = null;
+    private trackedTriggers: ScrollTrigger[] = [];
+    private trackedTweens: gsap.core.Tween[] = [];
 
     /**
-     * Initialize GSAP ScrollTrigger defaults
+     * Initialize GSAP ScrollTrigger defaults and resize handling
      */
     init() {
         if (this.initialized) return;
@@ -22,9 +26,85 @@ export class ScrollAnimationService {
                 toggleActions: 'play none none reverse',
                 markers: false,
             });
+
+            // Add debounced resize handler for ScrollTrigger refresh
+            this.resizeHandler = () => {
+                if (this.resizeTimeout) {
+                    clearTimeout(this.resizeTimeout);
+                }
+                this.resizeTimeout = setTimeout(() => {
+                    ScrollTrigger.refresh();
+                }, 200);
+            };
+
+            window.addEventListener('resize', this.resizeHandler, { passive: true });
+
+            // Also refresh after fonts load (can affect layout)
+            if (document.fonts) {
+                document.fonts.ready.then(() => {
+                    ScrollTrigger.refresh();
+                });
+            }
         });
 
         this.initialized = true;
+    }
+
+    ngOnDestroy() {
+        this.cleanup();
+    }
+
+    /**
+     * Clean up all resources
+     */
+    private cleanup() {
+        if (this.resizeTimeout) {
+            clearTimeout(this.resizeTimeout);
+        }
+        if (this.resizeHandler) {
+            window.removeEventListener('resize', this.resizeHandler);
+        }
+        this.killAll();
+    }
+
+    /**
+     * Track a ScrollTrigger for cleanup
+     */
+    trackTrigger(trigger: ScrollTrigger): ScrollTrigger {
+        this.trackedTriggers.push(trigger);
+        return trigger;
+    }
+
+    /**
+     * Track a tween for cleanup
+     */
+    trackTween(tween: gsap.core.Tween): gsap.core.Tween {
+        this.trackedTweens.push(tween);
+        return tween;
+    }
+
+    /**
+     * Untrack and kill a specific trigger
+     */
+    killTrigger(trigger: ScrollTrigger | null) {
+        if (!trigger) return;
+        const index = this.trackedTriggers.indexOf(trigger);
+        if (index > -1) {
+            this.trackedTriggers.splice(index, 1);
+        }
+        trigger.kill();
+    }
+
+    /**
+     * Untrack and kill a specific tween
+     */
+    killTween(tween: gsap.core.Tween | null) {
+        if (!tween) return;
+        const index = this.trackedTweens.indexOf(tween);
+        if (index > -1) {
+            this.trackedTweens.splice(index, 1);
+        }
+        tween.kill();
     }
 
     /**
@@ -211,9 +291,141 @@ export class ScrollAnimationService {
     }
 
     /**
-     * Kill all ScrollTriggers for cleanup
+     * Create a simple scroll trigger for visibility-based animations
+     */
+    createVisibilityTrigger(
+        trigger: HTMLElement,
+        callbacks: {
+            onEnter?: () => void;
+            onLeave?: () => void;
+            onEnterBack?: () => void;
+            onLeaveBack?: () => void;
+        },
+        options?: {
+            start?: string;
+            end?: string;
+            once?: boolean;
+        }
+    ): ScrollTrigger {
+        this.init();
+
+        const st = this.ngZone.runOutsideAngular(() => {
+            return ScrollTrigger.create({
+                trigger,
+                start: options?.start ?? 'top 70%',
+                end: options?.end,
+                once: options?.once ?? false,
+                onEnter: callbacks.onEnter ? () => this.ngZone.run(callbacks.onEnter!) : undefined,
+                onLeave: callbacks.onLeave ? () => this.ngZone.run(callbacks.onLeave!) : undefined,
+                onEnterBack: callbacks.onEnterBack ? () => this.ngZone.run(callbacks.onEnterBack!) : undefined,
+                onLeaveBack: callbacks.onLeaveBack ? () => this.ngZone.run(callbacks.onLeaveBack!) : undefined,
+            });
+        });
+
+        return this.trackTrigger(st);
+    }
+
+    /**
+     * Create a horizontal scroll animation with proper cleanup
+     */
+    createHorizontalScrollWithTrigger(
+        container: HTMLElement,
+        track: HTMLElement,
+        callbacks?: {
+            onUpdate?: (progress: number, activeStep: number) => void;
+            onEnter?: () => void;
+            onLeave?: () => void;
+            onEnterBack?: () => void;
+            onLeaveBack?: () => void;
+        },
+        options?: {
+            scrub?: number | boolean;
+        }
+    ): { tween: gsap.core.Tween; trigger: ScrollTrigger } {
+        this.init();
+
+        return this.ngZone.runOutsideAngular(() => {
+            const panels = track.querySelectorAll('.step-panel');
+            const totalWidth = track.scrollWidth - container.offsetWidth;
+
+            const tween = gsap.to(track, {
+                x: -totalWidth,
+                ease: 'none',
+            });
+
+            const trigger = ScrollTrigger.create({
+                trigger: container,
+                start: 'top top',
+                end: () => `+=${track.scrollWidth - container.offsetWidth}`, // Dynamic recalculation
+                pin: true,
+                animation: tween,
+                scrub: options?.scrub ?? 1,
+                invalidateOnRefresh: true, // Recalculate on refresh
+                onUpdate: callbacks?.onUpdate ? (self) => {
+                    const progress = self.progress;
+                    const stepProgress = progress * panels.length;
+                    this.ngZone.run(() => callbacks.onUpdate!(progress, Math.floor(stepProgress)));
+                } : undefined,
+                onEnter: callbacks?.onEnter ? () => this.ngZone.run(callbacks.onEnter!) : undefined,
+                onLeave: callbacks?.onLeave ? () => this.ngZone.run(callbacks.onLeave!) : undefined,
+                onEnterBack: callbacks?.onEnterBack ? () => this.ngZone.run(callbacks.onEnterBack!) : undefined,
+                onLeaveBack: callbacks?.onLeaveBack ? () => this.ngZone.run(callbacks.onLeaveBack!) : undefined,
+            });
+
+            this.trackTween(tween);
+            this.trackTrigger(trigger);
+
+            return { tween, trigger };
+        });
+    }
+
+    /**
+     * Animate a counter outside Angular zone with final zone update
+     */
+    animateCounterOutsideZone(
+        targetValue: number,
+        onUpdate: (value: number) => void,
+        onComplete?: () => void,
+        options?: {
+            duration?: number;
+            delay?: number;
+        }
+    ): gsap.core.Tween {
+        this.init();
+
+        return this.ngZone.runOutsideAngular(() => {
+            const obj = { value: 0 };
+            const tween = gsap.to(obj, {
+                value: targetValue,
+                duration: options?.duration ?? 2,
+                delay: options?.delay ?? 0,
+                ease: 'power2.out',
+                onUpdate: () => {
+                    // Direct DOM update outside zone - caller handles DOM manipulation
+                    onUpdate(Math.round(obj.value));
+                },
+                onComplete: onComplete ? () => this.ngZone.run(onComplete) : undefined,
+            });
+
+            this.trackTween(tween);
+            return tween;
+        });
+    }
+
+    /**
+     * Kill all tracked ScrollTriggers and tweens
      */
     killAll() {
+        this.trackedTweens.forEach(tween => tween.kill());
+        this.trackedTweens = [];
+        this.trackedTriggers.forEach(trigger => trigger.kill());
+        this.trackedTriggers = [];
+    }
+
+    /**
+     * Kill all global ScrollTriggers (use with caution)
+     */
+    killAllGlobal() {
         ScrollTrigger.getAll().forEach(trigger => trigger.kill());
     }
 
@@ -222,5 +434,12 @@ export class ScrollAnimationService {
      */
     refresh() {
         ScrollTrigger.refresh();
+    }
+
+    /**
+     * Refresh with a delay (useful after layout changes)
+     */
+    refreshDelayed(delay: number = 100) {
+        setTimeout(() => ScrollTrigger.refresh(), delay);
     }
 }

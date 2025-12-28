@@ -1,9 +1,7 @@
-import { Component, signal, ChangeDetectionStrategy, OnInit, OnDestroy, ElementRef, inject, NgZone, AfterViewInit, ViewChild } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy, OnInit, OnDestroy, ElementRef, inject, AfterViewInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { gsap } from 'gsap';
+import { ScrollAnimationService } from '../../shared/scroll-animation.service';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
 
 @Component({
   selector: 'app-comparison',
@@ -717,8 +715,9 @@ export class ComparisonComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('container') containerRef!: ElementRef<HTMLElement>;
   @ViewChild('splitContainer') splitContainerRef!: ElementRef<HTMLElement>;
 
-  private ngZone = inject(NgZone);
+  private scrollService = inject(ScrollAnimationService);
   private scrollTrigger: ScrollTrigger | null = null;
+  private toggleTimeout: ReturnType<typeof setTimeout> | null = null;
 
   isSecured = signal(false);
 
@@ -729,7 +728,10 @@ export class ComparisonComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnDestroy() {
-    this.scrollTrigger?.kill();
+    this.scrollService.killTrigger(this.scrollTrigger);
+    if (this.toggleTimeout) {
+      clearTimeout(this.toggleTimeout);
+    }
   }
 
   toggleSecured() {
@@ -737,25 +739,23 @@ export class ComparisonComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private initAutoToggle() {
-    this.ngZone.runOutsideAngular(() => {
-      // Auto-toggle when section is 60% in view
-      this.scrollTrigger = ScrollTrigger.create({
-        trigger: this.containerRef.nativeElement,
-        start: 'top 40%',
+    this.scrollTrigger = this.scrollService.createVisibilityTrigger(
+      this.containerRef.nativeElement,
+      {
         onEnter: () => {
           // Delay the toggle for dramatic effect
-          setTimeout(() => {
-            this.ngZone.run(() => {
-              this.isSecured.set(true);
-            });
+          this.toggleTimeout = setTimeout(() => {
+            this.isSecured.set(true);
           }, 800);
         },
         onLeaveBack: () => {
-          this.ngZone.run(() => {
-            this.isSecured.set(false);
-          });
+          if (this.toggleTimeout) {
+            clearTimeout(this.toggleTimeout);
+          }
+          this.isSecured.set(false);
         }
-      });
-    });
+      },
+      { start: 'top 40%' }
+    );
   }
 }

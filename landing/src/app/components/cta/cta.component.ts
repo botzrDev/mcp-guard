@@ -1,9 +1,7 @@
-import { Component, signal, OnInit, OnDestroy, ChangeDetectionStrategy, AfterViewInit, ElementRef, inject, NgZone, ViewChild } from '@angular/core';
+import { Component, signal, OnInit, OnDestroy, ChangeDetectionStrategy, AfterViewInit, ElementRef, inject, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { gsap } from 'gsap';
+import { ScrollAnimationService } from '../../shared/scroll-animation.service';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
 
 @Component({
   selector: 'app-cta',
@@ -672,7 +670,7 @@ export class CtaComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('leftContent') leftContentRef!: ElementRef<HTMLElement>;
   @ViewChild('rightContent') rightContentRef!: ElementRef<HTMLElement>;
 
-  private ngZone = inject(NgZone);
+  private scrollService = inject(ScrollAnimationService);
   private scrollTrigger: ScrollTrigger | null = null;
 
   terminalLines = signal([
@@ -690,7 +688,7 @@ export class CtaComponent implements OnInit, OnDestroy, AfterViewInit {
   copiedLine = signal<string | null>(null);
   isVisible = signal(false);
 
-  private animationInterval: any;
+  private animationInterval: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit() { }
 
@@ -699,32 +697,28 @@ export class CtaComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnDestroy() {
-    this.scrollTrigger?.kill();
+    this.scrollService.killTrigger(this.scrollTrigger);
     if (this.animationInterval) {
       clearInterval(this.animationInterval);
     }
   }
 
   private initScrollTrigger() {
-    this.ngZone.runOutsideAngular(() => {
-      this.scrollTrigger = ScrollTrigger.create({
-        trigger: this.containerRef.nativeElement,
-        start: 'top 70%',
+    this.scrollTrigger = this.scrollService.createVisibilityTrigger(
+      this.containerRef.nativeElement,
+      {
         onEnter: () => {
-          this.ngZone.run(() => {
-            this.isVisible.set(true);
-            // Start terminal animation after convergence
-            setTimeout(() => this.animateTerminal(), 400);
-          });
+          this.isVisible.set(true);
+          // Start terminal animation after convergence
+          setTimeout(() => this.animateTerminal(), 400);
         },
         onLeaveBack: () => {
-          this.ngZone.run(() => {
-            this.isVisible.set(false);
-            this.currentLine.set(-1);
-          });
+          this.isVisible.set(false);
+          this.currentLine.set(-1);
         }
-      });
-    });
+      },
+      { start: 'top 70%' }
+    );
   }
 
   animateTerminal() {
@@ -734,7 +728,9 @@ export class CtaComponent implements OnInit, OnDestroy, AfterViewInit {
         this.currentLine.set(line);
         line++;
       } else {
-        clearInterval(this.animationInterval);
+        if (this.animationInterval) {
+          clearInterval(this.animationInterval);
+        }
       }
     }, 400);
   }

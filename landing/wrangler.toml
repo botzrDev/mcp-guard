@@ -1,0 +1,20 @@
+# Cloudflare Workers Sites configuration for MCP Guard Landing
+# Deploy with: npm run deploy
+# Local dev: npm run cf:dev
+
+name = "mcp-guard-landing"
+main = "src/worker.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Workers Sites configuration - serves static assets from KV
+[site]
+bucket = "./dist/landing/browser"
+
+# Build command executed before deployment
+[build]
+command = "npm run build"
+
+# Optional: Preview environment
+# [env.preview]
+# name = "mcp-guard-landing-preview"

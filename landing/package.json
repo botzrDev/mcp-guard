@@ -15,7 +15,11 @@
     "rebuild": "npm run clean && npm run build",
     "test": "ng test",
     "lint": "ng lint",
-    "format": "npx prettier --write \"src/**/*.{ts,html,scss}\""
+    "format": "npx prettier --write \"src/**/*.{ts,html,scss}\"",
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:dry": "npm run build && wrangler deploy --dry-run",
+    "cf:dev": "npm run build && wrangler dev",
+    "cf:tail": "wrangler tail"
   },
   "prettier": {
     "printWidth": 100,
@@ -47,7 +51,10 @@
     "@angular/build": "^21.0.3",
     "@angular/cli": "^21.0.3",
     "@angular/compiler-cli": "^21.0.0",
+    "@cloudflare/kv-asset-handler": "^0.4.0",
+    "@cloudflare/workers-types": "^4.20241218.0",
     "@playwright/test": "^1.57.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "wrangler": "^4.0.0"
   }
 }

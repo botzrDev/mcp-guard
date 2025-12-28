@@ -187,8 +187,17 @@
 }
 
 html {
-  scroll-behavior: smooth;
+  // Note: scroll-behavior: smooth removed to prevent conflicts with GSAP ScrollTrigger
+  // Smooth scrolling is handled programmatically via GSAP for better control
   font-size: 16px;
+}
+
+// Only apply smooth scroll for anchor links when not using GSAP
+// This targets specific user-initiated navigation only
+html:focus-within {
+  @media (prefers-reduced-motion: no-preference) {
+    scroll-behavior: smooth;
+  }
 }
 
 body {

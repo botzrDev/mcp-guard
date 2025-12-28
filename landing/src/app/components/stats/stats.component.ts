@@ -1,9 +1,7 @@
-import { Component, ChangeDetectionStrategy, OnInit, OnDestroy, AfterViewInit, ElementRef, inject, NgZone, signal, ViewChild } from '@angular/core';
+import { Component, ChangeDetectionStrategy, OnInit, OnDestroy, AfterViewInit, ElementRef, inject, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { gsap } from 'gsap';
+import { ScrollAnimationService } from '../../shared/scroll-animation.service';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
 
 interface Stat {
   value: string;
@@ -372,9 +370,12 @@ interface Stat {
 export class StatsComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('container') containerRef!: ElementRef<HTMLElement>;
 
-  private ngZone = inject(NgZone);
+  private scrollService = inject(ScrollAnimationService);
   private scrollTrigger: ScrollTrigger | null = null;
-  private counterAnimations: gsap.core.Tween[] = [];
+  private animationStarted = false;
+
+  // Store DOM element references for direct manipulation (avoids zone entry)
+  private statElements: HTMLElement[] = [];
 
   animatedValues = signal<string[]>(['0', '0', '0', '0']);
 
@@ -419,54 +420,66 @@ export class StatsComponent implements OnInit, OnDestroy, AfterViewInit {
   ngOnInit() { }
 
   ngAfterViewInit() {
+    // Cache DOM elements for direct manipulation (avoids zone entry during animation)
+    this.statElements = Array.from(
+      this.containerRef.nativeElement.querySelectorAll('.stat-value')
+    );
     this.initCounterAnimations();
   }
 
   ngOnDestroy() {
-    this.scrollTrigger?.kill();
-    this.counterAnimations.forEach(tween => tween.kill());
+    this.scrollService.killTrigger(this.scrollTrigger);
   }
 
   private initCounterAnimations() {
-    this.ngZone.runOutsideAngular(() => {
-      this.scrollTrigger = ScrollTrigger.create({
-        trigger: this.containerRef.nativeElement,
-        start: 'top 70%',
-        once: true,
+    this.scrollTrigger = this.scrollService.createVisibilityTrigger(
+      this.containerRef.nativeElement,
+      {
         onEnter: () => {
-          this.animateCounters();
+          if (!this.animationStarted) {
+            this.animationStarted = true;
+            this.animateCounters();
+          }
         }
-      });
-    });
+      },
+      { start: 'top 70%', once: true }
+    );
   }
 
   private animateCounters() {
     this.stats.forEach((stat, index) => {
       if (stat.numericValue !== undefined) {
-        const obj = { value: 0 };
-        const tween = gsap.to(obj, {
-          value: stat.numericValue,
-          duration: 2,
-          delay: index * 0.15,
-          ease: 'power2.out',
-          onUpdate: () => {
-            this.ngZone.run(() => {
-              const newValues = [...this.animatedValues()];
-              const displayValue = Math.round(obj.value);
-              newValues[index] = displayValue.toLocaleString();
-              this.animatedValues.set(newValues);
-            });
-          }
-        });
-        this.counterAnimations.push(tween);
-      } else {
-        // For non-numeric values like "Zero", just reveal after delay
-        setTimeout(() => {
-          this.ngZone.run(() => {
+        const element = this.statElements[index];
+        const prefix = stat.prefix ?? '';
+        const suffix = stat.suffix ?? '';
+
+        // Use the service's counter animation which operates outside zone
+        this.scrollService.animateCounterOutsideZone(
+          stat.numericValue,
+          (value) => {
+            // Direct DOM manipulation - no zone entry during animation
+            if (element) {
+              element.textContent = `${prefix}${value.toLocaleString()}${suffix}`;
+            }
+          },
+          () => {
+            // Final update to Angular signal state (single zone entry)
             const newValues = [...this.animatedValues()];
-            newValues[index] = stat.value;
+            newValues[index] = stat.numericValue!.toLocaleString();
             this.animatedValues.set(newValues);
-          });
+          },
+          { duration: 2, delay: index * 0.15 }
+        );
+      } else {
+        // For non-numeric values, reveal after delay with single zone entry
+        setTimeout(() => {
+          const element = this.statElements[index];
+          if (element) {
+            element.textContent = stat.value;
+          }
+          const newValues = [...this.animatedValues()];
+          newValues[index] = stat.value;
+          this.animatedValues.set(newValues);
         }, index * 150 + 500);
       }
     });

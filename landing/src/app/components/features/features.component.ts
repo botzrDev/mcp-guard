@@ -433,13 +433,35 @@ export class FeaturesComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   ];
 
+  // Store drag state and listener references for proper cleanup
+  private dragState = {
+    isDown: false,
+    startX: 0,
+    scrollLeft: 0
+  };
+  private dragListeners: {
+    mousedown?: (e: MouseEvent) => void;
+    mouseleave?: () => void;
+    mouseup?: () => void;
+    mousemove?: (e: MouseEvent) => void;
+  } = {};
+
   ngOnInit() { }
 
   ngAfterViewInit() {
     this.initDragScroll();
   }
 
-  ngOnDestroy() { }
+  ngOnDestroy() {
+    // Clean up drag scroll listeners
+    const viewport = this.viewportRef?.nativeElement;
+    if (viewport && this.dragListeners.mousedown) {
+      viewport.removeEventListener('mousedown', this.dragListeners.mousedown);
+      viewport.removeEventListener('mouseleave', this.dragListeners.mouseleave!);
+      viewport.removeEventListener('mouseup', this.dragListeners.mouseup!);
+      viewport.removeEventListener('mousemove', this.dragListeners.mousemove!);
+    }
+  }
 
   setActive(index: number) {
     this.activeIndex.set(index);
@@ -459,32 +481,42 @@ export class FeaturesComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private initDragScroll() {
     const viewport = this.viewportRef.nativeElement;
-    let isDown = false;
-    let startX: number;
-    let scrollLeft: number;
+
+    // Create bound listener functions for proper cleanup
+    this.dragListeners.mousedown = (e: MouseEvent) => {
+      this.dragState.isDown = true;
+      this.dragState.startX = e.pageX - viewport.offsetLeft;
+      this.dragState.scrollLeft = viewport.scrollLeft;
+      viewport.style.cursor = 'grabbing';
+    };
+
+    this.dragListeners.mouseleave = () => {
+      this.dragState.isDown = false;
+      viewport.style.cursor = 'grab';
+    };
+
+    this.dragListeners.mouseup = () => {
+      this.dragState.isDown = false;
+      viewport.style.cursor = 'grab';
+    };
+
+    this.dragListeners.mousemove = (e: MouseEvent) => {
+      if (!this.dragState.isDown) return;
+      e.preventDefault();
+      const x = e.pageX - viewport.offsetLeft;
+      const walk = (x - this.dragState.startX) * 1.5;
+      viewport.scrollLeft = this.dragState.scrollLeft - walk;
+    };
 
     this.ngZone.runOutsideAngular(() => {
-      viewport.addEventListener('mousedown', (e) => {
-        isDown = true;
-        startX = e.pageX - viewport.offsetLeft;
-        scrollLeft = viewport.scrollLeft;
-      });
-
-      viewport.addEventListener('mouseleave', () => {
-        isDown = false;
-      });
-
-      viewport.addEventListener('mouseup', () => {
-        isDown = false;
-      });
-
-      viewport.addEventListener('mousemove', (e) => {
-        if (!isDown) return;
-        e.preventDefault();
-        const x = e.pageX - viewport.offsetLeft;
-        const walk = (x - startX) * 1.5;
-        viewport.scrollLeft = scrollLeft - walk;
-      });
+      viewport.addEventListener('mousedown', this.dragListeners.mousedown!, { passive: true });
+      viewport.addEventListener('mouseleave', this.dragListeners.mouseleave!, { passive: true });
+      viewport.addEventListener('mouseup', this.dragListeners.mouseup!, { passive: true });
+      // Mark as non-passive since we call preventDefault()
+      viewport.addEventListener('mousemove', this.dragListeners.mousemove!, { passive: false });
     });
+
+    // Set initial cursor style
+    viewport.style.cursor = 'grab';
   }
 }
