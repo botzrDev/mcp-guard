@@ -10,16 +10,13 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/docs/docs.component').then(m => m.DocsComponent),
         children: [
             {
-                path: 'quickstart',
-                loadComponent: () => import('./pages/docs/quickstart/quickstart.component').then(m => m.QuickstartComponent)
+                path: '',
+                redirectTo: 'quickstart',
+                pathMatch: 'full'
             },
             {
-                path: 'configuration',
-                loadComponent: () => import('./pages/docs/configuration/configuration.component').then(m => m.ConfigurationComponent)
-            },
-            {
-                path: 'api',
-                loadComponent: () => import('./pages/docs/api/api.component').then(m => m.ApiComponent)
+                path: ':slug',
+                loadComponent: () => import('./pages/docs/doc-page/doc-page.component').then(m => m.DocPageComponent)
             }
         ]
     },
