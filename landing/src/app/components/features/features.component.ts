@@ -138,6 +138,7 @@ interface Feature {
       font-weight: var(--weight-bold);
       letter-spacing: var(--tracking-tight);
       line-height: var(--leading-snug);
+      padding-bottom: 0.15em; /* Protect descenders from overflow clipping */
     }
 
     /* Cards viewport */

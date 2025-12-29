@@ -265,6 +265,7 @@ interface ComparisonFeature {
       letter-spacing: var(--tracking-tight);
       line-height: var(--leading-snug);
       margin-bottom: var(--space-4);
+      padding-bottom: 0.15em; /* Protect descenders from overflow clipping */
     }
 
     .gradient-text {

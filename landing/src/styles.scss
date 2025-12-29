@@ -75,7 +75,7 @@
 
   // Typography - Line Heights (generous for descenders like 'g', 'y', 'p')
   --leading-none: 1;
-  --leading-tight: 1.15;      // For large display text
+  --leading-tight: 1.25;      // For large display text (enough room for descenders like g, y, p)
   --leading-snug: 1.3;        // For headings
   --leading-normal: 1.5;      // For body text - ensures descenders aren't cut
   --leading-relaxed: 1.625;   // For comfortable reading

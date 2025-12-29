@@ -265,6 +265,7 @@ interface Step {
     .section-title {
       display: flex;
       flex-direction: column;
+      padding-bottom: 0.15em; /* Protect descenders from overflow clipping */
     }
 
     .title-small {
@@ -281,7 +282,7 @@ interface Step {
       font-size: var(--text-6xl);
       font-weight: var(--weight-extrabold);
       letter-spacing: var(--tracking-tighter);
-      line-height: var(--leading-none);
+      line-height: var(--leading-tight);
     }
 
     .gradient-text {

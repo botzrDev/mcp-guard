@@ -262,6 +262,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
     .section-title {
       display: flex;
       flex-direction: column;
+      padding-bottom: 0.15em; /* Protect descenders from overflow clipping */
     }
 
     .title-line {
