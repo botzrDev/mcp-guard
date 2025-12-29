@@ -289,9 +289,9 @@ interface Feature {
       font-size: var(--text-xl);
       font-weight: var(--weight-bold);
       letter-spacing: var(--tracking-tight);
-      line-height: var(--leading-normal); /* Use 1.5 for proper descender space */
+      line-height: 1;
       margin-bottom: var(--space-2-5);
-      padding-bottom: 0.1em; /* Extra protection for descenders (g, y, p) from overflow clipping */
+      padding-bottom: 0.35em; /* Syne font has deep descenders - need extra space for g, y, p */
     }
 
     .card-description {
