@@ -289,8 +289,9 @@ interface Feature {
       font-size: var(--text-xl);
       font-weight: var(--weight-bold);
       letter-spacing: var(--tracking-tight);
-      line-height: var(--leading-snug);
+      line-height: var(--leading-normal); /* Use 1.5 for proper descender space */
       margin-bottom: var(--space-2-5);
+      padding-bottom: 0.1em; /* Extra protection for descenders (g, y, p) from overflow clipping */
     }
 
     .card-description {
