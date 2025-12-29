@@ -1,0 +1,22 @@
+# Cache hashed assets aggressively (1 year)
+# Angular uses content hashing, so these are immutable
+/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# Cache fonts and images (1 month)
+/assets/*
+  Cache-Control: public, max-age=2592000
+
+# HTML and index - short cache with revalidation
+/
+  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+
+/*.html
+  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+
+# Favicon and manifest
+/favicon.ico
+  Cache-Control: public, max-age=86400
