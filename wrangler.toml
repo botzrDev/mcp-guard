@@ -2,7 +2,7 @@
 # Uses modern Assets approach (not legacy Workers Sites)
 # Deploy with: npx wrangler deploy
 
-name = "mcp-guard-landing"
+name = "mcp-guard"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
