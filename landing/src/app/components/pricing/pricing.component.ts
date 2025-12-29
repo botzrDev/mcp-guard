@@ -1,4 +1,4 @@
-import { Component, signal, ChangeDetectionStrategy, computed } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 interface PricingTier {
@@ -183,10 +183,10 @@ interface ComparisonFeature {
           </table>
         </div>
 
-        <!-- Team slider -->
+        <!-- Enterprise slider -->
         <div class="team-calculator">
           <div class="calculator-header">
-            <h4>Calculate your Team plan cost</h4>
+            <h4>Calculate your Enterprise plan cost</h4>
             <p>Adjust the slider to see pricing for your team size</p>
           </div>
           <div class="calculator-body">
@@ -852,29 +852,44 @@ export class PricingComponent {
   viewMode = signal<'cards' | 'table'>('cards');
 
   comparisonFeatures: ComparisonFeature[] = [
-    { name: 'MCP Servers', values: ['1', 'Unlimited', 'Unlimited'] },
+    // Authentication
     { name: 'API Key Auth', values: [true, true, true] },
-    { name: 'JWT Auth', values: [false, true, true] },
+    { name: 'JWT HS256', values: [true, true, true] },
+    { name: 'JWT JWKS (RS256/ES256)', values: [false, true, true] },
     { name: 'OAuth 2.1 + PKCE', values: [false, true, true] },
-    { name: 'Requests/day', values: ['1,000', 'Unlimited', 'Unlimited'] },
-    { name: 'Rate Limiting', values: ['Basic', 'Per-identity', 'Per-identity'] },
-    { name: 'Audit Logs', values: ['7 days', '90 days', '1 year'] },
-    { name: 'Log Export (SIEM)', values: [false, true, true] },
-    { name: 'Team Dashboard', values: [false, false, true] },
-    { name: 'SSO (SAML/OIDC)', values: [false, false, true] },
-    { name: 'Support', values: ['Community', 'Email (48h)', 'Priority (24h)'] },
+    { name: 'mTLS Client Certs', values: [false, false, true] },
+    // Transport
+    { name: 'Stdio Transport', values: [true, true, true] },
+    { name: 'HTTP/SSE Transport', values: [false, true, true] },
+    { name: 'Multi-Server Routing', values: [false, false, true] },
+    // Rate Limiting
+    { name: 'Global Rate Limiting', values: [true, true, true] },
+    { name: 'Per-Identity Rate Limiting', values: [false, true, true] },
+    { name: 'Per-Tool Rate Limiting', values: [false, false, true] },
+    // Observability
+    { name: 'Prometheus Metrics', values: [true, true, true] },
+    { name: 'Health Endpoints', values: [true, true, true] },
+    { name: 'OpenTelemetry Tracing', values: [false, false, true] },
+    // Audit
+    { name: 'File/Console Audit Logs', values: [true, true, true] },
+    { name: 'SIEM Log Shipping', values: [false, false, true] },
+    // Admin
+    { name: 'Guard Tools API', values: [false, false, true] },
+    { name: 'Support', values: ['Community', 'Email (48h)', 'Priority (4h)'] },
   ];
 
   tiers: PricingTier[] = [
     {
-      name: 'Open Source',
-      description: 'Free forever',
+      name: 'Free',
+      description: 'Open source, forever free',
       price: 0,
       period: '',
       features: [
-        '1 MCP server',
-        'API key auth',
-        'Basic rate limiting',
+        'API key + JWT HS256 auth',
+        'Stdio transport',
+        'Global rate limiting',
+        'Prometheus metrics',
+        'File/console audit logs',
         'Community support'
       ],
       cta: 'Get Started',
@@ -888,11 +903,11 @@ export class PricingComponent {
       period: '/month',
       features: [
         'Everything in Free, plus:',
-        'Unlimited MCP servers',
-        'OAuth 2.1 + JWT + OIDC',
-        'Advanced rate limiting',
-        'Audit logging',
-        'Email support'
+        'OAuth 2.1 + PKCE auth',
+        'JWT JWKS (RS256/ES256)',
+        'HTTP & SSE transports',
+        'Per-identity rate limiting',
+        'Email support (48h)'
       ],
       cta: 'Start Free Trial',
       ctaLink: '/signup?plan=pro',
@@ -900,19 +915,22 @@ export class PricingComponent {
       founderPricing: true
     },
     {
-      name: 'Team',
-      description: 'For growing teams',
+      name: 'Enterprise',
+      description: 'For teams with compliance needs',
       price: 29,
       period: ' + $8/seat',
       features: [
         'Everything in Pro, plus:',
-        'Team management',
-        'Role-based access',
-        'Priority support',
-        'Custom integrations'
+        'mTLS client certificates',
+        'Multi-server routing',
+        'OpenTelemetry tracing',
+        'SIEM log shipping',
+        'Per-tool rate limiting',
+        'Guard tools API',
+        'Priority support (4h)'
       ],
-      cta: 'Contact Us',
-      ctaLink: '/contact?plan=team',
+      cta: 'Contact Sales',
+      ctaLink: '/contact?plan=enterprise',
       founderPricing: false
     }
   ];

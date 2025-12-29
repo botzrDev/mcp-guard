@@ -6,9 +6,9 @@ mcp-guard offers three tiers to match your needs, from hobbyist projects to ente
 
 | | Free | Pro | Enterprise |
 |---|:---:|:---:|:---:|
-| **Price** | $0 | $12/mo | $29+/user/mo |
+| **Price** | $0 | $12/mo | $29 + $8/seat/mo |
 | **License** | AGPL-3.0 | Commercial | Commercial |
-| **Support** | Community | Email | Priority + SLA |
+| **Support** | Community | Email (48h) | Priority (4h) |
 
 ## Free Tier
 
