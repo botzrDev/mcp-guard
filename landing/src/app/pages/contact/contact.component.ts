@@ -20,15 +20,9 @@ import { Component, ChangeDetectionStrategy } from '@angular/core';
           </div>
 
           <div class="contact-card">
-            <h3>Community</h3>
-            <p>Join our Discord server to chat with the team and other users:</p>
-            <a href="https://discord.gg/mcp-guard" target="_blank" class="contact-link">Join Discord</a>
-          </div>
-
-          <div class="contact-card">
             <h3>GitHub Issues</h3>
             <p>Found a bug or have a feature request? Open an issue on GitHub:</p>
-            <a href="https://github.com/mcp-guard/mcp-guard/issues" target="_blank" class="contact-link">GitHub Issues</a>
+            <a href="https://github.com/botzrdev/mcp-guard/issues" target="_blank" class="contact-link">GitHub Issues</a>
           </div>
         </div>
       </div>
