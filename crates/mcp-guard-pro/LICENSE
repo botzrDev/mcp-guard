@@ -1,0 +1,86 @@
+MCP-GUARD PRO COMMERCIAL LICENSE
+
+Copyright (c) 2025 Austin Green / Botzr
+All rights reserved.
+
+================================================================================
+
+This software is provided under a commercial license and requires a valid
+license key for use.
+
+GRANT OF LICENSE
+
+Subject to the terms and conditions of this Agreement and payment of applicable
+license fees, Licensor grants Licensee a non-exclusive, non-transferable,
+limited license to use the Software.
+
+RESTRICTIONS
+
+You may NOT, without a valid license key:
+1. Use, copy, modify, or distribute this software
+2. Reverse engineer, decompile, or disassemble the software
+3. Remove or alter any proprietary notices or labels
+4. Create derivative works based on the software
+5. Rent, lease, or lend the software to third parties
+6. Use the software for competitive analysis or benchmarking
+
+SOURCE CODE
+
+Source code is provided for audit and transparency purposes only.
+Possession of source code does NOT grant rights to use, modify, or distribute.
+
+LICENSE KEY REQUIRED
+
+This software requires a valid license key obtained from:
+https://mcp-guard.io/pricing
+
+License tiers:
+- Pro: $12/month - For small teams and production apps
+- Enterprise: $29+/user/month - For large teams with compliance requirements
+
+FEATURES INCLUDED (PRO TIER)
+
+- OAuth 2.1 + PKCE authentication
+- JWT JWKS mode (auto-refreshing keys for RS256/ES256)
+- HTTP transport to upstream MCP servers
+- SSE transport for streaming responses
+- Per-identity rate limiting
+
+SUPPORT
+
+Pro tier includes:
+- Email support (48hr response time)
+- Security updates
+- Bug fixes
+- Access to documentation
+
+Contact: austin@botzr.dev
+Documentation: https://docs.mcp-guard.io
+
+WARRANTY DISCLAIMER
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+TERMINATION
+
+This license is effective until terminated. Your rights under this license
+will terminate automatically without notice if you fail to comply with any
+term of this Agreement. Upon termination, you must destroy all copies of
+the Software.
+
+GOVERNING LAW
+
+This Agreement shall be governed by and construed in accordance with the
+laws of the United States, without regard to its conflict of law provisions.
+
+================================================================================
+
+For licensing inquiries: austin@botzr.dev
+License management: https://mcp-guard.io/account

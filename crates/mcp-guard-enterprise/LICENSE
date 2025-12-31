@@ -1,0 +1,138 @@
+MCP-GUARD ENTERPRISE COMMERCIAL LICENSE
+
+Copyright (c) 2025 Austin Green / Botzr
+All rights reserved.
+
+================================================================================
+
+This software is provided under a commercial license and requires a valid
+Enterprise license key for use.
+
+GRANT OF LICENSE
+
+Subject to the terms and conditions of this Agreement and payment of applicable
+license fees, Licensor grants Licensee a non-exclusive, non-transferable,
+limited license to use the Software for the number of seats (users) specified
+in the license agreement.
+
+RESTRICTIONS
+
+You may NOT, without a valid Enterprise license key:
+1. Use, copy, modify, or distribute this software
+2. Reverse engineer, decompile, or disassemble the software
+3. Remove or alter any proprietary notices or labels
+4. Create derivative works based on the software
+5. Rent, lease, or lend the software to third parties
+6. Use the software for competitive analysis or benchmarking
+7. Exceed the licensed number of seats/users
+
+SOURCE CODE
+
+Source code is provided for audit and transparency purposes only.
+Possession of source code does NOT grant rights to use, modify, or distribute.
+
+LICENSE KEY REQUIRED
+
+This software requires a valid Enterprise license key obtained from:
+https://mcp-guard.io/pricing
+
+Pricing: $29/user/month + $8/additional seat
+Minimum: 5 seats
+
+FEATURES INCLUDED (ENTERPRISE TIER)
+
+Includes all Pro features PLUS:
+- mTLS client certificate authentication
+- Multi-server routing (route to multiple upstream MCP servers)
+- SIEM audit log shipping (Splunk, Datadog, etc.)
+- OpenTelemetry distributed tracing (Jaeger, Tempo)
+- Per-tool rate limiting
+- Admin guard tools (key management, audit viewer, config generator)
+- Priority support
+
+SUPPORT & SLA
+
+Enterprise tier includes:
+- Priority email support (4hr response time for critical issues)
+- Dedicated Slack channel (for 10+ seats)
+- Security updates with 24hr SLA
+- Bug fixes with priority escalation
+- Quarterly check-ins
+- Custom feature requests (subject to approval)
+- Access to all documentation and training materials
+
+Contact: austin@botzr.dev
+Enterprise portal: https://mcp-guard.io/enterprise
+
+SEAT LICENSING
+
+Each license is valid for a specified number of "seats" (individual users).
+A seat is defined as:
+- One human user who operates mcp-guard
+- One machine/instance running mcp-guard in production
+
+Seat usage is tracked via license validation. Exceeding seat limits will
+result in license validation failures.
+
+COMPLIANCE & AUDIT
+
+Licensor reserves the right to audit Licensee's use of the Software to
+ensure compliance with seat limits and license terms. Licensee agrees to
+provide reasonable cooperation during such audits.
+
+WARRANTY DISCLAIMER
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+LIMITATION OF LIABILITY
+
+IN NO EVENT WILL LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+CONSEQUENTIAL OR PUNITIVE DAMAGES ARISING OUT OF OR RELATING TO THIS
+AGREEMENT, EVEN IF LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
+DAMAGES. LICENSOR'S TOTAL CUMULATIVE LIABILITY SHALL NOT EXCEED THE AMOUNT
+PAID BY LICENSEE FOR THE SOFTWARE IN THE TWELVE (12) MONTHS PRECEDING THE
+CLAIM.
+
+TERMINATION
+
+This license is effective until terminated. Your rights under this license
+will terminate automatically without notice if you fail to comply with any
+term of this Agreement or fail to renew your subscription. Upon termination,
+you must:
+1. Cease all use of the Software
+2. Destroy all copies of the Software
+3. Remove the Software from all systems
+
+LICENSE TRANSFER
+
+Enterprise licenses may be transferred between users within the same
+organization without additional fees, subject to seat limits. Transfer
+between organizations requires written approval from Licensor.
+
+GOVERNING LAW
+
+This Agreement shall be governed by and construed in accordance with the
+laws of the United States, without regard to its conflict of law provisions.
+
+Any disputes arising under this Agreement shall be resolved through binding
+arbitration in accordance with the rules of the American Arbitration
+Association.
+
+ENTIRE AGREEMENT
+
+This Agreement constitutes the entire agreement between the parties and
+supersedes all prior agreements and understandings, whether written or oral,
+relating to the subject matter herein.
+
+================================================================================
+
+For Enterprise sales: austin@botzr.dev
+License management: https://mcp-guard.io/enterprise
+Support portal: https://support.mcp-guard.io

@@ -1,3 +1,13 @@
+// Copyright (c) 2025 Austin Green
+// SPDX-License-Identifier: LicenseRef-Commercial
+//
+// This file is part of MCP-Guard Enterprise, a commercial product.
+//
+// MCP-Guard Enterprise requires a valid commercial license for use.
+// Unauthorized use, modification, or distribution is prohibited.
+//
+// For licensing information, visit: https://mcp-guard.io/pricing
+// For support, contact: austin@botzr.dev
 //! License validation for mcp-guard Enterprise
 //!
 //! Enterprise licenses use online validation with offline caching:
@@ -17,6 +27,21 @@ use tracing::{debug, info, warn};
 const KEYGEN_API_URL: &str = "https://api.keygen.sh/v1/accounts";
 
 /// Account ID for mcp-guard on keygen.sh
+///
+/// ## SETUP REQUIRED
+///
+/// This must be configured before Enterprise licenses will work!
+///
+/// Steps:
+/// 1. Create account at https://keygen.sh
+/// 2. Create product for "MCP-Guard Enterprise"
+/// 3. Copy your Account ID from the dashboard
+/// 4. Replace the value below with your actual Account ID
+///
+/// For detailed setup instructions, see:
+/// docs/enterprise/keygen-setup.md
+///
+/// Example: const KEYGEN_ACCOUNT_ID: &str = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 const KEYGEN_ACCOUNT_ID: &str = "YOUR_KEYGEN_ACCOUNT_ID";
 
 /// Offline grace period in days

@@ -16,7 +16,7 @@ import { Component, ChangeDetectionStrategy } from '@angular/core';
           <div class="contact-card">
             <h3>Support & Inquiries</h3>
             <p>For general questions and support:</p>
-            <a href="mailto:hello@mcp-guard.com" class="contact-link">hello@mcp-guard.com</a>
+            <a href="mailto:support@botzr.com" class="contact-link">support@botzr.com</a>
           </div>
 
           <div class="contact-card">

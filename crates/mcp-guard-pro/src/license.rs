@@ -1,3 +1,13 @@
+// Copyright (c) 2025 Austin Green
+// SPDX-License-Identifier: LicenseRef-Commercial
+//
+// This file is part of MCP-Guard Pro, a commercial product.
+//
+// MCP-Guard Pro requires a valid commercial license for use.
+// Unauthorized use, modification, or distribution is prohibited.
+//
+// For licensing information, visit: https://mcp-guard.io/pricing
+// For support, contact: austin@botzr.dev
 //! License validation for mcp-guard Pro
 //!
 //! Pro licenses use Ed25519 signature verification for offline validation.
@@ -30,7 +40,9 @@ use std::str::FromStr;
 
 /// Public key for verifying Pro licenses (Ed25519)
 /// This is the public half of the keypair used by the license server
-const PRO_LICENSE_PUBLIC_KEY: &str = "MCowBQYDK2VwAyEAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX=";
+/// Generated: 2025-12-31
+/// CRITICAL: The private key MUST be stored securely and never committed to git
+const PRO_LICENSE_PUBLIC_KEY: &str = "MCowBQYDK2VwAyEAmpIHTFtL64jVCS7KtGKeRTLEGaTktCOBOsr0GPJfWFU=";
 
 /// Error type for license operations
 #[derive(Debug, thiserror::Error)]

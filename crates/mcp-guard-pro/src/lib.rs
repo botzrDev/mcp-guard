@@ -1,3 +1,13 @@
+// Copyright (c) 2025 Austin Green
+// SPDX-License-Identifier: LicenseRef-Commercial
+//
+// This file is part of MCP-Guard Pro, a commercial product.
+//
+// MCP-Guard Pro requires a valid commercial license for use.
+// Unauthorized use, modification, or distribution is prohibited.
+//
+// For licensing information, visit: https://mcp-guard.io/pricing
+// For support, contact: austin@botzr.dev
 //! MCP Guard Pro - Commercial features for mcp-guard
 //!
 //! This crate provides Pro tier features that require a valid license:

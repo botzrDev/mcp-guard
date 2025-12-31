@@ -1,3 +1,20 @@
+// Copyright (c) 2025 Austin Green
+// SPDX-License-Identifier: AGPL-3.0
+//
+// This file is part of MCP-Guard.
+//
+// MCP-Guard is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// MCP-Guard is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with MCP-Guard. If not, see <https://www.gnu.org/licenses/>.
 //! MCP Guard - Security gateway for MCP servers
 
 use std::sync::Arc;
@@ -625,6 +642,106 @@ async fn handle_check_upstream(
     Ok(())
 }
 
+/// Validate that the user has a valid license for the features they're using
+///
+/// This is the CRITICAL security boundary that prevents users from bypassing licensing
+/// by compiling with `--features pro,enterprise` without paying.
+///
+/// This function is called BEFORE starting the server to ensure license compliance.
+#[allow(unused_variables)] // config unused in free tier (no pro/enterprise features)
+fn validate_license_for_config(config: &Config) -> anyhow::Result<()> {
+    // Check if Pro features are being used
+    #[cfg(feature = "pro")]
+    if config.requires_pro_features() {
+        use mcp_guard_pro::license::ProLicense;
+
+        let license_key = std::env::var("MCP_GUARD_LICENSE_KEY").map_err(|_| {
+            anyhow::anyhow!(
+                "Pro features detected but no license key found.\n\n\
+                 Your configuration uses Pro tier features:\n\
+                 - OAuth 2.1 authentication\n\
+                 - JWT JWKS mode\n\
+                 - HTTP/SSE transports\n\n\
+                 Set your license key:\n\
+                   export MCP_GUARD_LICENSE_KEY=\"pro_xxx...\"\n\n\
+                 Don't have a license? Get one at:\n\
+                   https://mcp-guard.io/pricing\n\
+                   Pro tier: $12/month"
+            )
+        })?;
+
+        let license = ProLicense::validate(&license_key).map_err(|e| {
+            anyhow::anyhow!(
+                "Pro license validation failed: {}\n\n\
+                 Your license key may be:\n\
+                 - Expired\n\
+                 - Invalid\n\
+                 - For a different tier\n\n\
+                 To renew or upgrade:\n\
+                   https://mcp-guard.io/account\n\
+                 For support:\n\
+                   austin@botzr.dev",
+                e
+            )
+        })?;
+
+        // Log successful validation
+        tracing::info!(
+            licensee = %license.payload.licensee,
+            expires_at = %license.payload.expires_at.format("%Y-%m-%d"),
+            "Pro license validated successfully"
+        );
+
+        // Warn if license is expiring soon
+        if license.is_expiring_soon() {
+            tracing::warn!(
+                days_remaining = license.days_until_expiry(),
+                "Pro license expires soon! Renew at https://mcp-guard.io/account"
+            );
+        }
+    }
+
+    // Check if Enterprise features are being used
+    #[cfg(feature = "enterprise")]
+    if config.requires_enterprise_features() {
+        use mcp_guard_enterprise::license::EnterpriseLicense;
+
+        // Enterprise licenses are validated via keygen.sh (online with offline cache)
+        let license = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                EnterpriseLicense::validate().await
+            })
+        }).map_err(|e| {
+            anyhow::anyhow!(
+                "Enterprise license validation failed: {}\n\n\
+                 Your configuration uses Enterprise tier features:\n\
+                 - mTLS authentication\n\
+                 - Multi-server routing\n\
+                 - SIEM audit log shipping\n\
+                 - OpenTelemetry tracing\n\n\
+                 Set your license key:\n\
+                   export MCP_GUARD_LICENSE_KEY=\"ent_xxx...\"\n\n\
+                 Don't have a license? Get one at:\n\
+                   https://mcp-guard.io/pricing\n\
+                   Enterprise tier: $29/user/month\n\n\
+                 For support:\n\
+                   austin@botzr.dev",
+                e
+            )
+        })?;
+
+        // Log successful validation
+        tracing::info!(
+            licensee = %license.data.licensee,
+            seats = ?license.data.max_seats,
+            from_cache = license.from_cache,
+            "Enterprise license validated successfully"
+        );
+    }
+
+    Ok(())
+}
+
 /// Handle the `run` command: start the MCP Guard server.
 async fn handle_run(
     config_path: &std::path::PathBuf,
@@ -633,6 +750,10 @@ async fn handle_run(
     verbose: bool,
 ) -> anyhow::Result<()> {
     let mut config = Config::from_file(config_path)?;
+
+    // CRITICAL: Validate licenses BEFORE starting server
+    // This prevents users from bypassing licensing by compiling with --features
+    validate_license_for_config(&config)?;
 
     // Override with CLI args
     if let Some(h) = host {
@@ -696,6 +817,10 @@ async fn handle_serve(
     verbose: bool,
 ) -> anyhow::Result<()> {
     let config = Config::from_file(config_path)?;
+
+    // CRITICAL: Validate licenses BEFORE starting server
+    // This prevents users from bypassing licensing by compiling with --features
+    validate_license_for_config(&config)?;
 
     // Initialize minimal tracing for stdio mode (logs go to stderr to not interfere with MCP)
     let _tracing_guard = init_tracing(verbose, Some(&config.tracing));

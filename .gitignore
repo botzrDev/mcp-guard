@@ -27,6 +27,11 @@ release/
 !.env.example
 secrets/
 credentials/
+.keys/
+*_license.key
+*.license
+license_*.txt
+MCP_GUARD_LICENSE_KEY*
 
 # Coverage and test artifacts
 *.profraw

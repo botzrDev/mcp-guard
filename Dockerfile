@@ -16,26 +16,35 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy manifests first for better layer caching
+# Copy workspace manifests first for better layer caching
 COPY Cargo.toml Cargo.lock ./
+COPY crates/mcp-guard-core/Cargo.toml ./crates/mcp-guard-core/
+COPY crates/mcp-guard-cli/Cargo.toml ./crates/mcp-guard-cli/
+COPY crates/mcp-guard-pro/Cargo.toml ./crates/mcp-guard-pro/
+COPY crates/mcp-guard-enterprise/Cargo.toml ./crates/mcp-guard-enterprise/
 
-# Create a dummy main.rs to build dependencies
-RUN mkdir src && \
-    echo "fn main() {}" > src/main.rs && \
-    echo "pub fn dummy() {}" > src/lib.rs
+# Create dummy sources for all workspace members to build dependencies
+RUN mkdir -p crates/mcp-guard-core/src && \
+    echo "pub fn dummy() {}" > crates/mcp-guard-core/src/lib.rs && \
+    mkdir -p crates/mcp-guard-cli/src && \
+    echo "fn main() {}" > crates/mcp-guard-cli/src/main.rs && \
+    mkdir -p crates/mcp-guard-pro/src && \
+    echo "pub fn dummy() {}" > crates/mcp-guard-pro/src/lib.rs && \
+    mkdir -p crates/mcp-guard-enterprise/src && \
+    echo "pub fn dummy() {}" > crates/mcp-guard-enterprise/src/lib.rs
 
 # Build dependencies only (this layer will be cached)
-RUN cargo build --release && rm -rf src
+RUN cargo build --release --locked
+
+# Remove dummy sources
+RUN rm -rf crates/*/src
 
 # Copy actual source code
-COPY src ./src
+COPY crates ./crates
 COPY templates ./templates
 
-# Touch main.rs to ensure rebuild
-RUN touch src/main.rs
-
 # Build the actual application
-RUN cargo build --release --locked
+RUN cargo build --release --locked --package mcp-guard
 
 # -----------------------------------------------------------------------------
 # Stage 2: Create minimal runtime image

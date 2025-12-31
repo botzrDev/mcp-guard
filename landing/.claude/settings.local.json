@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(cargo tree:*)",
+      "Bash(cargo publish:*)",
+      "Bash(chmod:*)",
+      "Bash(cargo check:*)",
+      "Bash(./scripts/add_license_headers.sh:*)"
     ]
   }
 }

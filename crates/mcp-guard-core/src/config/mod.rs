@@ -1,3 +1,20 @@
+// Copyright (c) 2025 Austin Green
+// SPDX-License-Identifier: AGPL-3.0
+//
+// This file is part of MCP-Guard.
+//
+// MCP-Guard is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// MCP-Guard is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with MCP-Guard. If not, see <https://www.gnu.org/licenses/>.
 //! Configuration types and parsing for mcp-guard
 //!
 //! This module provides strongly-typed configuration for all mcp-guard features:
@@ -924,6 +941,83 @@ impl Config {
     /// Check if multi-server routing is enabled
     pub fn is_multi_server(&self) -> bool {
         !self.upstream.servers.is_empty()
+    }
+
+    /// Check if the configuration uses any Pro tier features
+    ///
+    /// Returns true if ANY of these are configured:
+    /// - OAuth 2.1 authentication
+    /// - JWT JWKS mode
+    /// - HTTP or SSE transport
+    pub fn requires_pro_features(&self) -> bool {
+        // OAuth 2.1
+        if self.auth.oauth.is_some() {
+            return true;
+        }
+
+        // JWT JWKS mode
+        if let Some(ref jwt_config) = self.auth.jwt {
+            if matches!(jwt_config.mode, JwtMode::Jwks { .. }) {
+                return true;
+            }
+        }
+
+        // HTTP or SSE transport (single-server mode)
+        if self.upstream.servers.is_empty() {
+            match self.upstream.transport {
+                TransportType::Http | TransportType::Sse => return true,
+                TransportType::Stdio => {}
+            }
+        } else {
+            // Multi-server mode - check if any server uses HTTP/SSE
+            for server in &self.upstream.servers {
+                match server.transport {
+                    TransportType::Http | TransportType::Sse => return true,
+                    TransportType::Stdio => {}
+                }
+            }
+        }
+
+        false
+    }
+
+    /// Check if the configuration uses any Enterprise tier features
+    ///
+    /// Returns true if ANY of these are configured:
+    /// - mTLS client certificate authentication
+    /// - Multi-server routing
+    /// - SIEM audit log shipping
+    /// - OpenTelemetry tracing with OTLP export
+    /// - Per-tool rate limiting
+    pub fn requires_enterprise_features(&self) -> bool {
+        // mTLS authentication
+        if let Some(ref mtls_config) = self.auth.mtls {
+            if mtls_config.enabled {
+                return true;
+            }
+        }
+
+        // Multi-server routing
+        if !self.upstream.servers.is_empty() {
+            return true;
+        }
+
+        // SIEM audit log shipping
+        if self.audit.export_url.is_some() {
+            return true;
+        }
+
+        // OpenTelemetry with OTLP export
+        if self.tracing.enabled && self.tracing.otlp_endpoint.is_some() {
+            return true;
+        }
+
+        // Per-tool rate limiting
+        if !self.rate_limit.tool_limits.is_empty() {
+            return true;
+        }
+
+        false
     }
 }
 
