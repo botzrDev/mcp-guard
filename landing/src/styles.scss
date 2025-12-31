@@ -1,7 +1,18 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+// =============================================================================
+// TYPOGRAPHY SYSTEM - MCP Guard Landing Page
+// =============================================================================
+// Using Inter for display/headings (reliable metrics, excellent legibility)
+// Using IBM Plex Sans for body text
+// Using JetBrains Mono for code/technical content
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 :root {
-  // Core palette - Retro Space Theme
+  // ===========================================================================
+  // COLOR PALETTE
+  // ===========================================================================
+
+  // Core backgrounds - Retro Space Theme
   --bg-void: #000000;
   --bg-primary: #0a0c10;
   --bg-secondary: #0f1218;
@@ -9,12 +20,12 @@
   --bg-card: #222630;
   --bg-hover: #2d323e;
 
-  // Brand colors from palette
-  --accent-cyan: #FF7A30; // Primary Pop (Orange)
+  // Brand colors
+  --accent-cyan: #FF7A30;           // Primary Pop (Orange)
   --accent-cyan-dim: #cc6226;
-  --accent-blue: #3B82F6; // Logo Blue - vibrant accent
-  --accent-blue-dim: #2563EB; // Deeper logo blue
-  --accent-slate: #465C88; // Secondary (Slate Blue)
+  --accent-blue: #3B82F6;           // Logo Blue - vibrant accent
+  --accent-blue-dim: #2563EB;       // Deeper logo blue
+  --accent-slate: #465C88;          // Secondary (Slate Blue)
   --accent-red: #ef4444;
   --accent-purple: #8b5cf6;
   --accent-orange: #f97316;
@@ -29,7 +40,7 @@
   --gradient-red-glow: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.08) 0%, transparent 70%);
   --gradient-dual: linear-gradient(135deg, rgba(255, 122, 48, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
 
-  // Text
+  // Text colors
   --text-primary: #E9E3DF;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
@@ -48,48 +59,74 @@
   --terminal-yellow: #febc2e;
   --terminal-green: #28c840;
 
-  // Typography - Font Families
-  --font-mono: 'JetBrains Mono', monospace;
-  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-display: 'Syne', -apple-system, BlinkMacSystemFont, sans-serif;
+  // ===========================================================================
+  // TYPOGRAPHY - FONT FAMILIES
+  // ===========================================================================
 
-  // Typography - Font Sizes (fluid scale)
-  --text-xs: clamp(0.6875rem, 0.65rem + 0.1vw, 0.75rem);      // 11-12px
-  --text-sm: clamp(0.8125rem, 0.775rem + 0.15vw, 0.875rem);   // 13-14px
-  --text-base: clamp(0.9375rem, 0.9rem + 0.15vw, 1rem);       // 15-16px
-  --text-md: clamp(1rem, 0.95rem + 0.2vw, 1.125rem);          // 16-18px
-  --text-lg: clamp(1.125rem, 1.05rem + 0.3vw, 1.25rem);       // 18-20px
-  --text-xl: clamp(1.25rem, 1.15rem + 0.4vw, 1.5rem);         // 20-24px
-  --text-2xl: clamp(1.5rem, 1.35rem + 0.6vw, 1.875rem);       // 24-30px
-  --text-3xl: clamp(1.875rem, 1.65rem + 0.9vw, 2.5rem);       // 30-40px
-  --text-4xl: clamp(2.25rem, 1.9rem + 1.4vw, 3.25rem);        // 36-52px
-  --text-5xl: clamp(2.75rem, 2.2rem + 2.2vw, 4.5rem);         // 44-72px
-  --text-6xl: clamp(3.25rem, 2.5rem + 3vw, 6rem);             // 52-96px
+  // Display/Headings: Inter - clean, modern, reliable metrics
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  // Typography - Font Weights
+  // Body text: IBM Plex Sans - excellent readability
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  // Code/Mono: JetBrains Mono - developer-focused
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+
+  // ===========================================================================
+  // TYPOGRAPHY - FONT SIZES (Fluid Type Scale)
+  // ===========================================================================
+  // Based on a 1.25 ratio (Major Third) for harmonious scaling
+
+  --text-xs: clamp(0.75rem, 0.7rem + 0.15vw, 0.8125rem);     // 12-13px
+  --text-sm: clamp(0.875rem, 0.825rem + 0.15vw, 0.9375rem);  // 14-15px
+  --text-base: clamp(1rem, 0.95rem + 0.15vw, 1.0625rem);     // 16-17px
+  --text-md: clamp(1.0625rem, 1rem + 0.2vw, 1.125rem);       // 17-18px
+  --text-lg: clamp(1.125rem, 1.05rem + 0.25vw, 1.25rem);     // 18-20px
+  --text-xl: clamp(1.25rem, 1.15rem + 0.35vw, 1.5rem);       // 20-24px
+  --text-2xl: clamp(1.5rem, 1.35rem + 0.5vw, 1.875rem);      // 24-30px
+  --text-3xl: clamp(1.875rem, 1.6rem + 0.9vw, 2.5rem);       // 30-40px
+  --text-4xl: clamp(2.25rem, 1.85rem + 1.3vw, 3.25rem);      // 36-52px
+  --text-5xl: clamp(2.75rem, 2.15rem + 2vw, 4.25rem);        // 44-68px
+  --text-6xl: clamp(3.25rem, 2.4rem + 2.8vw, 5.5rem);        // 52-88px
+
+  // ===========================================================================
+  // TYPOGRAPHY - FONT WEIGHTS
+  // ===========================================================================
+
   --weight-normal: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
   --weight-bold: 700;
   --weight-extrabold: 800;
+  --weight-black: 900;
 
-  // Typography - Line Heights (generous for descenders like 'g', 'y', 'p')
+  // ===========================================================================
+  // TYPOGRAPHY - LINE HEIGHTS
+  // ===========================================================================
+  // Conservative values that guarantee descenders (g, y, p, q, j) are never clipped
+
   --leading-none: 1;
-  --leading-tight: 1.25;      // For large display text (enough room for descenders like g, y, p)
-  --leading-snug: 1.3;        // For headings
-  --leading-normal: 1.5;      // For body text - ensures descenders aren't cut
-  --leading-relaxed: 1.625;   // For comfortable reading
-  --leading-loose: 1.8;       // For spacious text blocks
+  --leading-tight: 1.2;       // Display text - large headlines
+  --leading-snug: 1.35;       // Headings - h2, h3, h4
+  --leading-normal: 1.5;      // Body text default
+  --leading-relaxed: 1.65;    // Comfortable reading
+  --leading-loose: 1.8;       // Spacious paragraphs
 
-  // Typography - Letter Spacing
-  --tracking-tighter: -0.03em;
+  // ===========================================================================
+  // TYPOGRAPHY - LETTER SPACING
+  // ===========================================================================
+
+  --tracking-tighter: -0.025em;
   --tracking-tight: -0.015em;
   --tracking-normal: 0;
   --tracking-wide: 0.015em;
-  --tracking-wider: 0.03em;
-  --tracking-widest: 0.08em;
+  --tracking-wider: 0.025em;
+  --tracking-widest: 0.06em;
 
-  // Spacing scale (8px base, with half steps)
+  // ===========================================================================
+  // SPACING SCALE (8px base)
+  // ===========================================================================
+
   --space-0: 0;
   --space-px: 1px;
   --space-0-5: 2px;
@@ -124,7 +161,10 @@
   // Container padding (responsive)
   --container-px: clamp(var(--space-4), 5vw, var(--space-6));
 
-  // Border radius scale
+  // ===========================================================================
+  // BORDER RADIUS
+  // ===========================================================================
+
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
@@ -133,7 +173,10 @@
   --radius-3xl: 24px;
   --radius-full: 9999px;
 
-  // Shadows
+  // ===========================================================================
+  // SHADOWS
+  // ===========================================================================
+
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
@@ -141,7 +184,10 @@
   --shadow-glow-orange: 0 0 20px rgba(255, 122, 48, 0.3);
   --shadow-glow-blue: 0 0 20px rgba(59, 130, 246, 0.3);
 
-  // Z-index scale
+  // ===========================================================================
+  // Z-INDEX SCALE
+  // ===========================================================================
+
   --z-base: 0;
   --z-dropdown: 100;
   --z-sticky: 200;
@@ -151,7 +197,10 @@
   --z-popover: 600;
   --z-tooltip: 700;
 
-  // Icon sizes
+  // ===========================================================================
+  // ICON SIZES
+  // ===========================================================================
+
   --icon-xs: 12px;
   --icon-sm: 16px;
   --icon-md: 20px;
@@ -160,14 +209,20 @@
   --icon-2xl: 40px;
   --icon-3xl: 48px;
 
-  // Component sizes
+  // ===========================================================================
+  // COMPONENT SIZES
+  // ===========================================================================
+
   --btn-height-sm: 32px;
   --btn-height-md: 40px;
   --btn-height-lg: 48px;
   --input-height: 44px;
   --navbar-height: 64px;
 
-  // Timing
+  // ===========================================================================
+  // TIMING / EASING
+  // ===========================================================================
+
   --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0.0, 0.2, 1);
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -178,6 +233,10 @@
   --duration-slower: 600ms;
 }
 
+// =============================================================================
+// CSS RESET & BASE STYLES
+// =============================================================================
+
 *,
 *::before,
 *::after {
@@ -187,13 +246,11 @@
 }
 
 html {
-  // Note: scroll-behavior: smooth removed to prevent conflicts with GSAP ScrollTrigger
-  // Smooth scrolling is handled programmatically via GSAP for better control
   font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
-// Only apply smooth scroll for anchor links when not using GSAP
-// This targets specific user-initiated navigation only
 html:focus-within {
   @media (prefers-reduced-motion: no-preference) {
     scroll-behavior: smooth;
@@ -202,22 +259,77 @@ html:focus-within {
 
 body {
   font-family: var(--font-sans);
-  background: var(--bg-void);
-  color: var(--text-primary);
   font-size: var(--text-base);
+  font-weight: var(--weight-normal);
   line-height: var(--leading-normal);
+  color: var(--text-primary);
+  background: var(--bg-void);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-// Selection
+// =============================================================================
+// TYPOGRAPHY BASE STYLES
+// =============================================================================
+// These ensure all headings have proper line-height for descenders
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--text-5xl);
+  font-weight: var(--weight-extrabold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tighter);
+}
+
+h2 {
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+}
+
+h3 {
+  font-size: var(--text-2xl);
+  line-height: var(--leading-snug);
+}
+
+h4 {
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+}
+
+h5 {
+  font-size: var(--text-lg);
+  line-height: var(--leading-normal);
+}
+
+h6 {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-normal);
+}
+
+p {
+  line-height: var(--leading-relaxed);
+}
+
+// =============================================================================
+// SELECTION & SCROLLBAR
+// =============================================================================
+
 ::selection {
   background: rgba(255, 122, 48, 0.3);
   color: #ffffff;
 }
 
-// Scrollbar
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -236,13 +348,15 @@ body {
   }
 }
 
-// Animations
+// =============================================================================
+// ANIMATIONS
+// =============================================================================
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
     transform: translateY(30px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
@@ -250,94 +364,44 @@ body {
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes pulse {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.5;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 @keyframes float {
-
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-10px);
-  }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
 @keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-
-  100% {
-    transform: translateX(100%);
-  }
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 @keyframes blink {
-
-  0%,
-  50% {
-    opacity: 1;
-  }
-
-  51%,
-  100% {
-    opacity: 0;
-  }
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
 }
 
 @keyframes gradient-shift {
-  0% {
-    background-position: 0% 50%;
-  }
-
-  50% {
-    background-position: 100% 50%;
-  }
-
-  100% {
-    background-position: 0% 50%;
-  }
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 @keyframes radar-sweep {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @keyframes typing {
-  from {
-    width: 0;
-  }
-
-  to {
-    width: 100%;
-  }
+  from { width: 0; }
+  to { width: 100%; }
 }
 
 @keyframes slideInLeft {
@@ -345,7 +409,6 @@ body {
     opacity: 0;
     transform: translateX(-50px);
   }
-
   to {
     opacity: 1;
     transform: translateX(0);
@@ -357,7 +420,6 @@ body {
     opacity: 0;
     transform: translateX(50px);
   }
-
   to {
     opacity: 1;
     transform: translateX(0);
@@ -369,7 +431,6 @@ body {
     opacity: 0;
     transform: scale(0.9);
   }
-
   to {
     opacity: 1;
     transform: scale(1);
@@ -377,28 +438,19 @@ body {
 }
 
 @keyframes drawUnderline {
-  from {
-    stroke-dashoffset: 200;
-  }
-
-  to {
-    stroke-dashoffset: 0;
-  }
+  from { stroke-dashoffset: 200; }
+  to { stroke-dashoffset: 0; }
 }
 
 @keyframes wiggle {
-
-  0%,
-  100% {
-    transform: rotate(-1deg);
-  }
-
-  50% {
-    transform: rotate(1deg);
-  }
+  0%, 100% { transform: rotate(-1deg); }
+  50% { transform: rotate(1deg); }
 }
 
-// Scroll-triggered animation classes
+// =============================================================================
+// SCROLL-TRIGGERED ANIMATION CLASSES
+// =============================================================================
+
 .animate-on-scroll {
   opacity: 0;
   transform: translateY(30px);
@@ -409,7 +461,6 @@ body {
     transform: translateY(0);
   }
 
-  // Staggered delays for children
   @for $i from 1 through 10 {
     &:nth-child(#{$i}) {
       transition-delay: #{($i - 1) * 0.1}s;
@@ -450,9 +501,11 @@ body {
   }
 }
 
-// Reduced motion support
-@media (prefers-reduced-motion: reduce) {
+// =============================================================================
+// REDUCED MOTION SUPPORT
+// =============================================================================
 
+@media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
