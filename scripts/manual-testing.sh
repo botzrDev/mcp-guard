@@ -20,10 +20,10 @@ TESTS_FAILED=0
 print_result() {
     if [ $1 -eq 0 ]; then
         echo -e "${GREEN}✓ PASS${NC}: $2"
-        ((TESTS_PASSED++))
+        TESTS_PASSED=$((TESTS_PASSED + 1))
     else
         echo -e "${RED}✗ FAIL${NC}: $2"
-        ((TESTS_FAILED++))
+        TESTS_FAILED=$((TESTS_FAILED + 1))
     fi
 }
 
@@ -80,7 +80,7 @@ else
 fi
 
 # Test hash-key
-HASH_OUTPUT=$(echo "$API_KEY" | $BINARY hash-key 2>&1)
+HASH_OUTPUT=$($BINARY hash-key "$API_KEY" 2>&1)
 if echo "$HASH_OUTPUT" | grep -q "="; then
     print_result 0 "mcp-guard hash-key"
 else
@@ -115,8 +115,8 @@ enabled = false
 
 [upstream]
 transport = "stdio"
-command = "sh"
-args = ["-c", "while read line; do echo $line; done"]
+command = "cat"
+args = []
 EOF
 
 # Start server in background

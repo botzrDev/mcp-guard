@@ -1,0 +1,31 @@
+name = "mcp-guard-stripe-webhook"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# KV namespace for storing license data
+[[kv_namespaces]]
+binding = "LICENSES"
+id = "your-kv-namespace-id"  # Create with: wrangler kv:namespace create LICENSES
+
+# Secrets (set with: wrangler secret put SECRET_NAME)
+# Required secrets:
+# - STRIPE_WEBHOOK_SECRET (Stripe webhook signing secret)
+# - LICENSE_SIGNER_URL (URL of license signing Worker)
+# - LICENSE_SIGNER_API_SECRET (API secret for license signing Worker)
+# - RESEND_API_KEY (Resend.com API key for sending emails)
+
+# Environment variables
+[vars]
+STRIPE_API_VERSION = "2023-10-16"
+FROM_EMAIL = "licenses@mcp-guard.io"
+
+# For local development
+[env.development]
+vars = { ENVIRONMENT = "development" }
+
+# For production
+[env.production]
+vars = { ENVIRONMENT = "production" }
+routes = [
+  { pattern = "webhook.mcp-guard.io/*", custom_domain = true }
+]

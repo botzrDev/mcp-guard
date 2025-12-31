@@ -1,0 +1,23 @@
+{
+  "name": "mcp-guard-stripe-webhook",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker for handling Stripe webhooks and license generation",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:production": "wrangler deploy --env production",
+    "tail": "wrangler tail"
+  },
+  "keywords": ["cloudflare", "workers", "stripe", "webhook", "license"],
+  "author": "Austin Green",
+  "license": "AGPL-3.0",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.86.1"
+  },
+  "dependencies": {
+    "stripe": "^14.10.0"
+  }
+}
