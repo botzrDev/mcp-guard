@@ -1,0 +1,19 @@
+name = "mcp-guard-license-signer"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Secrets (set with: wrangler secret put SECRET_NAME)
+# Required secrets:
+# - PRO_LICENSE_PRIVATE_KEY (Ed25519 private key in PEM format for signing Pro licenses)
+# - API_SECRET_KEY (Secret key for authenticating requests to this worker)
+
+# For local development
+[env.development]
+vars = { ENVIRONMENT = "development" }
+
+# For production
+[env.production]
+vars = { ENVIRONMENT = "production" }
+routes = [
+  { pattern = "sign.mcp-guard.io/*", custom_domain = true }
+]

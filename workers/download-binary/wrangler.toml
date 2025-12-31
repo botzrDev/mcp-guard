@@ -1,0 +1,32 @@
+name = "mcp-guard-download"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# R2 bucket bindings
+[[r2_buckets]]
+binding = "PRO_BINARIES"
+bucket_name = "mcp-guard-pro-binaries"
+
+[[r2_buckets]]
+binding = "ENTERPRISE_BINARIES"
+bucket_name = "mcp-guard-enterprise-binaries"
+
+# Environment variables (non-secret)
+[vars]
+KEYGEN_API_URL = "https://api.keygen.sh/v1/accounts"
+
+# Secrets (set with: wrangler secret put SECRET_NAME)
+# Required secrets:
+# - PRO_LICENSE_PUBLIC_KEY (Ed25519 public key for Pro license verification)
+# - KEYGEN_ACCOUNT_ID (Your Keygen.sh account ID for Enterprise)
+
+# For local development
+[env.development]
+vars = { ENVIRONMENT = "development" }
+
+# For production
+[env.production]
+vars = { ENVIRONMENT = "production" }
+routes = [
+  { pattern = "download.mcp-guard.io/*", custom_domain = true }
+]

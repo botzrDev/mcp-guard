@@ -1,0 +1,23 @@
+{
+  "name": "mcp-guard-license-signer",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker for signing MCP-Guard Pro licenses",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:production": "wrangler deploy --env production",
+    "tail": "wrangler tail"
+  },
+  "keywords": ["cloudflare", "workers", "license", "signing"],
+  "author": "Austin Green",
+  "license": "AGPL-3.0",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.86.1"
+  },
+  "dependencies": {
+    "@noble/ed25519": "^2.0.0"
+  }
+}

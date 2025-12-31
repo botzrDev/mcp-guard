@@ -64,5 +64,10 @@ transport = "stdio"
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 
+# Multi-Server Routing (Requires Enterprise)
+# [[upstream.servers]]
+# ...
+
+
 # Full configuration reference with all options:
 # https://github.com/botzrdev/mcp-guard/blob/main/templates/mcp-guard.toml

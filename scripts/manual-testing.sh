@@ -52,15 +52,26 @@ echo "[2/8] Testing CLI commands..."
 $BINARY version > /dev/null
 print_result $? "mcp-guard version"
 
-$BINARY init -f toml > /tmp/mcp-guard-test-config.toml
-print_result $? "mcp-guard init"
+# Init creates mcp-guard.toml in current directory, then we move it
+$BINARY init --format toml --force > /dev/null 2>&1
+if [ -f "mcp-guard.toml" ]; then
+    mv mcp-guard.toml /tmp/mcp-guard-test-config.toml
+    print_result 0 "mcp-guard init"
+else
+    print_result 1 "mcp-guard init (file not created)"
+fi
 
-$BINARY validate -c /tmp/mcp-guard-test-config.toml
-print_result $? "mcp-guard validate"
+# Only validate if file exists
+if [ -f "/tmp/mcp-guard-test-config.toml" ]; then
+    $BINARY validate -c /tmp/mcp-guard-test-config.toml > /dev/null 2>&1
+    print_result $? "mcp-guard validate"
+else
+    print_result 1 "mcp-guard validate (config file missing)"
+fi
 
 # Generate an API key and extract it
-KEYGEN_OUTPUT=$($BINARY keygen --user-id test-user)
-API_KEY=$(echo "$KEYGEN_OUTPUT" | grep "mcp_" | awk '{print $NF}')
+KEYGEN_OUTPUT=$($BINARY keygen --user-id test-user 2>&1)
+API_KEY=$(echo "$KEYGEN_OUTPUT" | grep "mcp_" | grep -oE "mcp_[A-Za-z0-9_-]+" | head -1)
 if [ ! -z "$API_KEY" ]; then
     print_result 0 "mcp-guard keygen"
 else
@@ -69,8 +80,12 @@ else
 fi
 
 # Test hash-key
-echo "$API_KEY" | $BINARY hash-key > /dev/null
-print_result $? "mcp-guard hash-key"
+HASH_OUTPUT=$(echo "$API_KEY" | $BINARY hash-key 2>&1)
+if echo "$HASH_OUTPUT" | grep -q "="; then
+    print_result 0 "mcp-guard hash-key"
+else
+    print_result 1 "mcp-guard hash-key (no hash generated)"
+fi
 
 # Section 3: Start server
 echo ""

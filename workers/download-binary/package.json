@@ -1,0 +1,25 @@
+{
+  "name": "mcp-guard-download-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker for gated MCP-Guard binary downloads",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:production": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "test": "vitest"
+  },
+  "keywords": ["cloudflare", "workers", "license", "download"],
+  "author": "Austin Green",
+  "license": "AGPL-3.0",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.0",
+    "wrangler": "^3.86.1"
+  },
+  "dependencies": {
+    "@noble/ed25519": "^2.0.0"
+  }
+}
