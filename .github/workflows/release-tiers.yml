@@ -1,0 +1,517 @@
+name: Release All Tiers
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: 'Tier to build (free, pro, enterprise, all)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - free
+          - pro
+          - enterprise
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  # ============================================================================
+  # FREE TIER - Public GitHub Release + crates.io
+  # ============================================================================
+
+  build-free:
+    name: Build Free - ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.tier == 'free' || github.event.inputs.tier == 'all'))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: mcp-guard
+            asset_name: mcp-guard-free-x86_64-linux
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: mcp-guard
+            asset_name: mcp-guard-free-x86_64-linux-musl
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: mcp-guard
+            asset_name: mcp-guard-free-x86_64-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: mcp-guard
+            asset_name: mcp-guard-free-aarch64-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: mcp-guard.exe
+            asset_name: mcp-guard-free-x86_64-windows.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl-tools (Linux musl)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: free-${{ matrix.target }}
+
+      - name: Build Free tier binary
+        run: |
+          # Free tier = no features (base functionality only)
+          cargo build --release --target ${{ matrix.target }} -p mcp-guard
+
+      - name: Strip binary (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+      - name: Create tarball (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar -czvf ../../../${{ matrix.asset_name }}.tar.gz ${{ matrix.artifact_name }}
+          cd ../../..
+
+      - name: Create zip (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          7z a ../../../${{ matrix.asset_name }}.zip ${{ matrix.artifact_name }}
+          cd ../../..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: |
+            ${{ matrix.asset_name }}.tar.gz
+            ${{ matrix.asset_name }}.zip
+
+  release-free:
+    name: Create Free Tier GitHub Release
+    needs: build-free
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.tier == 'free' || github.event.inputs.tier == 'all'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec sh -c 'sha256sum "$1" > "$1.sha256"' _ {} \;
+          cat */*.sha256 > ../checksums-free.txt
+          cd ..
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "version=manual-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: mcp-guard Free v${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: ${{ contains(github.ref, '-') }}
+          generate_release_notes: true
+          tag_name: ${{ github.event_name == 'push' && github.ref || format('v{0}', steps.version.outputs.version) }}
+          files: |
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
+            checksums-free.txt
+          body: |
+            # MCP-Guard Free Tier v${{ steps.version.outputs.version }}
+
+            **Free tier includes:**
+            - ✅ API Key authentication
+            - ✅ JWT HS256 (simple mode)
+            - ✅ Stdio transport
+            - ✅ Global rate limiting
+            - ✅ File/console audit logging
+            - ✅ Prometheus metrics
+
+            ## Installation
+
+            Download the appropriate binary for your platform:
+
+            | Platform | Architecture | Download |
+            |----------|--------------|----------|
+            | Linux | x86_64 | `mcp-guard-free-x86_64-linux.tar.gz` |
+            | Linux (musl) | x86_64 | `mcp-guard-free-x86_64-linux-musl.tar.gz` |
+            | macOS | x86_64 | `mcp-guard-free-x86_64-darwin.tar.gz` |
+            | macOS | ARM64 | `mcp-guard-free-aarch64-darwin.tar.gz` |
+            | Windows | x86_64 | `mcp-guard-free-x86_64-windows.exe.zip` |
+
+            ### Quick Start
+
+            ```bash
+            # Download and extract (Linux/macOS example)
+            tar -xzf mcp-guard-free-x86_64-linux.tar.gz
+            chmod +x mcp-guard
+
+            # Generate configuration
+            ./mcp-guard init
+
+            # Edit mcp-guard.toml with your settings
+
+            # Start the server
+            ./mcp-guard run
+            ```
+
+            ### Verify Download
+
+            ```bash
+            sha256sum -c checksums-free.txt --ignore-missing
+            ```
+
+            ## Upgrade to Pro or Enterprise
+
+            Need OAuth, HTTP/SSE transports, or enterprise features?
+
+            - **Pro tier** ($12/month): OAuth 2.1, JWT JWKS, HTTP/SSE transports
+            - **Enterprise tier** ($29/user/month): mTLS, multi-server, SIEM, OpenTelemetry
+
+            Visit: https://mcp-guard.io/pricing
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-crate:
+    name: Publish Free Tier to crates.io
+    needs: release-free
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.tier == 'free')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish mcp-guard-core to crates.io
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} -p mcp-guard-core
+        continue-on-error: true
+
+  # ============================================================================
+  # PRO TIER - Private R2 Storage (Gated Download)
+  # ============================================================================
+
+  build-pro:
+    name: Build Pro - ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.tier == 'pro' || github.event.inputs.tier == 'all'))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: mcp-guard
+            asset_name: mcp-guard-pro-x86_64-linux
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: mcp-guard
+            asset_name: mcp-guard-pro-x86_64-linux-musl
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: mcp-guard
+            asset_name: mcp-guard-pro-x86_64-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: mcp-guard
+            asset_name: mcp-guard-pro-aarch64-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: mcp-guard.exe
+            asset_name: mcp-guard-pro-x86_64-windows.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl-tools (Linux musl)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: pro-${{ matrix.target }}
+
+      - name: Build Pro tier binary
+        run: |
+          # Pro tier with all pro features
+          cargo build --release --features pro --target ${{ matrix.target }} -p mcp-guard
+
+      - name: Strip binary (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+      - name: Create tarball (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar -czvf ../../../${{ matrix.asset_name }}.tar.gz ${{ matrix.artifact_name }}
+          cd ../../..
+
+      - name: Create zip (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          7z a ../../../${{ matrix.asset_name }}.zip ${{ matrix.artifact_name }}
+          cd ../../..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: |
+            ${{ matrix.asset_name }}.tar.gz
+            ${{ matrix.asset_name }}.zip
+
+  upload-pro-to-r2:
+    name: Upload Pro Binaries to R2
+    needs: build-pro
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.tier == 'pro' || github.event.inputs.tier == 'all'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all Pro artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: mcp-guard-pro-*
+
+      - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "version=manual-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS CLI for R2
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          aws-region: auto
+
+      - name: Upload Pro binaries to R2
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Upload versioned binaries
+          for file in artifacts/mcp-guard-pro-*/*.{tar.gz,zip}; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              echo "Uploading $filename to R2..."
+
+              # Upload to versioned path
+              aws s3 cp "$file" \
+                "s3://mcp-guard-pro-binaries/releases/$VERSION/$filename" \
+                --endpoint-url "$R2_ENDPOINT"
+
+              # Also upload to 'latest' for convenience
+              aws s3 cp "$file" \
+                "s3://mcp-guard-pro-binaries/latest/$filename" \
+                --endpoint-url "$R2_ENDPOINT"
+            fi
+          done
+
+          echo "✓ Pro binaries uploaded to R2"
+          echo "  Version path: s3://mcp-guard-pro-binaries/releases/$VERSION/"
+          echo "  Latest path:  s3://mcp-guard-pro-binaries/latest/"
+
+  # ============================================================================
+  # ENTERPRISE TIER - Private R2 Storage (Gated Download)
+  # ============================================================================
+
+  build-enterprise:
+    name: Build Enterprise - ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.tier == 'enterprise' || github.event.inputs.tier == 'all'))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: mcp-guard
+            asset_name: mcp-guard-enterprise-x86_64-linux
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: mcp-guard
+            asset_name: mcp-guard-enterprise-x86_64-linux-musl
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: mcp-guard
+            asset_name: mcp-guard-enterprise-x86_64-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: mcp-guard
+            asset_name: mcp-guard-enterprise-aarch64-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: mcp-guard.exe
+            asset_name: mcp-guard-enterprise-x86_64-windows.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl-tools (Linux musl)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: enterprise-${{ matrix.target }}
+
+      - name: Build Enterprise tier binary
+        run: |
+          # Enterprise tier with all features
+          cargo build --release --features enterprise --target ${{ matrix.target }} -p mcp-guard
+
+      - name: Strip binary (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+      - name: Create tarball (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar -czvf ../../../${{ matrix.asset_name }}.tar.gz ${{ matrix.artifact_name }}
+          cd ../../..
+
+      - name: Create zip (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          7z a ../../../${{ matrix.asset_name }}.zip ${{ matrix.artifact_name }}
+          cd ../../..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: |
+            ${{ matrix.asset_name }}.tar.gz
+            ${{ matrix.asset_name }}.zip
+
+  upload-enterprise-to-r2:
+    name: Upload Enterprise Binaries to R2
+    needs: build-enterprise
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.tier == 'enterprise' || github.event.inputs.tier == 'all'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all Enterprise artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: mcp-guard-enterprise-*
+
+      - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "version=manual-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS CLI for R2
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          aws-region: auto
+
+      - name: Upload Enterprise binaries to R2
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Upload versioned binaries
+          for file in artifacts/mcp-guard-enterprise-*/*.{tar.gz,zip}; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              echo "Uploading $filename to R2..."
+
+              # Upload to versioned path
+              aws s3 cp "$file" \
+                "s3://mcp-guard-enterprise-binaries/releases/$VERSION/$filename" \
+                --endpoint-url "$R2_ENDPOINT"
+
+              # Also upload to 'latest' for convenience
+              aws s3 cp "$file" \
+                "s3://mcp-guard-enterprise-binaries/latest/$filename" \
+                --endpoint-url "$R2_ENDPOINT"
+            fi
+          done
+
+          echo "✓ Enterprise binaries uploaded to R2"
+          echo "  Version path: s3://mcp-guard-enterprise-binaries/releases/$VERSION/"
+          echo "  Latest path:  s3://mcp-guard-enterprise-binaries/latest/"
