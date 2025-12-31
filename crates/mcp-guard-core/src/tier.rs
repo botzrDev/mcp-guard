@@ -20,9 +20,13 @@
 //! This module provides helpful error messages when users try to use features
 //! that require Pro or Enterprise licenses.
 
-use crate::config::{Config, ConfigError, JwtMode, TransportType};
+use crate::config::{Config, ConfigError};
+
+#[cfg(not(feature = "pro"))]
+use crate::config::{JwtMode, TransportType};
 
 /// Pricing page URL for upgrade messages
+#[allow(dead_code)]
 const PRICING_URL: &str = "https://mcp-guard.io/pricing";
 
 /// Validate that the configuration only uses features available in the current tier.
@@ -36,6 +40,7 @@ pub fn validate_tier(config: &Config) -> Result<(), ConfigError> {
 }
 
 /// Validate Pro tier features
+#[cfg_attr(feature = "pro", allow(unused_variables))]
 fn validate_pro_features(config: &Config) -> Result<(), ConfigError> {
     // OAuth 2.1 requires Pro
     #[cfg(not(feature = "pro"))]
@@ -109,6 +114,7 @@ fn validate_pro_features(config: &Config) -> Result<(), ConfigError> {
 }
 
 /// Validate Enterprise tier features
+#[cfg_attr(feature = "enterprise", allow(unused_variables))]
 fn validate_enterprise_features(config: &Config) -> Result<(), ConfigError> {
     // mTLS requires Enterprise
     #[cfg(not(feature = "enterprise"))]

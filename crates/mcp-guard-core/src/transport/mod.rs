@@ -1877,7 +1877,7 @@ mod tests {
     async fn test_http_transport_with_config_headers() {
         // Use new_unchecked for testing since DNS resolution may fail for example.com
         // The SSRF validation is tested separately
-        let headers = HashMap::from([("Authorization".to_string(), "Bearer token".to_string())]);
+        let _headers = HashMap::from([("Authorization".to_string(), "Bearer token".to_string())]);
         let transport = HttpTransport::new_unchecked("https://api.example.com/mcp".to_string());
         // Just verify the transport was created with headers capability
         assert!(!transport.url.is_empty());

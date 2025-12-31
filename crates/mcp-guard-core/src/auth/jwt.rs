@@ -1083,7 +1083,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_jwks_refresh_success() {
-        use jsonwebtoken::{encode, EncodingKey, Header};
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
