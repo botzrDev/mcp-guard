@@ -117,6 +117,37 @@ rate_limit = 5
     )
 }
 
+/// Create a config with CORS enabled
+fn config_with_cors(api_key_hash: &str) -> String {
+    let cwd = std::env::current_dir().unwrap();
+    let script_path = cwd.join("tests/fixtures/echo_server.sh");
+
+    format!(
+        r#"
+[server]
+host = "127.0.0.1"
+port = PORT_PLACEHOLDER
+
+[server.cors]
+enabled = true
+allowed_origins = ["*"]
+
+[upstream]
+transport = "stdio"
+command = "{}"
+args = []
+
+[auth]
+
+[[auth.api_keys]]
+id = "test-user"
+key_hash = "{}"
+"#,
+        script_path.display(),
+        api_key_hash
+    )
+}
+
 // =============================================================================
 // Health Endpoint Tests
 // =============================================================================
@@ -500,6 +531,7 @@ async fn test_404_for_unknown_routes() {
     let client = reqwest::Client::new();
     let resp = client
         .get(format!("{}/unknown/route", base_url))
+        .header(header::AUTHORIZATION, format!("Bearer {}", api_key))
         .send()
         .await
         .unwrap();
@@ -538,7 +570,8 @@ async fn test_method_not_allowed_for_wrong_http_method() {
 async fn test_cors_headers_present() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    // Use config with CORS enabled
+    let (mut child, base_url, _) = spawn_server_with_config(&config_with_cors(&hash)).await;
 
     let client = reqwest::Client::new();
 

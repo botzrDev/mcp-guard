@@ -1639,8 +1639,6 @@ dependencies = [
  "clap",
  "jsonwebtoken",
  "mcp-guard-core",
- "mcp-guard-enterprise",
- "mcp-guard-pro",
  "predicates",
  "reqwest",
  "serde",
