@@ -49,6 +49,12 @@ const MAX_ERROR_BODY_LEN: usize = 200;
 /// 5 seconds gives child processes time to clean up while preventing indefinite hangs.
 const GRACEFUL_SHUTDOWN_TIMEOUT_SECS: u64 = 5;
 
+/// Maximum message size for MCP JSON-RPC messages.
+/// SECURITY: 10MB limit prevents memory exhaustion from malicious oversized messages.
+/// MCP protocol typically uses messages <1MB; 10MB provides headroom for large tool
+/// responses (file contents, search results) while preventing DoS attacks.
+pub const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024; // 10MB
+
 /// Transport error type
 #[derive(Debug, thiserror::Error)]
 pub enum TransportError {
