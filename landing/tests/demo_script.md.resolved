@@ -1,0 +1,99 @@
+# MCP Guard: The Firewall for AI Agents - Demo Script
+
+**Target Audience:** Developers, DevOps Engineers, AI Platform Architects
+**Tone:** Professional, Technical but Accessible, Security-focused
+**Total Duration:** ~3-4 Minutes
+
+---
+
+## 0:00 - The Problem: Naked Protocols
+**Visual:**
+*   A terminal window.
+*   An AI agent (Claude/ChatGPT) icon on the left, a "Server" icon on the right.
+*   The Agent sends a request: `write_file("/etc/passwd", "hacked")`.
+*   The Server immediately executes it. 💥 (Explosion or red warning animation).
+
+**Audio/Narration:**
+"The Model Context Protocol is changing how AI connects to the world. But right now, most MCP servers are running naked. No authentication. No rate limiting. No audit logs. If an agent goes rogue, or a key leaks, your infrastructure is wide open."
+
+---
+
+## 0:30 - The Solution: MCP Guard
+**Visual:**
+*   The "MCP Guard" logo slides in between the Agent and the Server.
+*   A shield animation appears. The bad request hits the shield and bounces off.
+*   Text overlays appear: "Authentication", "Authorization", "Rate Limiting", "Observability".
+
+**Narration:**
+"Enter MCP Guard. It's a lightweight, high-performance security gateway designed specifically for the Model Context Protocol. It sits in front of your tools, validating every single request before it ever touches your backend."
+
+---
+
+## 0:50 - Live Demo: Getting Started
+**Visual:**
+*   Split screen: Code editor on left, Terminal on right.
+*   Action: User types `cargo install mcp-guard`.
+*   Action: User runs `mcp-guard init`.
+*   Action: Show the generated [mcp-guard.toml](file:///home/austingreen/Documents/botzr/projects/mcp-guard/mcp-guard.toml) file.
+
+**Narration:**
+"Let's see it in action. Installation is a single command. Initialize your configuration, and you instantly get a secure environment with best-practice defaults."
+
+---
+
+## 1:20 - Feature 1: Authentication (Stop the Intruder)
+**Visual:**
+*   User tries to use `curl` to hit the MCP endpoint *without* headers.
+*   Result: `401 Unauthorized`.
+*   User adds a valid Bearer token.
+*   Result: `200 OK` (JSON response with tool list).
+
+**Narration:**
+"First, let's try to access our tools without credentials. Blocked immediately. MCP Guard supports API Keys, JWT tokens, and even OAuth 2.1. Once we provide a valid key, we're in."
+
+---
+
+## 1:50 - Feature 2: Granular Authorization (The "Read-Only" User)
+**Visual:**
+*   User switches to a configuration with a "Restricted User".
+*   Config snippet highlights: `allowed_tools = ["read_file"]`.
+*   Action: User tries to call `read_file`. **Success**.
+*   Action: User tries to call `write_file`.
+*   Result: `403 Forbidden`. Error message: *"Identity 'read-only-user' is not authorized..."*
+
+**Narration:**
+"Authentication handles *who* you are. Authorization handles *what you can do*. Here, we've created a read-only identity. They can list files, but the moment they try to write? Denied. Your sensitive tools are safe, even if a low-privilege key is compromised."
+
+---
+
+## 2:30 - Feature 3: Rate Limiting (DDoS Protection)
+**Visual:**
+*   User runs a loop script blasting requests at the server.
+*   First few requests: `200 OK`.
+*   Suddenly: `429 Too Many Requests`.
+*   Show headers: `Retry-After: 1`.
+
+**Narration:**
+"AI agents can loop. Scripts can malfunction. MCP Guard's token-bucket rate limiter protects your upstream services from getting hammered. You get instant DDoS protection out of the box."
+
+---
+
+## 3:00 - Feature 4: Visibility (Audit Logs)
+**Visual:**
+*   Show the terminal output scrolling with structured JSON logs.
+*   Highlight a log entry: `event_type: "auth_failure"`, `identity: "unknown"`.
+*   Highlight another: `event_type: "rate_limited"`.
+
+**Narration:**
+"Security isn't just about blocking—it's about knowing. Every interaction is structured, logged, and ready for your SIEM. You know exactly who did what, and when."
+
+---
+
+## 3:30 - Conclusion
+**Visual:**
+*   MCP Guard Logo.
+*   Text: "Open Source | MIT License | Rust".
+*   Call to Action: `github.com/botzrdev/mcp-guard`.
+
+**Narration:**
+"Don't expose your infrastructure naked. specific tools need specific defenses. MCP Guard gives you the control you need to build with confidence. Download it today on GitHub."
