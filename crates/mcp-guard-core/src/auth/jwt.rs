@@ -36,6 +36,12 @@ const JWKS_HTTP_TIMEOUT_SECS: u64 = 10;
 /// avoiding excessive network calls.
 const JWKS_REFRESH_FRACTION_NUMERATOR: u64 = 3;
 const JWKS_REFRESH_FRACTION_DENOMINATOR: u64 = 4;
+
+/// Maximum JWT token size in bytes.
+/// SECURITY: Typical JWTs are <2KB; 16KB prevents memory exhaustion from tokens
+/// with maliciously large claim values (e.g., 100MB base64 blobs).
+const MAX_JWT_CLAIMS_SIZE: usize = 16 * 1024; // 16KB
+
 use jsonwebtoken::{
     decode, decode_header, errors::ErrorKind as JwtErrorKind, Algorithm, DecodingKey, Validation,
 };
@@ -304,6 +310,20 @@ impl JwtProvider {
 #[async_trait]
 impl AuthProvider for JwtProvider {
     async fn authenticate(&self, token: &str) -> Result<Identity, AuthError> {
+        // SECURITY: Validate token size before decoding to prevent memory exhaustion
+        // from maliciously large JWT claims
+        if token.len() > MAX_JWT_CLAIMS_SIZE {
+            tracing::warn!(
+                token_size = token.len(),
+                max_size = MAX_JWT_CLAIMS_SIZE,
+                "Rejected oversized JWT token"
+            );
+            return Err(AuthError::InvalidJwt(format!(
+                "Token size {} exceeds maximum {}",
+                token.len(), MAX_JWT_CLAIMS_SIZE
+            )));
+        }
+
         // Decode header to get algorithm and kid
         let header = decode_header(token)
             .map_err(|e| AuthError::InvalidJwt(format!("Invalid JWT header: {}", e)))?;

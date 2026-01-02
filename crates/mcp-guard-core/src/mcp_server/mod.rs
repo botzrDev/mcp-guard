@@ -26,7 +26,7 @@
 //! - Merges guard tools into tools/list responses
 
 use crate::guard_tools::{is_guard_tool_method, FreeGuardTools, GuardToolsProvider, ToolDefinition};
-use crate::transport::{Message, Transport};
+use crate::transport::{Message, Transport, MAX_MESSAGE_SIZE};
 use metrics_exporter_prometheus::PrometheusHandle;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -109,6 +109,30 @@ impl McpServer {
             let line = line?;
             if line.is_empty() {
                 continue;
+            }
+
+            // SECURITY: Validate message size to prevent DoS via memory exhaustion
+            if line.len() > MAX_MESSAGE_SIZE {
+                error!(
+                    size = line.len(),
+                    max_size = MAX_MESSAGE_SIZE,
+                    "Rejected oversized message from stdin"
+                );
+                let error_response = Message {
+                    jsonrpc: "2.0".to_string(),
+                    id: None,
+                    method: None,
+                    params: None,
+                    result: None,
+                    error: Some(serde_json::json!({
+                        "code": -32600,
+                        "message": format!("Message exceeds maximum size of {} bytes", MAX_MESSAGE_SIZE)
+                    })),
+                };
+                let json = serde_json::to_string(&error_response)?;
+                writeln!(stdout, "{}", json)?;
+                stdout.flush()?;
+                continue; // Skip processing this message
             }
 
             debug!("Received message: {}", line);

@@ -73,7 +73,7 @@ Cargo.lock.bak
 
 # Project internal files
 /context
-/CLAUDE.md
+
 
 # Landing page (keep source, ignore build)
 /landing/node_modules/

@@ -84,6 +84,11 @@ const CACHE_CLEANUP_THRESHOLD: usize = 100;
 /// When exceeded, oldest 50 entries are removed.
 const CACHE_MAX_ENTRIES: usize = 500;
 
+/// Maximum OAuth response body size for introspection/userinfo endpoints.
+/// SECURITY: Typical OAuth responses are <2KB; 16KB prevents memory exhaustion
+/// from malicious payloads or misconfigured identity providers.
+const MAX_OAUTH_RESPONSE_SIZE: usize = 16 * 1024; // 16KB
+
 /// Cached token info to avoid repeated introspection calls
 struct TokenCache {
     entries: HashMap<String, CachedToken>,
@@ -319,6 +324,20 @@ impl OAuthAuthProvider {
             AuthError::OAuth(format!("Failed to parse introspection response: {}", e))
         })?;
 
+        // SECURITY: Validate response size to prevent memory exhaustion
+        let body_str = serde_json::to_string(&body).unwrap_or_default();
+        if body_str.len() > MAX_OAUTH_RESPONSE_SIZE {
+            tracing::warn!(
+                size = body_str.len(),
+                max_size = MAX_OAUTH_RESPONSE_SIZE,
+                "Oversized OAuth introspection response"
+            );
+            return Err(AuthError::OAuth(format!(
+                "Response size {} exceeds maximum {}",
+                body_str.len(), MAX_OAUTH_RESPONSE_SIZE
+            )));
+        }
+
         self.parse_token_info(&body)
     }
 
@@ -348,6 +367,20 @@ impl OAuthAuthProvider {
             .json()
             .await
             .map_err(|e| AuthError::OAuth(format!("Failed to parse userinfo response: {}", e)))?;
+
+        // SECURITY: Validate response size to prevent memory exhaustion
+        let body_str = serde_json::to_string(&body).unwrap_or_default();
+        if body_str.len() > MAX_OAUTH_RESPONSE_SIZE {
+            tracing::warn!(
+                size = body_str.len(),
+                max_size = MAX_OAUTH_RESPONSE_SIZE,
+                "Oversized OAuth userinfo response"
+            );
+            return Err(AuthError::OAuth(format!(
+                "Response size {} exceeds maximum {}",
+                body_str.len(), MAX_OAUTH_RESPONSE_SIZE
+            )));
+        }
 
         // UserInfo doesn't have "active" field, so we assume active if we got a response
         let mut info = self.parse_token_info(&body)?;

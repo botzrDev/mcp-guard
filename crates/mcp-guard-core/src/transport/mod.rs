@@ -55,6 +55,13 @@ const GRACEFUL_SHUTDOWN_TIMEOUT_SECS: u64 = 5;
 /// responses (file contents, search results) while preventing DoS attacks.
 pub const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024; // 10MB
 
+/// Maximum pending HTTP responses before backpressure.
+/// SECURITY: Prevents memory exhaustion from send() calls without receive().
+/// HTTP transport queues responses from send() to receive(). Without a limit,
+/// a client could exhaust memory by calling send() repeatedly without calling receive().
+/// 100 provides ample buffering while preventing resource exhaustion.
+const MAX_PENDING_HTTP_RESPONSES: usize = 100;
+
 /// Transport error type
 #[derive(Debug, thiserror::Error)]
 pub enum TransportError {
@@ -648,6 +655,17 @@ impl StdioTransport {
                     result = lines.next_line() => {
                         match result {
                             Ok(Some(line)) => {
+                                // SECURITY: Validate message size to prevent memory exhaustion
+                                if line.len() > MAX_MESSAGE_SIZE {
+                                    tracing::error!(
+                                        size = line.len(),
+                                        max_size = MAX_MESSAGE_SIZE,
+                                        "Rejected oversized message from subprocess stdout, dropping"
+                                    );
+                                    // Don't send to channel - drop the message
+                                    continue;
+                                }
+
                                 match serde_json::from_str::<Message>(&line) {
                                     Ok(msg) => {
                                         if from_process_tx.send(msg).await.is_err() {
@@ -906,9 +924,31 @@ impl HttpTransport {
             )));
         }
 
-        let response_message: Message = response
-            .json()
-            .await
+        // SECURITY: Validate response size before deserializing
+        // Large JSON responses could cause memory exhaustion
+        let content_length = response.content_length();
+        if let Some(len) = content_length {
+            if len > MAX_MESSAGE_SIZE as u64 {
+                return Err(TransportError::Http(format!(
+                    "Response size {} bytes exceeds maximum {}",
+                    len, MAX_MESSAGE_SIZE
+                )));
+            }
+        }
+
+        // Read response body with size limit
+        let body_bytes = response.bytes().await.map_err(|e| {
+            TransportError::Http(format!("Failed to read response body: {}", e))
+        })?;
+
+        if body_bytes.len() > MAX_MESSAGE_SIZE {
+            return Err(TransportError::Http(format!(
+                "Response body {} bytes exceeds maximum {}",
+                body_bytes.len(), MAX_MESSAGE_SIZE
+            )));
+        }
+
+        let response_message: Message = serde_json::from_slice(&body_bytes)
             .map_err(|e| TransportError::InvalidMessage(e.to_string()))?;
 
         Ok(response_message)
@@ -920,7 +960,16 @@ impl Transport for HttpTransport {
     async fn send(&self, message: Message) -> Result<(), TransportError> {
         // For HTTP transport, we send and immediately queue the response
         let response = self.send_request(&message).await?;
-        self.pending_responses.lock().await.push(response);
+
+        // SECURITY: Enforce max pending responses to prevent memory exhaustion
+        let mut pending = self.pending_responses.lock().await;
+        if pending.len() >= MAX_PENDING_HTTP_RESPONSES {
+            return Err(TransportError::Http(format!(
+                "Too many pending responses ({}/{}). Call receive() to consume responses.",
+                pending.len(), MAX_PENDING_HTTP_RESPONSES
+            )));
+        }
+        pending.push(response);
         Ok(())
     }
 
@@ -1138,7 +1187,21 @@ impl SseTransport {
                             let trimmed = line.trim();
 
                             if let Some(data) = trimmed.strip_prefix("data:") {
-                                data_buffer.push_str(data.trim());
+                                let new_data = data.trim();
+
+                                // SECURITY: Prevent unbounded buffer growth from malicious SSE streams
+                                if data_buffer.len() + new_data.len() > MAX_MESSAGE_SIZE {
+                                    tracing::error!(
+                                        current_size = data_buffer.len(),
+                                        new_data_size = new_data.len(),
+                                        max_size = MAX_MESSAGE_SIZE,
+                                        "SSE data buffer exceeded maximum size, resetting buffer"
+                                    );
+                                    data_buffer.clear(); // Reset to prevent memory exhaustion
+                                    continue;
+                                }
+
+                                data_buffer.push_str(new_data);
                             } else if trimmed.is_empty() && !data_buffer.is_empty() {
                                 // Empty line signals end of event
                                 if let Ok(msg) = serde_json::from_str::<Message>(&data_buffer) {
