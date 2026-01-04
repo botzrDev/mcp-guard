@@ -38,6 +38,8 @@ use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
+pub mod dashboard;
+
 // ============================================================================
 // Constants
 // ============================================================================
@@ -1189,6 +1191,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             .route("/oauth/authorize", get(oauth_authorize))
             .route("/oauth/callback", get(oauth_callback));
     }
+
+    // Mount dashboard routes
+    let dashboard_routes = dashboard::dashboard_router(state.clone());
+    router = router.nest("/api/dashboard", dashboard_routes);
 
     // Build the router with middleware layers
     // Layer order (bottom to top): RequestBodyLimit -> CORS -> SecurityHeaders -> TraceContext -> Metrics -> TraceLayer

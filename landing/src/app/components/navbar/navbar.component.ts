@@ -1,6 +1,7 @@
 import { Component, signal, ChangeDetectionStrategy, NgZone, OnInit, OnDestroy, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { AuthService } from '../../core/auth';
 
 @Component({
   selector: 'app-navbar',
@@ -80,14 +81,30 @@ import { RouterModule } from '@angular/router';
               </span>
             </button>
 
-            <a routerLink="/docs/quickstart" class="cta-block">
-              <span class="cta-text">Get Started</span>
-              <span class="cta-arrow">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
-              </span>
-            </a>
+            @if (authService.isAuthenticated()) {
+              <a routerLink="/dashboard" class="dashboard-link">
+                @if (authService.user()?.avatar_url) {
+                  <img [src]="authService.user()?.avatar_url" alt="Avatar" class="user-avatar" />
+                } @else {
+                  <div class="user-avatar-placeholder">
+                    {{ authService.user()?.name?.charAt(0) || 'U' }}
+                  </div>
+                }
+                <span class="dashboard-text">Dashboard</span>
+              </a>
+            } @else {
+              <a routerLink="/login" class="login-link">
+                Sign in
+              </a>
+              <a routerLink="/docs/quickstart" class="cta-block">
+                <span class="cta-text">Get Started</span>
+                <span class="cta-arrow">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </span>
+              </a>
+            }
           </div>
         </div>
       </nav>
@@ -626,6 +643,74 @@ import { RouterModule } from '@angular/router';
     }
 
     /* ============================================
+       AUTH LINKS
+    ============================================ */
+    .login-link {
+      padding: var(--space-2) var(--space-4);
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      border-radius: var(--radius-lg);
+      transition: all var(--duration-fast) var(--ease-out);
+
+      &:hover {
+        color: var(--text-primary);
+        background: var(--bg-elevated);
+      }
+
+      @media (max-width: 600px) {
+        display: none;
+      }
+    }
+
+    .dashboard-link {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-1-5) var(--space-3);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      text-decoration: none;
+      color: var(--text-primary);
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      transition: all var(--duration-fast) var(--ease-out);
+
+      &:hover {
+        background: var(--bg-elevated);
+        border-color: var(--border-accent);
+      }
+    }
+
+    .user-avatar {
+      width: var(--space-7);
+      height: var(--space-7);
+      border-radius: var(--radius-full);
+      object-fit: cover;
+    }
+
+    .user-avatar-placeholder {
+      width: var(--space-7);
+      height: var(--space-7);
+      border-radius: var(--radius-full);
+      background: var(--gradient-brand);
+      color: var(--bg-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-bold);
+    }
+
+    .dashboard-text {
+      @media (max-width: 768px) {
+        display: none;
+      }
+    }
+
+    /* ============================================
        SCROLL ACCENT LINE
     ============================================ */
     .scroll-accent {
@@ -912,6 +997,8 @@ import { RouterModule } from '@angular/router';
   `]
 })
 export class NavbarComponent implements OnInit, OnDestroy {
+  authService = inject(AuthService);
+
   isScrolled = signal(false);
   scrollProgress = signal(0);
   isNavExpanded = signal(false);
