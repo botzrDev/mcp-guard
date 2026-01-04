@@ -25,7 +25,9 @@
 //! - Proxies other requests to upstream MCP servers
 //! - Merges guard tools into tools/list responses
 
-use crate::guard_tools::{is_guard_tool_method, FreeGuardTools, GuardToolsProvider, ToolDefinition};
+use crate::guard_tools::{
+    is_guard_tool_method, FreeGuardTools, GuardToolsProvider, ToolDefinition,
+};
 use crate::transport::{Message, Transport, MAX_MESSAGE_SIZE};
 use metrics_exporter_prometheus::PrometheusHandle;
 use serde::{Deserialize, Serialize};
@@ -188,8 +190,7 @@ impl McpServer {
             "tools/call" => self.handle_tools_call(message.params.clone()).await,
             _ if is_guard_tool_method(method) => {
                 // Direct guard tool call (non-standard but useful)
-                self.handle_guard_tool(method, message.params.clone())
-                    .await
+                self.handle_guard_tool(method, message.params.clone()).await
             }
             _ => {
                 // Proxy to upstream

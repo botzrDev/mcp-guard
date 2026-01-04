@@ -320,7 +320,8 @@ impl AuthProvider for JwtProvider {
             );
             return Err(AuthError::InvalidJwt(format!(
                 "Token size {} exceeds maximum {}",
-                token.len(), MAX_JWT_CLAIMS_SIZE
+                token.len(),
+                MAX_JWT_CLAIMS_SIZE
             )));
         }
 

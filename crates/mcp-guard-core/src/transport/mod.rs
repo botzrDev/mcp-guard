@@ -263,7 +263,7 @@ pub async fn validate_url_for_ssrf(url: &str) -> Result<ValidatedUrl, TransportE
     // For hostnames, perform DNS resolution and validate all resolved IPs
     // SECURITY: We cache the resolved IPs to prevent DNS rebinding attacks.
     let socket_addr_str = format!("{}:{}", host, port);
-    
+
     match tokio::net::lookup_host(socket_addr_str).await {
         Ok(addrs) => {
             let mut validated_ips = Vec::new();
@@ -277,21 +277,21 @@ pub async fn validate_url_for_ssrf(url: &str) -> Result<ValidatedUrl, TransportE
                 }
                 validated_ips.push(addr);
             }
-            
+
             if validated_ips.is_empty() {
                 return Err(TransportError::InvalidUrl(format!(
                     "DNS resolution for '{}' returned no addresses",
                     host
                 )));
             }
-            
+
             tracing::debug!(
                 "Validated URL '{}' with {} resolved IPs: {:?}",
                 url,
                 validated_ips.len(),
                 validated_ips
             );
-            
+
             Ok(ValidatedUrl {
                 url: url.to_string(),
                 resolved_ips: validated_ips,
@@ -815,7 +815,7 @@ impl HttpTransport {
     /// to use the IP addresses that were validated during SSRF checks.
     fn build_pinned_client(validated_url: &ValidatedUrl) -> reqwest::Client {
         let mut builder = reqwest::Client::builder();
-        
+
         // Pin DNS resolution to the first validated IP address
         // This prevents DNS rebinding attacks where the DNS changes between
         // validation and actual request
@@ -827,7 +827,7 @@ impl HttpTransport {
             );
             builder = builder.resolve(&validated_url.host, *first_addr);
         }
-        
+
         builder.build().unwrap_or_else(|_| reqwest::Client::new())
     }
 
@@ -842,7 +842,7 @@ impl HttpTransport {
     pub async fn new(url: String) -> Result<Self, TransportError> {
         let validated_url = validate_url_for_ssrf(&url).await?;
         let client = Self::build_pinned_client(&validated_url);
-        
+
         Ok(Self {
             client,
             url,
@@ -883,7 +883,7 @@ impl HttpTransport {
     ) -> Result<Self, TransportError> {
         let validated_url = validate_url_for_ssrf(&url).await?;
         let client = Self::build_pinned_client(&validated_url);
-        
+
         Ok(Self {
             client,
             url,
@@ -937,14 +937,16 @@ impl HttpTransport {
         }
 
         // Read response body with size limit
-        let body_bytes = response.bytes().await.map_err(|e| {
-            TransportError::Http(format!("Failed to read response body: {}", e))
-        })?;
+        let body_bytes = response
+            .bytes()
+            .await
+            .map_err(|e| TransportError::Http(format!("Failed to read response body: {}", e)))?;
 
         if body_bytes.len() > MAX_MESSAGE_SIZE {
             return Err(TransportError::Http(format!(
                 "Response body {} bytes exceeds maximum {}",
-                body_bytes.len(), MAX_MESSAGE_SIZE
+                body_bytes.len(),
+                MAX_MESSAGE_SIZE
             )));
         }
 
@@ -966,7 +968,8 @@ impl Transport for HttpTransport {
         if pending.len() >= MAX_PENDING_HTTP_RESPONSES {
             return Err(TransportError::Http(format!(
                 "Too many pending responses ({}/{}). Call receive() to consume responses.",
-                pending.len(), MAX_PENDING_HTTP_RESPONSES
+                pending.len(),
+                MAX_PENDING_HTTP_RESPONSES
             )));
         }
         pending.push(response);
@@ -1034,7 +1037,7 @@ impl SseTransport {
     /// to use the IP addresses that were validated during SSRF checks.
     fn build_pinned_client(validated_url: &ValidatedUrl) -> reqwest::Client {
         let mut builder = reqwest::Client::builder();
-        
+
         // Pin DNS resolution to the first validated IP address
         if let Some(first_addr) = validated_url.resolved_ips.first() {
             tracing::debug!(
@@ -1044,7 +1047,7 @@ impl SseTransport {
             );
             builder = builder.resolve(&validated_url.host, *first_addr);
         }
-        
+
         builder.build().unwrap_or_else(|_| reqwest::Client::new())
     }
 
@@ -1107,7 +1110,7 @@ impl SseTransport {
         validated_url: Option<&ValidatedUrl>,
     ) -> Result<Self, TransportError> {
         let (tx, rx) = mpsc::channel::<Message>(TRANSPORT_CHANNEL_SIZE);
-        
+
         let client = match validated_url {
             Some(v) => Self::build_pinned_client(v),
             None => reqwest::Client::new(),
@@ -1484,27 +1487,41 @@ mod tests {
     #[tokio::test]
     async fn test_ssrf_blocks_private_ipv4() {
         // RFC 1918 private ranges
-        assert!(HttpTransport::new("http://10.0.0.1/api".to_string()).await.is_err());
-        assert!(HttpTransport::new("http://172.16.0.1/api".to_string()).await.is_err());
-        assert!(HttpTransport::new("http://192.168.1.1/api".to_string()).await.is_err());
+        assert!(HttpTransport::new("http://10.0.0.1/api".to_string())
+            .await
+            .is_err());
+        assert!(HttpTransport::new("http://172.16.0.1/api".to_string())
+            .await
+            .is_err());
+        assert!(HttpTransport::new("http://192.168.1.1/api".to_string())
+            .await
+            .is_err());
 
         // Loopback
-        assert!(HttpTransport::new("http://127.0.0.1/api".to_string()).await.is_err());
-        assert!(HttpTransport::new("http://127.0.0.53/api".to_string()).await.is_err());
+        assert!(HttpTransport::new("http://127.0.0.1/api".to_string())
+            .await
+            .is_err());
+        assert!(HttpTransport::new("http://127.0.0.53/api".to_string())
+            .await
+            .is_err());
 
         // Link-local (cloud metadata)
-        assert!(HttpTransport::new("http://169.254.169.254/api".to_string()).await.is_err());
+        assert!(HttpTransport::new("http://169.254.169.254/api".to_string())
+            .await
+            .is_err());
     }
 
     #[tokio::test]
     async fn test_ssrf_blocks_cloud_metadata() {
         // AWS/GCP metadata endpoint
-        let result = HttpTransport::new("http://169.254.169.254/latest/meta-data/".to_string()).await;
+        let result =
+            HttpTransport::new("http://169.254.169.254/latest/meta-data/".to_string()).await;
         assert!(result.is_err());
 
         // Google metadata hostname
         let result =
-            HttpTransport::new("http://metadata.google.internal/computeMetadata/".to_string()).await;
+            HttpTransport::new("http://metadata.google.internal/computeMetadata/".to_string())
+                .await;
         assert!(result.is_err());
     }
 
@@ -1530,7 +1547,8 @@ mod tests {
             let err_str = e.to_string();
             assert!(
                 !err_str.contains("SSRF"),
-                "Public URL should not trigger SSRF block: {}", err_str
+                "Public URL should not trigger SSRF block: {}",
+                err_str
             );
         }
     }
@@ -1539,9 +1557,15 @@ mod tests {
     async fn test_validate_url_for_ssrf_direct() {
         // Test the validation function directly
         assert!(validate_url_for_ssrf("http://10.0.0.1/api").await.is_err());
-        assert!(validate_url_for_ssrf("http://192.168.1.1/api").await.is_err());
+        assert!(validate_url_for_ssrf("http://192.168.1.1/api")
+            .await
+            .is_err());
         assert!(validate_url_for_ssrf("http://127.0.0.1/api").await.is_err());
-        assert!(validate_url_for_ssrf("http://169.254.169.254/latest/meta-data/").await.is_err());
+        assert!(
+            validate_url_for_ssrf("http://169.254.169.254/latest/meta-data/")
+                .await
+                .is_err()
+        );
         assert!(validate_url_for_ssrf("file:///etc/passwd").await.is_err());
 
         // Invalid URL
@@ -1769,12 +1793,22 @@ mod tests {
         assert!(validate_url_for_ssrf("http://127.0.0.1/api").await.is_err());
         assert!(validate_url_for_ssrf("http://localhost/api").await.is_err()); // resolves to 127.0.0.1
         assert!(validate_url_for_ssrf("http://10.0.0.5/api").await.is_err());
-        assert!(validate_url_for_ssrf("http://192.168.1.1/api").await.is_err());
-        assert!(validate_url_for_ssrf("http://172.16.0.1/api").await.is_err());
+        assert!(validate_url_for_ssrf("http://192.168.1.1/api")
+            .await
+            .is_err());
+        assert!(validate_url_for_ssrf("http://172.16.0.1/api")
+            .await
+            .is_err());
 
         // Cloud metadata
-        assert!(validate_url_for_ssrf("http://169.254.169.254/latest/meta-data").await.is_err());
-        assert!(validate_url_for_ssrf("http://metadata.google.internal/").await.is_err());
+        assert!(
+            validate_url_for_ssrf("http://169.254.169.254/latest/meta-data")
+                .await
+                .is_err()
+        );
+        assert!(validate_url_for_ssrf("http://metadata.google.internal/")
+            .await
+            .is_err());
 
         // Schemes
         assert!(validate_url_for_ssrf("ftp://example.com").await.is_err());
@@ -1908,12 +1942,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_ssrf_blocks_alibaba_metadata() {
-        assert!(validate_url_for_ssrf("http://100.100.100.200/").await.is_err());
+        assert!(validate_url_for_ssrf("http://100.100.100.200/")
+            .await
+            .is_err());
     }
 
     #[tokio::test]
     async fn test_ssrf_blocks_azure_metadata() {
-        assert!(validate_url_for_ssrf("http://metadata.azure.internal/").await.is_err());
+        assert!(validate_url_for_ssrf("http://metadata.azure.internal/")
+            .await
+            .is_err());
     }
 
     #[test]
@@ -1955,7 +1993,8 @@ mod tests {
     #[tokio::test]
     async fn test_http_transport_with_config_blocks_private() {
         let transport =
-            HttpTransport::with_config("http://192.168.1.1/mcp".to_string(), HashMap::new(), 30).await;
+            HttpTransport::with_config("http://192.168.1.1/mcp".to_string(), HashMap::new(), 30)
+                .await;
         assert!(transport.is_err());
     }
 }

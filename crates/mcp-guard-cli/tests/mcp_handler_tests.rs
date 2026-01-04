@@ -300,7 +300,12 @@ async fn test_admin_can_call_any_tool() {
         });
 
         let (status, _) = send_mcp_request(&client, &base_url, "admin-key", &request).await;
-        assert_eq!(status, StatusCode::OK, "Admin should be able to call {}", tool);
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "Admin should be able to call {}",
+            tool
+        );
     }
 
     child.kill().unwrap();
@@ -325,7 +330,12 @@ async fn test_restricted_user_allowed_tools() {
         });
 
         let (status, _) = send_mcp_request(&client, &base_url, "restricted-key", &request).await;
-        assert_eq!(status, StatusCode::OK, "Restricted user should be able to call {}", tool);
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "Restricted user should be able to call {}",
+            tool
+        );
     }
 
     child.kill().unwrap();
@@ -659,7 +669,10 @@ async fn test_handles_unicode_in_arguments() {
     let (status, body) = send_mcp_request(&client, &base_url, "admin-key", &request).await;
 
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["params"]["arguments"]["query"], "こんにちは世界 🌍 Привет мир");
+    assert_eq!(
+        body["params"]["arguments"]["query"],
+        "こんにちは世界 🌍 Привет мир"
+    );
 
     child.kill().unwrap();
 }

@@ -214,7 +214,9 @@ impl EnterpriseGuardTools {
             "note": "This is a placeholder. In production, this reads from config."
         });
 
-        Ok(ToolResult::text(serde_json::to_string_pretty(&response).unwrap()))
+        Ok(ToolResult::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        ))
     }
 
     async fn handle_keys_create(&self, args: Value) -> Result<ToolResult, GuardToolError> {
@@ -253,7 +255,9 @@ impl EnterpriseGuardTools {
             "note": "Add the key_hash to your config file. The plaintext key is shown only once."
         });
 
-        Ok(ToolResult::text(serde_json::to_string_pretty(&response).unwrap()))
+        Ok(ToolResult::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        ))
     }
 
     async fn handle_keys_revoke(&self, args: Value) -> Result<ToolResult, GuardToolError> {
@@ -271,14 +275,13 @@ impl EnterpriseGuardTools {
             "note": "In production, this would remove the key from config and trigger a reload."
         });
 
-        Ok(ToolResult::text(serde_json::to_string_pretty(&response).unwrap()))
+        Ok(ToolResult::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        ))
     }
 
     async fn handle_audit_query(&self, args: Value) -> Result<ToolResult, GuardToolError> {
-        let limit = args
-            .get("limit")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(100) as usize;
+        let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
 
         let event_type = args.get("event_type").and_then(|v| v.as_str());
         let identity_id = args.get("identity_id").and_then(|v| v.as_str());
@@ -302,7 +305,9 @@ impl EnterpriseGuardTools {
             "note": "In production, this queries the audit log storage."
         });
 
-        Ok(ToolResult::text(serde_json::to_string_pretty(&response).unwrap()))
+        Ok(ToolResult::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        ))
     }
 
     async fn handle_config_reload(&self) -> Result<ToolResult, GuardToolError> {
@@ -314,7 +319,9 @@ impl EnterpriseGuardTools {
             "note": "Config hot-reload is not yet implemented. Restart the server to apply changes."
         });
 
-        Ok(ToolResult::text(serde_json::to_string_pretty(&response).unwrap()))
+        Ok(ToolResult::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        ))
     }
 
     async fn handle_config_validate(&self, args: Value) -> Result<ToolResult, GuardToolError> {
@@ -342,7 +349,9 @@ impl EnterpriseGuardTools {
                         "mtls_enabled": config.auth.mtls.as_ref().map(|m| m.enabled).unwrap_or(false)
                     }
                 });
-                Ok(ToolResult::text(serde_json::to_string_pretty(&response).unwrap()))
+                Ok(ToolResult::text(
+                    serde_json::to_string_pretty(&response).unwrap(),
+                ))
             }
             Err(e) => {
                 let response = serde_json::json!({
@@ -350,7 +359,9 @@ impl EnterpriseGuardTools {
                     "path": path,
                     "error": format!("{}", e)
                 });
-                Ok(ToolResult::text(serde_json::to_string_pretty(&response).unwrap()))
+                Ok(ToolResult::text(
+                    serde_json::to_string_pretty(&response).unwrap(),
+                ))
             }
         }
     }

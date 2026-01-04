@@ -156,7 +156,8 @@ key_hash = "{}"
 async fn test_health_endpoint_returns_json() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let resp = client
@@ -182,7 +183,8 @@ async fn test_health_endpoint_returns_json() {
 async fn test_health_no_auth_required() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     // No Authorization header
@@ -204,7 +206,8 @@ async fn test_health_no_auth_required() {
 async fn test_live_endpoint_returns_minimal_response() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let resp = client
@@ -231,7 +234,8 @@ async fn test_live_endpoint_returns_minimal_response() {
 async fn test_ready_endpoint_returns_ready_when_initialized() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let resp = client
@@ -257,7 +261,8 @@ async fn test_ready_endpoint_returns_ready_when_initialized() {
 async fn test_metrics_endpoint_returns_prometheus_format() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let resp = client
@@ -282,7 +287,8 @@ async fn test_metrics_endpoint_returns_prometheus_format() {
 async fn test_metrics_updates_after_requests() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
 
@@ -316,7 +322,8 @@ async fn test_metrics_updates_after_requests() {
 async fn test_mcp_requires_authentication() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let resp = client
@@ -336,7 +343,8 @@ async fn test_mcp_requires_authentication() {
 async fn test_mcp_accepts_valid_api_key() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let resp = client
@@ -357,7 +365,8 @@ async fn test_mcp_accepts_valid_api_key() {
 async fn test_mcp_rejects_invalid_api_key() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let resp = client
@@ -378,7 +387,8 @@ async fn test_mcp_rejects_invalid_api_key() {
 async fn test_mcp_rejects_malformed_authorization_header() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
 
@@ -405,7 +415,8 @@ async fn test_mcp_rejects_malformed_authorization_header() {
 async fn test_mcp_echoes_json_rpc_request() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let request_body = json!({
@@ -438,7 +449,8 @@ async fn test_mcp_echoes_json_rpc_request() {
 async fn test_mcp_handles_tools_call_request() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let request_body = json!({
@@ -475,7 +487,8 @@ async fn test_mcp_handles_tools_call_request() {
 async fn test_mcp_rejects_invalid_json() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let resp = client
@@ -500,7 +513,8 @@ async fn test_mcp_rejects_invalid_json() {
 async fn test_mcp_returns_json_error_response() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let resp = client
@@ -526,7 +540,8 @@ async fn test_mcp_returns_json_error_response() {
 async fn test_404_for_unknown_routes() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let resp = client
@@ -545,7 +560,8 @@ async fn test_404_for_unknown_routes() {
 async fn test_method_not_allowed_for_wrong_http_method() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
 
@@ -598,7 +614,8 @@ async fn test_cors_headers_present() {
 async fn test_mcp_accepts_application_json() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let resp = client
@@ -619,7 +636,8 @@ async fn test_mcp_accepts_application_json() {
 async fn test_mcp_accepts_json_with_charset() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let resp = client
@@ -644,7 +662,8 @@ async fn test_mcp_accepts_json_with_charset() {
 async fn test_handles_concurrent_requests() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let mut handles = vec![];
@@ -673,7 +692,8 @@ async fn test_handles_concurrent_requests() {
 async fn test_handles_concurrent_mcp_requests() {
     let api_key = "test-secret-key";
     let hash = mcp_guard_core::cli::hash_api_key(api_key);
-    let (mut child, base_url, _) = spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
+    let (mut child, base_url, _) =
+        spawn_server_with_config(&basic_config_with_api_key(&hash)).await;
 
     let client = reqwest::Client::new();
     let mut handles = vec![];
@@ -688,7 +708,10 @@ async fn test_handles_concurrent_mcp_requests() {
                 .post(&url)
                 .header(header::AUTHORIZATION, format!("Bearer {}", api_key))
                 .header(header::CONTENT_TYPE, "application/json")
-                .body(format!(r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#, i))
+                .body(format!(
+                    r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#,
+                    i
+                ))
                 .send()
                 .await
                 .unwrap();

@@ -334,7 +334,8 @@ impl OAuthAuthProvider {
             );
             return Err(AuthError::OAuth(format!(
                 "Response size {} exceeds maximum {}",
-                body_str.len(), MAX_OAUTH_RESPONSE_SIZE
+                body_str.len(),
+                MAX_OAUTH_RESPONSE_SIZE
             )));
         }
 
@@ -378,7 +379,8 @@ impl OAuthAuthProvider {
             );
             return Err(AuthError::OAuth(format!(
                 "Response size {} exceeds maximum {}",
-                body_str.len(), MAX_OAUTH_RESPONSE_SIZE
+                body_str.len(),
+                MAX_OAUTH_RESPONSE_SIZE
             )));
         }
 

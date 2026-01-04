@@ -41,8 +41,8 @@ pub mod license;
 pub mod auth {
     //! Pro authentication providers
 
-    pub use mcp_guard_core::auth::OAuthAuthProvider;
     pub use mcp_guard_core::auth::JwtProvider;
+    pub use mcp_guard_core::auth::OAuthAuthProvider;
 }
 
 pub mod transport {

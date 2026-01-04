@@ -136,8 +136,7 @@ impl EnterpriseLicense {
     /// * `Ok(EnterpriseLicense)` if the license is valid
     /// * `Err(LicenseError)` if validation fails
     pub async fn validate() -> Result<Self, LicenseError> {
-        let key = std::env::var("MCP_GUARD_LICENSE_KEY")
-            .map_err(|_| LicenseError::NotFound)?;
+        let key = std::env::var("MCP_GUARD_LICENSE_KEY").map_err(|_| LicenseError::NotFound)?;
 
         Self::validate_key(&key).await
     }
@@ -239,10 +238,7 @@ impl EnterpriseLicense {
             LicenseError::ValidationFailed("Missing meta in response".to_string())
         })?;
 
-        let valid = meta
-            .get("valid")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        let valid = meta.get("valid").and_then(|v| v.as_bool()).unwrap_or(false);
 
         if !valid {
             let code = meta
@@ -377,9 +373,7 @@ impl EnterpriseLicense {
 
     /// Check if the license is about to expire (within 30 days)
     pub fn is_expiring_soon(&self) -> bool {
-        self.days_until_expiry()
-            .map(|d| d <= 30)
-            .unwrap_or(false)
+        self.days_until_expiry().map(|d| d <= 30).unwrap_or(false)
     }
 }
 

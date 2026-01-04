@@ -144,69 +144,68 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
     let audit_logger = Arc::new(audit_logger);
 
     // Set up transport/router based on configuration
-    let (transport, router): (
-        Option<Arc<dyn Transport>>,
-        Option<Arc<ServerRouter>>,
-    ) = if config.is_multi_server() {
-        // Multi-server routing mode
-        tracing::info!(
-            routes = config.upstream.servers.len(),
-            "Initializing multi-server routing"
-        );
-        for server in &config.upstream.servers {
+    let (transport, router): (Option<Arc<dyn Transport>>, Option<Arc<ServerRouter>>) =
+        if config.is_multi_server() {
+            // Multi-server routing mode
             tracing::info!(
-                name = %server.name,
-                path_prefix = %server.path_prefix,
-                transport = ?server.transport,
-                "Configuring server route"
+                routes = config.upstream.servers.len(),
+                "Initializing multi-server routing"
             );
-        }
-        let server_router = ServerRouter::new(config.upstream.servers.clone())
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to initialize router: {}", e))?;
-        (None, Some(Arc::new(server_router)))
-    } else {
-        // Single-server mode
-        let transport: Arc<dyn Transport> = match &config.upstream.transport {
-            mcp_guard_core::config::TransportType::Stdio => {
-                let command = config.upstream.command.as_ref().ok_or_else(|| {
-                    anyhow::anyhow!("stdio transport requires 'command' in config")
-                })?;
-                tracing::info!(command = %command, "Using stdio transport");
-                Arc::new(StdioTransport::spawn(command, &config.upstream.args).await?)
+            for server in &config.upstream.servers {
+                tracing::info!(
+                    name = %server.name,
+                    path_prefix = %server.path_prefix,
+                    transport = ?server.transport,
+                    "Configuring server route"
+                );
             }
-            mcp_guard_core::config::TransportType::Http => {
-                let url = config
-                    .upstream
-                    .url
-                    .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("HTTP transport requires 'url' in config"))?
-                    .clone();
-                tracing::info!(url = %url, "Using HTTP transport");
-                #[cfg(test)]
-                let transport = HttpTransport::new_unchecked(url);
-                #[cfg(not(test))]
-                let transport = HttpTransport::new(url).await
-                    .map_err(|e| anyhow::anyhow!("Failed to create HTTP transport: {}", e))?;
-                Arc::new(transport)
-            }
-            mcp_guard_core::config::TransportType::Sse => {
-                let url = config
-                    .upstream
-                    .url
-                    .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("SSE transport requires 'url' in config"))?
-                    .clone();
-                tracing::info!(url = %url, "Using SSE transport");
-                #[cfg(test)]
-                let transport = SseTransport::connect_unchecked(url).await?;
-                #[cfg(not(test))]
-                let transport = SseTransport::connect(url).await?;
-                Arc::new(transport)
-            }
+            let server_router = ServerRouter::new(config.upstream.servers.clone())
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to initialize router: {}", e))?;
+            (None, Some(Arc::new(server_router)))
+        } else {
+            // Single-server mode
+            let transport: Arc<dyn Transport> = match &config.upstream.transport {
+                mcp_guard_core::config::TransportType::Stdio => {
+                    let command = config.upstream.command.as_ref().ok_or_else(|| {
+                        anyhow::anyhow!("stdio transport requires 'command' in config")
+                    })?;
+                    tracing::info!(command = %command, "Using stdio transport");
+                    Arc::new(StdioTransport::spawn(command, &config.upstream.args).await?)
+                }
+                mcp_guard_core::config::TransportType::Http => {
+                    let url = config
+                        .upstream
+                        .url
+                        .as_ref()
+                        .ok_or_else(|| anyhow::anyhow!("HTTP transport requires 'url' in config"))?
+                        .clone();
+                    tracing::info!(url = %url, "Using HTTP transport");
+                    #[cfg(test)]
+                    let transport = HttpTransport::new_unchecked(url);
+                    #[cfg(not(test))]
+                    let transport = HttpTransport::new(url)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to create HTTP transport: {}", e))?;
+                    Arc::new(transport)
+                }
+                mcp_guard_core::config::TransportType::Sse => {
+                    let url = config
+                        .upstream
+                        .url
+                        .as_ref()
+                        .ok_or_else(|| anyhow::anyhow!("SSE transport requires 'url' in config"))?
+                        .clone();
+                    tracing::info!(url = %url, "Using SSE transport");
+                    #[cfg(test)]
+                    let transport = SseTransport::connect_unchecked(url).await?;
+                    #[cfg(not(test))]
+                    let transport = SseTransport::connect(url).await?;
+                    Arc::new(transport)
+                }
+            };
+            (Some(transport), None)
         };
-        (Some(transport), None)
-    };
 
     // Create readiness state (set to true since transport is initialized)
     let ready = Arc::new(RwLock::new(true));
@@ -708,10 +707,10 @@ fn validate_license_for_config(config: &Config) -> anyhow::Result<()> {
 
         // Enterprise licenses are validated via keygen.sh (online with offline cache)
         let license = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                EnterpriseLicense::validate().await
-            })
-        }).map_err(|e| {
+            tokio::runtime::Handle::current()
+                .block_on(async { EnterpriseLicense::validate().await })
+        })
+        .map_err(|e| {
             anyhow::anyhow!(
                 "Enterprise license validation failed: {}\n\n\
                  Your configuration uses Enterprise tier features:\n\
@@ -812,10 +811,7 @@ async fn handle_run(
 ///
 /// This mode is designed for use with Claude Desktop or other MCP clients
 /// that spawn mcp-guard as a subprocess and communicate via stdin/stdout.
-async fn handle_serve(
-    config_path: &std::path::PathBuf,
-    verbose: bool,
-) -> anyhow::Result<()> {
+async fn handle_serve(config_path: &std::path::PathBuf, verbose: bool) -> anyhow::Result<()> {
     let config = Config::from_file(config_path)?;
 
     // CRITICAL: Validate licenses BEFORE starting server
@@ -1433,7 +1429,11 @@ enabled = false
         let result = Config::from_file(&temp_file.path().to_path_buf());
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
-        assert!(err.contains("Pro license"), "Expected Pro license error: {}", err);
+        assert!(
+            err.contains("Pro license"),
+            "Expected Pro license error: {}",
+            err
+        );
     }
 
     #[cfg(not(feature = "enterprise"))]
@@ -1484,6 +1484,10 @@ enabled = false
         std::fs::write(temp_file.path(), config_str).unwrap();
 
         let result = Config::from_file(&temp_file.path().to_path_buf());
-        assert!(result.is_ok(), "stdio should always be allowed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "stdio should always be allowed: {:?}",
+            result.err()
+        );
     }
 }

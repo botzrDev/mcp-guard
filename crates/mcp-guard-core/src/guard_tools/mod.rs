@@ -179,7 +179,9 @@ impl FreeGuardTools {
             "uptime_secs": uptime_secs
         });
 
-        Ok(ToolResult::text(serde_json::to_string_pretty(&health).unwrap()))
+        Ok(ToolResult::text(
+            serde_json::to_string_pretty(&health).unwrap(),
+        ))
     }
 
     async fn handle_metrics(&self, args: Value) -> Result<ToolResult, GuardToolError> {

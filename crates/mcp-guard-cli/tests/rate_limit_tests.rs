@@ -163,7 +163,10 @@ async fn test_rate_limit_allows_requests_within_limit() {
             .post(format!("{}/mcp", base_url))
             .header(header::AUTHORIZATION, "Bearer test-key")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(format!(r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#, i))
+            .body(format!(
+                r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#,
+                i
+            ))
             .send()
             .await
             .unwrap();
@@ -194,7 +197,10 @@ async fn test_rate_limit_blocks_excess_requests() {
             .post(format!("{}/mcp", base_url))
             .header(header::AUTHORIZATION, "Bearer test-key")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(format!(r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#, i))
+            .body(format!(
+                r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#,
+                i
+            ))
             .send()
             .await
             .unwrap();
@@ -228,7 +234,10 @@ async fn test_rate_limit_returns_429_status() {
             .post(format!("{}/mcp", base_url))
             .header(header::AUTHORIZATION, "Bearer test-key")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(format!(r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#, i))
+            .body(format!(
+                r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#,
+                i
+            ))
             .send()
             .await
             .unwrap();
@@ -258,7 +267,10 @@ async fn test_rate_limit_includes_retry_after_header() {
             .post(format!("{}/mcp", base_url))
             .header(header::AUTHORIZATION, "Bearer test-key")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(format!(r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#, i))
+            .body(format!(
+                r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#,
+                i
+            ))
             .send()
             .await
             .unwrap();
@@ -267,12 +279,7 @@ async fn test_rate_limit_includes_retry_after_header() {
             // Check for Retry-After header
             if resp.headers().get("Retry-After").is_some() {
                 found_retry_after = true;
-                let retry_after = resp
-                    .headers()
-                    .get("Retry-After")
-                    .unwrap()
-                    .to_str()
-                    .unwrap();
+                let retry_after = resp.headers().get("Retry-After").unwrap().to_str().unwrap();
                 // Should be a number (seconds)
                 assert!(
                     retry_after.parse::<u64>().is_ok(),
@@ -309,7 +316,10 @@ async fn test_per_user_rate_limit_override() {
             .post(format!("{}/mcp", base_url))
             .header(header::AUTHORIZATION, "Bearer normal-key")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(format!(r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#, i))
+            .body(format!(
+                r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#,
+                i
+            ))
             .send()
             .await
             .unwrap();
@@ -327,7 +337,10 @@ async fn test_per_user_rate_limit_override() {
             .post(format!("{}/mcp", base_url))
             .header(header::AUTHORIZATION, "Bearer limited-key")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(format!(r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#, i))
+            .body(format!(
+                r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#,
+                i
+            ))
             .send()
             .await
             .unwrap();
@@ -370,7 +383,10 @@ async fn test_rate_limits_are_per_identity() {
             .post(format!("{}/mcp", base_url))
             .header(header::AUTHORIZATION, "Bearer limited-key")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(format!(r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#, i))
+            .body(format!(
+                r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#,
+                i
+            ))
             .send()
             .await;
     }
@@ -412,7 +428,10 @@ async fn test_rate_limit_disabled_allows_all_requests() {
             .post(format!("{}/mcp", base_url))
             .header(header::AUTHORIZATION, "Bearer test-key")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(format!(r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#, i))
+            .body(format!(
+                r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#,
+                i
+            ))
             .send()
             .await
             .unwrap();
@@ -448,7 +467,10 @@ async fn test_burst_allows_initial_requests() {
             .post(format!("{}/mcp", base_url))
             .header(header::AUTHORIZATION, "Bearer test-key")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(format!(r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#, i))
+            .body(format!(
+                r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#,
+                i
+            ))
             .send()
             .await
             .unwrap();
@@ -483,7 +505,10 @@ async fn test_rate_limit_recovers_over_time() {
             .post(format!("{}/mcp", base_url))
             .header(header::AUTHORIZATION, "Bearer test-key")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(format!(r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#, i))
+            .body(format!(
+                r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#,
+                i
+            ))
             .send()
             .await;
     }
@@ -586,7 +611,10 @@ async fn test_rate_limit_under_concurrent_load() {
                 .post(&url)
                 .header(header::AUTHORIZATION, "Bearer test-key")
                 .header(header::CONTENT_TYPE, "application/json")
-                .body(format!(r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#, i))
+                .body(format!(
+                    r#"{{"jsonrpc": "2.0", "method": "ping", "id": {}}}"#,
+                    i
+                ))
                 .send()
                 .await
                 .unwrap();
@@ -608,10 +636,7 @@ async fn test_rate_limit_under_concurrent_load() {
     }
 
     // With concurrent requests and strict rate limit, we should see both
-    assert!(
-        success_count > 0,
-        "Some concurrent requests should succeed"
-    );
+    assert!(success_count > 0, "Some concurrent requests should succeed");
     // Rate limiting may or may not kick in depending on timing
     println!(
         "Concurrent test: {} successes, {} rate limited",

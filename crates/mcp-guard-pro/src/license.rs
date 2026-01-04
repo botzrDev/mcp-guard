@@ -176,18 +176,19 @@ impl ProLicense {
         }
         let raw_key = &public_key_der[12..44];
 
-        let verifying_key = VerifyingKey::from_bytes(raw_key.try_into().map_err(|_| {
-            LicenseError::ValidationError("Invalid public key bytes".to_string())
-        })?)
-        .map_err(|_| LicenseError::ValidationError("Invalid Ed25519 public key".to_string()))?;
+        let verifying_key =
+            VerifyingKey::from_bytes(raw_key.try_into().map_err(|_| {
+                LicenseError::ValidationError("Invalid public key bytes".to_string())
+            })?)
+            .map_err(|_| LicenseError::ValidationError("Invalid Ed25519 public key".to_string()))?;
 
         // Decode signature
         let signature_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
             .decode(signature_b64)
             .map_err(|e| LicenseError::DecodeError(e.to_string()))?;
 
-        let signature = Signature::from_slice(&signature_bytes)
-            .map_err(|_| LicenseError::InvalidSignature)?;
+        let signature =
+            Signature::from_slice(&signature_bytes).map_err(|_| LicenseError::InvalidSignature)?;
 
         // Verify
         verifying_key
@@ -313,10 +314,7 @@ mod tests {
 
     #[test]
     fn test_pro_feature_from_str() {
-        assert_eq!(
-            ProFeature::from_str("oauth").unwrap(),
-            ProFeature::OAuth
-        );
+        assert_eq!(ProFeature::from_str("oauth").unwrap(), ProFeature::OAuth);
         assert!(ProFeature::from_str("unknown").is_err());
     }
 

@@ -58,8 +58,8 @@ pub mod router {
 pub mod audit {
     //! Enterprise audit features
 
-    pub use mcp_guard_core::audit::AuditShipperHandle;
     pub use mcp_guard_core::audit::AuditLogger;
+    pub use mcp_guard_core::audit::AuditShipperHandle;
 }
 
 // Re-export Pro features (Enterprise includes Pro)

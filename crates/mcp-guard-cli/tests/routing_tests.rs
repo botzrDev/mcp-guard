@@ -163,7 +163,10 @@ async fn test_routes_endpoint_lists_servers() {
     };
 
     // Should have at least 2 routes
-    assert!(routes.len() >= 2, "Should have at least 2 routes configured");
+    assert!(
+        routes.len() >= 2,
+        "Should have at least 2 routes configured"
+    );
 
     child.kill().unwrap();
 }

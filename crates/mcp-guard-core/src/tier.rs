@@ -234,7 +234,11 @@ pub fn is_feature_available(feature: &str) -> bool {
         }
 
         // Enterprise tier features
-        "mtls" | "multi_server_routing" | "siem_audit" | "opentelemetry" | "per_tool_rate_limit"
+        "mtls"
+        | "multi_server_routing"
+        | "siem_audit"
+        | "opentelemetry"
+        | "per_tool_rate_limit"
         | "admin_guard_tools" => cfg!(feature = "enterprise"),
 
         _ => false,
