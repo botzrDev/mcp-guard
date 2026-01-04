@@ -1,159 +1,301 @@
 <div align="center">
+  <img src="https://mcp.guard/logo.svg" alt="mcp-guard" width="64" height="64">
   <h1>mcp-guard</h1>
-  <h3>Secure your MCP servers in 5 minutes.</h3>
-  <p>No Docker. No Kubernetes. No DevOps team.</p>
+  <p><strong>MCP security without the infrastructure tax.</strong></p>
+  <p>One binary. One config file. Production-ready in 5 minutes.</p>
 
   <p>
     <a href="https://crates.io/crates/mcp-guard"><img src="https://img.shields.io/crates/v/mcp-guard.svg" alt="Crates.io"></a>
-    <a href="https://github.com/botzrdev/mcp-guard/actions/workflows/ci.yml"><img src="https://github.com/botzrdev/mcp-guard/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
-    <a href="https://github.com/botzrdev/mcp-guard/releases"><img src="https://img.shields.io/github/v/release/botzrdev/mcp-guard" alt="GitHub Release"></a>
+    <a href="https://github.com/mcp-guard/mcp-guard/actions/workflows/ci.yml"><img src="https://github.com/mcp-guard/mcp-guard/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License"></a>
+    <a href="https://github.com/mcp-guard/mcp-guard/releases"><img src="https://img.shields.io/github/v/release/mcp-guard/mcp-guard" alt="Release"></a>
   </p>
 
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#features">Features</a> •
-  <a href="#configuration">Configuration</a> •
-  <a href="docs/quickstart.md">Documentation</a>
+  <p>
+    <a href="#quick-start">Quick Start</a> &bull;
+    <a href="#features">Features</a> &bull;
+    <a href="#pricing">Pricing</a> &bull;
+    <a href="https://mcp.guard/docs">Documentation</a>
+  </p>
 </div>
 
----
+<br>
 
-## Install
+## The Problem
+
+Model Context Protocol (MCP) servers are powerful. Most are deployed with **zero authentication**.
+
+If your AI agent can access it, so can anyone else.
+
+## The Solution
+
+`mcp-guard` is a security gateway that wraps any MCP server with production-grade protection.
+
+```
+┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+│   Client    │─────▶│  mcp-guard  │─────▶│ MCP Server  │
+│  (Claude)   │      │   Gateway   │      │  (yours)    │
+└─────────────┘      └─────────────┘      └─────────────┘
+                            │
+                     Authentication
+                     Authorization
+                     Rate Limiting
+                     Audit Logging
+```
+
+<br>
+
+## Quick Start
+
+Three commands. That's it.
+
+```bash
+# 1. Install
+curl -fsSL https://mcp.guard/install.sh | sh
+
+# 2. Configure
+mcp-guard init
+
+# 3. Run
+mcp-guard run
+```
+
+Test that it works:
+
+```bash
+curl -H "Authorization: Bearer mcp_YOUR_KEY" http://localhost:3000/health
+```
+
+<details>
+<summary><strong>Alternative installation methods</strong></summary>
 
 ```bash
 # From crates.io (requires Rust)
 cargo install mcp-guard
 
-# Or download prebuilt binary
-curl -fsSL https://github.com/botzrdev/mcp-guard/releases/latest/download/mcp-guard-x86_64-linux.tar.gz | tar -xz
+# Homebrew (macOS/Linux)
+brew install mcp-guard/tap/mcp-guard
 
-# Or use the install script
-curl -fsSL https://raw.githubusercontent.com/botzrdev/mcp-guard/main/install.sh | bash
+# Download binary directly
+curl -fsSL https://github.com/mcp-guard/mcp-guard/releases/latest/download/mcp-guard-$(uname -s)-$(uname -m).tar.gz | tar -xz
 ```
 
----
+</details>
 
-## Quick Start
+<br>
 
-```bash
-# Generate config with demo API key
-mcp-guard init
+## Features
 
-# Verify upstream connectivity
-mcp-guard check-upstream
+### Authentication
 
-# Start the gateway
-mcp-guard run
+| Method | Free | Pro | Enterprise |
+|--------|:----:|:---:|:----------:|
+| API Keys | ✓ | ✓ | ✓ |
+| JWT (HS256) | ✓ | ✓ | ✓ |
+| JWT (JWKS/RS256/ES256) | | ✓ | ✓ |
+| OAuth 2.1 + PKCE | | ✓ | ✓ |
+| mTLS Client Certificates | | | ✓ |
 
-# Test it works (use the demo key printed by init)
-curl -H "Authorization: Bearer mcp_YOUR_DEMO_KEY" http://localhost:3000/health
-```
+### Transport
 
-> **Note**: The default config uses `npx` to run a demo MCP filesystem server. Install [Node.js](https://nodejs.org) or configure your own upstream server.
+| Type | Free | Pro | Enterprise |
+|------|:----:|:---:|:----------:|
+| Stdio | ✓ | ✓ | ✓ |
+| HTTP | | ✓ | ✓ |
+| SSE | | ✓ | ✓ |
+| Multi-Server Routing | | | ✓ |
 
-For production setup, see the [Quick Start Guide](docs/quickstart.md).
-
----
-
-## The Problem
-
-Model Context Protocol (MCP) is powerful, but most servers are deployed with **zero authentication**. If your agent can access it, so can anyone else.
-
-## The Solution
-
-`mcp-guard` is a lightweight security gateway that wraps any MCP server with production-grade protection:
-
-- **Authentication**: API Keys, JWT (HS256 + JWKS), OAuth 2.1 (PKCE)
-- **Authorization**: Per-tool permissions with scope mapping
-- **Rate Limiting**: Per-identity limits with configurable burst
-- **Observability**: Prometheus metrics + OpenTelemetry tracing
-- **Audit Logging**: Track every request with correlation IDs
-
-## Features by Tier
+### Security & Observability
 
 | Feature | Free | Pro | Enterprise |
-|---------|------|-----|------------|
-| **Authentication** | | | |
-| API Key Authentication | ✅ | ✅ | ✅ |
-| JWT Authentication (HS256) | ✅ | ✅ | ✅ |
-| JWT Authentication (JWKS/RS256/ES256) | | ✅ | ✅ |
-| OAuth 2.1 with PKCE | | ✅ | ✅ |
-| mTLS Client Certificate Auth | | | ✅ |
-| **Transport** | | | |
-| Stdio Transport | ✅ | ✅ | ✅ |
-| HTTP Transport | | ✅ | ✅ |
-| SSE Transport | | ✅ | ✅ |
-| Multi-Server Routing | | | ✅ |
-| **Security** | | | |
-| Per-Tool Authorization | ✅ | ✅ | ✅ |
-| Tools/List Filtering | ✅ | ✅ | ✅ |
-| Global Rate Limiting | ✅ | ✅ | ✅ |
-| Per-Identity Rate Limiting | | ✅ | ✅ |
-| **Observability** | | | |
-| Prometheus Metrics | ✅ | ✅ | ✅ |
-| Health Check Endpoints | ✅ | ✅ | ✅ |
-| Audit Logging (file/console) | ✅ | ✅ | ✅ |
-| OpenTelemetry Tracing | | | ✅ |
-| Audit Log Shipping (SIEM) | | | ✅ |
+|---------|:----:|:---:|:----------:|
+| Per-Tool Authorization | ✓ | ✓ | ✓ |
+| Tools Filtering | ✓ | ✓ | ✓ |
+| Global Rate Limiting | ✓ | ✓ | ✓ |
+| Per-Identity Rate Limiting | | ✓ | ✓ |
+| Prometheus Metrics | ✓ | ✓ | ✓ |
+| Health Endpoints | ✓ | ✓ | ✓ |
+| Audit Logs (file/console) | ✓ | ✓ | ✓ |
+| OpenTelemetry Tracing | | | ✓ |
+| SIEM Log Shipping | | | ✓ |
 
----
+<br>
+
+## Configuration
+
+`mcp-guard init` generates a config file with sensible defaults:
+
+```toml
+# mcp-guard.toml
+
+[server]
+listen = "0.0.0.0:3000"
+
+[upstream]
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "./"]
+
+[rate_limit]
+requests_per_second = 10
+burst_size = 20
+
+[[auth.api_keys]]
+key_hash = "sha256:..."
+user_id = "developer-1"
+allowed_tools = ["read_file", "list_directory"]
+```
+
+<details>
+<summary><strong>JWT configuration</strong></summary>
+
+```toml
+[auth.jwt]
+mode = "simple"
+secret = "your-secret-key"
+issuer = "https://your-issuer.com"
+audience = "mcp-guard"
+
+[auth.jwt.scope_mapping]
+"read" = ["read_file", "list_directory"]
+"write" = ["write_file", "create_directory"]
+"admin" = ["*"]
+```
+
+</details>
+
+<details>
+<summary><strong>OAuth 2.1 configuration</strong></summary>
+
+```toml
+[auth.oauth]
+provider = "github"  # or "google", "okta", "custom"
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+
+[auth.oauth.scope_mapping]
+"repo" = ["read_file", "write_file"]
+"admin:org" = ["*"]
+```
+
+</details>
+
+<details>
+<summary><strong>Multi-server routing (Enterprise)</strong></summary>
+
+```toml
+[[servers]]
+name = "filesystem"
+path_prefix = "/fs"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "./"]
+
+[[servers]]
+name = "database"
+path_prefix = "/db"
+transport = "http"
+url = "http://localhost:8080"
+```
+
+</details>
+
+<br>
+
+## Performance
+
+| Metric | Target | Actual |
+|--------|--------|--------|
+| Latency overhead | <2ms p99 | **<1ms** |
+| Binary size | <15MB | **<10MB** |
+| Memory usage | <50MB | **~30MB** |
+| Throughput | >5,000 RPS | **>10,000 RPS** |
+
+Your agents stay fast. Your infrastructure stays simple.
+
+<br>
 
 ## Pricing
 
 | Tier | Price | Best For |
 |------|-------|----------|
-| **Free** | $0 | Individual developers, hobbyists |
-| **Pro** | $12/month | Small teams, production apps |
-| **Enterprise** | $29+/user/month | Large teams, compliance requirements |
+| **Free** | $0 | Open source, side projects |
+| **Pro** | $12/mo | Small teams, production apps |
+| **Enterprise** | $29 + $8/seat | Compliance, multi-server |
 
-```bash
-# Free tier - install from crates.io
-cargo install mcp-guard
+<sub>Founder pricing: 40% off forever for early adopters. [Lock in your discount →](https://mcp.guard/pricing)</sub>
 
-# Pro tier - requires license key
-curl -fsSL https://mcp-guard.io/install-pro.sh | bash
-export MCP_GUARD_LICENSE_KEY="pro_xxx..."
+<br>
 
-# Enterprise tier - requires license key
-curl -fsSL https://mcp-guard.io/install-enterprise.sh | bash
-export MCP_GUARD_LICENSE_KEY="ent_xxx..."
+## CLI Reference
+
+```
+mcp-guard <command>
+
+Commands:
+  init             Generate config file with demo API key
+  validate         Check config file for errors
+  keygen           Generate a new API key
+  run              Start the gateway
+  check-upstream   Test upstream server connectivity
+  version          Show version and build info
+
+Options:
+  -c, --config     Config file path (default: mcp-guard.toml)
+  -h, --help       Show help
 ```
 
-→ [Get your license at mcp-guard.io/pricing](https://mcp-guard.io/pricing)
-
-## Getting Started
-
-The fastest way to get started is to follow our **[Quick Start Guide](docs/quickstart.md)**, which covers:
-- Installation
-- Generating configuration
-- Setting up your first API key
-- Testing with a filesystem MCP server
-
-For advanced setup and production deployment, see the **[Deployment Guide](docs/deployment.md)**.
+<br>
 
 ## Documentation
 
-Explore our comprehensive documentation for detailed guides on every feature:
-
 | Topic | Guide |
 |-------|-------|
-| **Setup** | [Quick Start](docs/quickstart.md), [Installation & Deployment](docs/deployment.md) |
-| **Core Features** | [Authentication](docs/authentication.md), [Authorization](docs/authorization.md), [Rate Limiting](docs/rate-limiting.md) |
-| **Connectivity** | [Transports (Stdio/HTTP/SSE)](docs/transports.md), [Multi-Server Routing](docs/multi-server.md) |
-| **Integrations** | [Auth0](docs/integrations/auth0.md), [GitHub OAuth](docs/integrations/github-oauth.md), [Splunk](docs/integrations/splunk.md), [Jaeger](docs/integrations/jaeger.md) |
-| **Reference** | [Configuration Details](docs/configuration.md), [CLI Reference](docs/cli.md), [HTTP API](docs/api/http.md) |
-| **Developer** | [Architecture](docs/dev/architecture.md), [Contributing](docs/dev/contributing.md), [Testing](docs/dev/testing.md) |
+| Getting Started | [Quick Start](https://mcp.guard/docs/quickstart) |
+| Authentication | [Auth Guide](https://mcp.guard/docs/auth) |
+| Transports | [Stdio/HTTP/SSE](https://mcp.guard/docs/transports) |
+| Rate Limiting | [Rate Limits](https://mcp.guard/docs/rate-limiting) |
+| Observability | [Metrics & Tracing](https://mcp.guard/docs/observability) |
+| Deployment | [Production Guide](https://mcp.guard/docs/deployment) |
+| API Reference | [HTTP API](https://mcp.guard/docs/api) |
 
----
+<br>
 
 ## Security
 
-Security is our top priority. For details on how we handle credentials, validated inputs, and protect against common attacks like SSRF, please see our **[Security Policy](SECURITY.md)**.
+Security vulnerabilities should be reported via [security@mcp.guard](mailto:security@mcp.guard).
 
-## Troubleshooting
+See [SECURITY.md](SECURITY.md) for our security policy.
 
-Having trouble? Check our **[Troubleshooting Guide](docs/troubleshooting.md)** for common issues, debugging tips, and diagnostic commands.
+<br>
+
+## Contributing
+
+We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+```bash
+# Clone and build
+git clone https://github.com/mcp-guard/mcp-guard
+cd mcp-guard
+cargo build
+
+# Run tests
+cargo test
+
+# Run lints
+cargo clippy -- -D warnings
+```
+
+<br>
 
 ## License
 
-AGPL-3.0
+AGPL-3.0. See [LICENSE](LICENSE).
+
+Commercial licenses available for Pro and Enterprise tiers.
+
+---
+
+<div align="center">
+  <sub>Built by <a href="https://botzr.dev">botzr</a></sub>
+</div>

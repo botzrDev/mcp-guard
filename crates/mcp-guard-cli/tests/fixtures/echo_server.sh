@@ -1,4 +1,4 @@
 #!/bin/sh
-while read line; do
+while read -r line; do
   echo "$line"
 done
