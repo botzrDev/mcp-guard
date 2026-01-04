@@ -1,141 +1,141 @@
 import { Injectable } from '@angular/core';
 
 export interface DocPage {
-    slug: string;
-    title: string;
-    description: string;
-    content: string;
-    category: string;
+  slug: string;
+  title: string;
+  description: string;
+  content: string;
+  category: string;
 }
 
 export interface DocCategory {
-    name: string;
-    slug: string;
-    pages: { slug: string; title: string }[];
+  name: string;
+  slug: string;
+  pages: { slug: string; title: string }[];
 }
 
 @Injectable({
-    providedIn: 'root'
+  providedIn: 'root'
 })
 export class DocsService {
-    private docs: Map<string, DocPage> = new Map();
+  private docs: Map<string, DocPage> = new Map();
 
-    constructor() {
-        this.initializeDocs();
-    }
+  constructor() {
+    this.initializeDocs();
+  }
 
-    private initializeDocs(): void {
-        // Quick Start Guide
-        this.docs.set('quickstart', {
-            slug: 'quickstart',
-            title: 'Quick Start Guide',
-            description: 'Get from zero to a secured MCP server in under 10 minutes.',
-            category: 'Getting Started',
-            content: QUICKSTART_CONTENT
-        });
+  private initializeDocs(): void {
+    // Quick Start Guide
+    this.docs.set('quickstart', {
+      slug: 'quickstart',
+      title: 'Quick Start Guide',
+      description: 'Get from zero to a secured MCP server in under 10 minutes.',
+      category: 'Getting Started',
+      content: QUICKSTART_CONTENT
+    });
 
-        // Configuration Reference
-        this.docs.set('configuration', {
-            slug: 'configuration',
-            title: 'Configuration Reference',
-            description: 'Complete reference for all MCP Guard configuration options.',
-            category: 'Reference',
-            content: CONFIGURATION_CONTENT
-        });
+    // Configuration Reference
+    this.docs.set('configuration', {
+      slug: 'configuration',
+      title: 'Configuration Reference',
+      description: 'Complete reference for all MCP Guard configuration options.',
+      category: 'Reference',
+      content: CONFIGURATION_CONTENT
+    });
 
-        // CLI Reference
-        this.docs.set('cli', {
-            slug: 'cli',
-            title: 'CLI Reference',
-            description: 'Complete reference for all MCP Guard command-line commands and options.',
-            category: 'Reference',
-            content: CLI_CONTENT
-        });
+    // CLI Reference
+    this.docs.set('cli', {
+      slug: 'cli',
+      title: 'CLI Reference',
+      description: 'Complete reference for all MCP Guard command-line commands and options.',
+      category: 'Reference',
+      content: CLI_CONTENT
+    });
 
-        // Authentication Guide
-        this.docs.set('authentication', {
-            slug: 'authentication',
-            title: 'Authentication Guide',
-            description: 'Deep dive into MCP Guard\'s authentication providers.',
-            category: 'Guides',
-            content: AUTHENTICATION_CONTENT
-        });
+    // Authentication Guide
+    this.docs.set('authentication', {
+      slug: 'authentication',
+      title: 'Authentication Guide',
+      description: 'Deep dive into MCP Guard\'s authentication providers.',
+      category: 'Guides',
+      content: AUTHENTICATION_CONTENT
+    });
 
-        // HTTP API Reference
-        this.docs.set('api', {
-            slug: 'api',
-            title: 'HTTP API Reference',
-            description: 'All HTTP endpoints exposed by MCP Guard.',
-            category: 'Reference',
-            content: API_CONTENT
-        });
+    // HTTP API Reference
+    this.docs.set('api', {
+      slug: 'api',
+      title: 'HTTP API Reference',
+      description: 'All HTTP endpoints exposed by MCP Guard.',
+      category: 'Reference',
+      content: API_CONTENT
+    });
 
-        // Rate Limiting Guide
-        this.docs.set('rate-limiting', {
-            slug: 'rate-limiting',
-            title: 'Rate Limiting Guide',
-            description: 'Configure and tune per-identity rate limiting.',
-            category: 'Guides',
-            content: RATE_LIMITING_CONTENT
-        });
+    // Rate Limiting Guide
+    this.docs.set('rate-limiting', {
+      slug: 'rate-limiting',
+      title: 'Rate Limiting Guide',
+      description: 'Configure and tune per-identity rate limiting.',
+      category: 'Guides',
+      content: RATE_LIMITING_CONTENT
+    });
 
-        // Transports Guide
-        this.docs.set('transports', {
-            slug: 'transports',
-            title: 'Transport Guide',
-            description: 'Deep dive into MCP Guard transport types.',
-            category: 'Guides',
-            content: TRANSPORTS_CONTENT
-        });
+    // Transports Guide
+    this.docs.set('transports', {
+      slug: 'transports',
+      title: 'Transport Guide',
+      description: 'Deep dive into MCP Guard transport types.',
+      category: 'Guides',
+      content: TRANSPORTS_CONTENT
+    });
 
-        // Observability Guide
-        this.docs.set('observability', {
-            slug: 'observability',
-            title: 'Observability Guide',
-            description: 'Monitor MCP Guard with Prometheus metrics, OpenTelemetry tracing, and audit logging.',
-            category: 'Guides',
-            content: OBSERVABILITY_CONTENT
-        });
-    }
+    // Observability Guide
+    this.docs.set('observability', {
+      slug: 'observability',
+      title: 'Observability Guide',
+      description: 'Monitor MCP Guard with Prometheus metrics, OpenTelemetry tracing, and audit logging.',
+      category: 'Guides',
+      content: OBSERVABILITY_CONTENT
+    });
+  }
 
-    getDoc(slug: string): DocPage | undefined {
-        return this.docs.get(slug);
-    }
+  getDoc(slug: string): DocPage | undefined {
+    return this.docs.get(slug);
+  }
 
-    getAllDocs(): DocPage[] {
-        return Array.from(this.docs.values());
-    }
+  getAllDocs(): DocPage[] {
+    return Array.from(this.docs.values());
+  }
 
-    getCategories(): DocCategory[] {
-        return [
-            {
-                name: 'Getting Started',
-                slug: 'getting-started',
-                pages: [
-                    { slug: 'quickstart', title: 'Quick Start' }
-                ]
-            },
-            {
-                name: 'Guides',
-                slug: 'guides',
-                pages: [
-                    { slug: 'authentication', title: 'Authentication' },
-                    { slug: 'rate-limiting', title: 'Rate Limiting' },
-                    { slug: 'transports', title: 'Transports' },
-                    { slug: 'observability', title: 'Observability' }
-                ]
-            },
-            {
-                name: 'Reference',
-                slug: 'reference',
-                pages: [
-                    { slug: 'configuration', title: 'Configuration' },
-                    { slug: 'cli', title: 'CLI' },
-                    { slug: 'api', title: 'HTTP API' }
-                ]
-            }
-        ];
-    }
+  getCategories(): DocCategory[] {
+    return [
+      {
+        name: 'Getting Started',
+        slug: 'getting-started',
+        pages: [
+          { slug: 'quickstart', title: 'Quick Start' }
+        ]
+      },
+      {
+        name: 'Guides',
+        slug: 'guides',
+        pages: [
+          { slug: 'authentication', title: 'Authentication' },
+          { slug: 'rate-limiting', title: 'Rate Limiting' },
+          { slug: 'transports', title: 'Transports' },
+          { slug: 'observability', title: 'Observability' }
+        ]
+      },
+      {
+        name: 'Reference',
+        slug: 'reference',
+        pages: [
+          { slug: 'configuration', title: 'Configuration' },
+          { slug: 'cli', title: 'CLI' },
+          { slug: 'api', title: 'HTTP API' }
+        ]
+      }
+    ];
+  }
 }
 
 // Documentation content
@@ -166,7 +166,6 @@ MCP Guard is a lightweight security gateway that wraps any Model Context Protoco
 
 | Method | Time | Best For |
 |--------|------|----------|
-| Prebuilt binary | ~30 sec | Fastest setup |
 | cargo install | 2-3 min | Rust developers |
 | Build from source | 3-5 min | Contributors |
 

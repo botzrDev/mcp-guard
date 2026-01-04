@@ -2,6 +2,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { environment } from '../../../environments/environment';
 
 declare const Stripe: any;
 
@@ -446,14 +447,14 @@ export class SignupComponent implements OnInit {
   error = signal<string | null>(null);
   plan = signal<string>('pro');
 
-  // Stripe configuration (replace with your actual publishable key)
-  private stripePublishableKey = 'pk_test_YOUR_PUBLISHABLE_KEY';
-  private stripePriceId = 'price_YOUR_PRO_PRICE_ID';
+  // Stripe configuration
+  private stripePublishableKey = environment.stripePublishableKey;
+  private stripePriceId = environment.stripePriceId;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router
-  ) {}
+  ) { }
 
   ngOnInit() {
     // Get plan from query params
