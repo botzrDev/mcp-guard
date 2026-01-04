@@ -21,7 +21,7 @@ test.describe('Navigation', () => {
     test('should navigate to quickstart', async ({ page }) => {
         await page.goto('/docs/quickstart');
         await expect(page).toHaveURL(/\/docs\/quickstart/);
-        await expect(page.locator('h1')).toContainText('Quick Start');
+        await expect(page.locator('h1').first()).toContainText('Quick Start');
     });
 
     test('should scroll to features', async ({ page }) => {

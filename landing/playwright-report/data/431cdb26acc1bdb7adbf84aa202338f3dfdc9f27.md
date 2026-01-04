@@ -1,0 +1,316 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e5]:
+      - generic [ref=e8]: All systems operational
+      - generic [ref=e9]:
+        - link "v1.0 Changelog" [ref=e10] [cursor=pointer]:
+          - /url: /changelog
+          - generic [ref=e11]: v1.0
+          - text: Changelog
+        - generic [ref=e12]: /
+        - link "Star on GitHub" [ref=e13] [cursor=pointer]:
+          - /url: https://github.com/botzrdev/mcp-guard
+          - img [ref=e14]
+          - text: Star on GitHub
+    - navigation [ref=e16]:
+      - generic [ref=e17]:
+        - link "MCP Guard mcp-guard Security Gateway" [ref=e18] [cursor=pointer]:
+          - /url: /
+          - img "MCP Guard" [ref=e19]
+          - generic [ref=e20]:
+            - generic [ref=e21]: mcp-guard
+            - generic [ref=e22]: Security Gateway
+        - generic [ref=e23]:
+          - link "Features F" [ref=e24] [cursor=pointer]:
+            - /url: /#features
+            - generic [ref=e25]: Features
+            - generic [ref=e26]: F
+          - link "How it works H" [ref=e27] [cursor=pointer]:
+            - /url: /#how-it-works
+            - generic [ref=e28]: How it works
+            - generic [ref=e29]: H
+          - link "Pricing P" [ref=e30] [cursor=pointer]:
+            - /url: /#pricing
+            - generic [ref=e31]: Pricing
+            - generic [ref=e32]: P
+          - link "Docs D" [ref=e33] [cursor=pointer]:
+            - /url: /docs
+            - generic [ref=e34]: Docs
+            - generic [ref=e35]: D
+        - generic [ref=e36]:
+          - button "Toggle navigation" [ref=e37] [cursor=pointer]:
+            - img [ref=e39]
+            - generic [ref=e42]:
+              - generic [ref=e43]: ⌘
+              - generic [ref=e44]: K
+          - link "Sign in" [ref=e45] [cursor=pointer]:
+            - /url: /login
+          - link "Get Started" [ref=e46] [cursor=pointer]:
+            - /url: /docs/quickstart
+            - generic [ref=e47]: Get Started
+            - img [ref=e49]
+  - generic [ref=e53]:
+    - complementary [ref=e54]:
+      - navigation [ref=e56]:
+        - generic [ref=e57]:
+          - heading "Documentation" [level=2] [ref=e58]
+          - generic [ref=e59]: v1.0
+        - generic [ref=e60]:
+          - heading "Getting Started" [level=3] [ref=e61]
+          - list [ref=e62]:
+            - listitem [ref=e63]:
+              - link "Quick Start" [ref=e64] [cursor=pointer]:
+                - /url: /docs/quickstart
+        - generic [ref=e65]:
+          - heading "Guides" [level=3] [ref=e66]
+          - list [ref=e67]:
+            - listitem [ref=e68]:
+              - link "Authentication" [ref=e69] [cursor=pointer]:
+                - /url: /docs/authentication
+            - listitem [ref=e70]:
+              - link "Rate Limiting" [ref=e71] [cursor=pointer]:
+                - /url: /docs/rate-limiting
+            - listitem [ref=e72]:
+              - link "Transports" [ref=e73] [cursor=pointer]:
+                - /url: /docs/transports
+            - listitem [ref=e74]:
+              - link "Observability" [ref=e75] [cursor=pointer]:
+                - /url: /docs/observability
+        - generic [ref=e76]:
+          - heading "Reference" [level=3] [ref=e77]
+          - list [ref=e78]:
+            - listitem [ref=e79]:
+              - link "Configuration" [ref=e80] [cursor=pointer]:
+                - /url: /docs/configuration
+            - listitem [ref=e81]:
+              - link "CLI" [ref=e82] [cursor=pointer]:
+                - /url: /docs/cli
+            - listitem [ref=e83]:
+              - link "HTTP API" [ref=e84] [cursor=pointer]:
+                - /url: /docs/api
+    - main [ref=e85]:
+      - article [ref=e87]:
+        - generic [ref=e89]: Getting Started
+        - generic [ref=e91]:
+          - heading "Quick Start Guide" [level=1] [ref=e92]
+          - paragraph [ref=e93]: Get from zero to a secured MCP server in under 10 minutes.
+          - heading "What is MCP Guard?" [level=2] [ref=e94]
+          - paragraph [ref=e95]: MCP Guard is a lightweight security gateway that wraps any Model Context Protocol (MCP) server with production-grade protection. It provides authentication, authorization, rate limiting, and observability without requiring Docker, Kubernetes, or a DevOps team.
+          - heading "Prerequisites" [level=2] [ref=e96]
+          - heading "Required" [level=3] [ref=e97]
+          - list [ref=e98]:
+            - listitem [ref=e99]:
+              - strong [ref=e100]: mcp-guard binary
+              - text: (see Installation below)
+          - heading "For the Demo Setup" [level=3] [ref=e101]
+          - list [ref=e102]:
+            - listitem [ref=e103]:
+              - strong [ref=e104]: Node.js & npm
+              - text: "- The default config uses"
+              - code [ref=e105]: npx
+              - text: to run the demo MCP filesystem server
+          - blockquote [ref=e106]:
+            - paragraph [ref=e107]:
+              - strong [ref=e108]: Don't have Node.js?
+              - text: "Either:"
+            - paragraph
+            - paragraph [ref=e109]:
+              - text: "- Install Node.js from"
+              - link "nodejs.org" [ref=e110] [cursor=pointer]:
+                - /url: https://nodejs.org
+            - paragraph [ref=e111]:
+              - text: "- Use your own MCP server (edit the"
+              - code [ref=e112]: "[upstream]"
+              - text: section in config)
+            - paragraph [ref=e113]: "- Use HTTP transport with an existing MCP server URL"
+          - paragraph
+          - heading "Installation Speed" [level=3] [ref=e114]
+          - table [ref=e115]:
+            - rowgroup [ref=e116]:
+              - row "Method Time Best For" [ref=e117]:
+                - columnheader "Method" [ref=e118]
+                - columnheader "Time" [ref=e119]
+                - columnheader "Best For" [ref=e120]
+            - rowgroup [ref=e121]:
+              - row "Prebuilt binary ~30 sec Fastest setup" [ref=e122]:
+                - cell "Prebuilt binary" [ref=e123]
+                - cell "~30 sec" [ref=e124]
+                - cell "Fastest setup" [ref=e125]
+              - row "cargo install 2-3 min Rust developers" [ref=e126]:
+                - cell "cargo install" [ref=e127]
+                - cell "2-3 min" [ref=e128]
+                - cell "Rust developers" [ref=e129]
+              - row "Build from source 3-5 min Contributors" [ref=e130]:
+                - cell "Build from source" [ref=e131]
+                - cell "3-5 min" [ref=e132]
+                - cell "Contributors" [ref=e133]
+          - heading "Installation" [level=2] [ref=e134]
+          - paragraph [ref=e135]: "Choose one of three installation methods:"
+          - 'heading "Option 1: Install from crates.io" [level=3] [ref=e136]'
+          - code [ref=e138]: cargo install mcp-guard
+          - 'heading "Option 2: Download Prebuilt Binary" [level=3] [ref=e139]'
+          - paragraph [ref=e140]:
+            - text: Download the latest release for your platform from
+            - link "GitHub Releases" [ref=e141] [cursor=pointer]:
+              - /url: https://github.com/botzrdev/mcp-guard/releases
+            - text: .
+          - 'heading "Option 3: Build from Source" [level=3] [ref=e142]'
+          - generic [ref=e143]:
+            - code [ref=e144]: git clone https://github.com/botzrdev/mcp-guard
+            - paragraph [ref=e145]:
+              - code [ref=e146]: cd mcp-guard cargo build --release
+          - paragraph
+          - paragraph [ref=e147]:
+            - text: The binary will be at
+            - code [ref=e148]: ./target/release/mcp-guard
+            - text: .
+          - heading "Verify Installation" [level=3] [ref=e149]
+          - code [ref=e151]: mcp-guard version
+          - separator [ref=e152]
+          - 'heading "Step 1: Generate Configuration" [level=2] [ref=e153]'
+          - paragraph [ref=e154]: "Create a configuration file template:"
+          - code [ref=e156]: mcp-guard init
+          - paragraph [ref=e157]:
+            - text: This creates
+            - code [ref=e158]: mcp-guard.toml
+            - text: in your current directory with example configurations for all features.
+          - 'heading "Step 2: Generate an API Key" [level=2] [ref=e159]'
+          - paragraph [ref=e160]: "Generate an API key for your first client:"
+          - generic [ref=e161]:
+            - code [ref=e162]:
+              - text: "# Option A: Auto-add to config (recommended)"
+              - paragraph [ref=e163]: mcp-guard keygen --user-id my-agent --apply-to-config
+              - 'heading "Option B: Manual (prints TOML to copy)" [level=1] [ref=e164]'
+            - paragraph [ref=e165]:
+              - code [ref=e166]: mcp-guard keygen --user-id my-agent
+          - paragraph
+          - paragraph [ref=e167]:
+            - strong [ref=e168]: "Important:"
+          - list [ref=e169]:
+            - listitem [ref=e170]:
+              - text: The
+              - strong [ref=e171]: API Key
+              - text: goes to your client application (store it securely)
+            - listitem [ref=e172]:
+              - text: The
+              - strong [ref=e173]: key_hash
+              - text: is stored in the config file (safe to commit)
+          - 'heading "Step 3: Configure Upstream" [level=2] [ref=e174]'
+          - paragraph [ref=e175]:
+            - text: Edit
+            - code [ref=e176]: mcp-guard.toml
+            - text: "to point to your MCP server:"
+          - generic [ref=e177]:
+            - code [ref=e178]:
+              - text: "[server]"
+              - paragraph [ref=e179]: host = "127.0.0.1" port = 3000
+              - heading "Your MCP server" [level=1] [ref=e180]
+              - paragraph [ref=e181]: "[upstream] transport = \"stdio\" command = \"npx\" args = [\"-y\", \"@modelcontextprotocol/server-filesystem\", \"/tmp\"]"
+              - heading "Rate limiting" [level=1] [ref=e182]
+              - paragraph [ref=e183]: "[rate_limit] enabled = true requests_per_second = 100 burst_size = 50"
+              - heading "Audit logging" [level=1] [ref=e184]
+            - paragraph [ref=e185]:
+              - code [ref=e186]: "[audit] enabled = true stdout = true"
+          - paragraph
+          - paragraph [ref=e187]: "Validate your configuration:"
+          - code [ref=e189]: mcp-guard validate
+          - 'heading "Step 4: Start the Gateway" [level=2] [ref=e190]'
+          - paragraph [ref=e191]: "Start MCP Guard:"
+          - code [ref=e193]: mcp-guard run
+          - paragraph [ref=e194]: "Verify it's running:"
+          - code [ref=e196]: curl http://localhost:3000/health
+          - paragraph [ref=e197]:
+            - strong [ref=e198]: "Response:"
+          - code [ref=e200]: "{\"status\": \"healthy\", \"version\": \"1.0.0\", \"uptime_secs\": 5}"
+          - 'heading "Step 5: Test Authentication" [level=2] [ref=e201]'
+          - heading "Unauthenticated Request (should fail)" [level=3] [ref=e202]
+          - generic [ref=e203]:
+            - code [ref=e204]: curl -X POST http://localhost:3000/mcp \
+            - paragraph [ref=e205]:
+              - code [ref=e206]: "-H \"Content-Type: application/json\" \\ -d '{\"jsonrpc\": \"2.0\", \"method\": \"tools/list\", \"id\": 1}'"
+          - paragraph
+          - paragraph [ref=e207]:
+            - strong [ref=e208]: "Response: 401 Unauthorized"
+          - heading "Authenticated Request (should succeed)" [level=3] [ref=e209]
+          - generic [ref=e210]:
+            - code [ref=e211]: curl -X POST http://localhost:3000/mcp \
+            - paragraph [ref=e212]:
+              - code [ref=e213]: "-H \"Content-Type: application/json\" \\ -H \"Authorization: Bearer mcp_YOUR_API_KEY_HERE\" \\ -d '{\"jsonrpc\": \"2.0\", \"method\": \"tools/list\", \"id\": 1}'"
+          - paragraph
+          - paragraph [ref=e214]:
+            - strong [ref=e215]: "Response: 200 OK"
+          - separator [ref=e216]
+          - heading "Next Steps" [level=2] [ref=e217]
+          - paragraph [ref=e218]: "Now that you have a working gateway, explore these topics:"
+          - list [ref=e219]:
+            - listitem [ref=e220]:
+              - strong [ref=e221]: Configuration Reference
+              - text: "- Complete reference for all configuration options"
+            - listitem [ref=e222]:
+              - strong [ref=e223]: Authentication Guide
+              - text: "- Deep dive into JWT, OAuth 2.1, and mTLS"
+            - listitem [ref=e224]:
+              - strong [ref=e225]: CLI Reference
+              - text: "- All CLI commands and options"
+  - contentinfo [ref=e227]:
+    - generic [ref=e228]:
+      - generic [ref=e229]:
+        - generic [ref=e230]:
+          - link "MCP Guard mcp-guard" [ref=e231] [cursor=pointer]:
+            - /url: /
+            - img "MCP Guard" [ref=e232]
+            - generic [ref=e233]: mcp-guard
+          - paragraph [ref=e234]:
+            - text: Secure your MCP servers in 5 minutes.
+            - text: No Docker. No Kubernetes. No DevOps team.
+        - generic [ref=e235]:
+          - generic [ref=e236]:
+            - heading "Product" [level=4] [ref=e237]
+            - link "Features" [ref=e238] [cursor=pointer]:
+              - /url: /#features
+            - link "Pricing" [ref=e239] [cursor=pointer]:
+              - /url: /#pricing
+            - link "Documentation" [ref=e240] [cursor=pointer]:
+              - /url: /docs
+            - link "Changelog" [ref=e241] [cursor=pointer]:
+              - /url: /changelog
+          - generic [ref=e242]:
+            - heading "Resources" [level=4] [ref=e243]
+            - link "Quick Start" [ref=e244] [cursor=pointer]:
+              - /url: /docs/quickstart
+            - link "Configuration" [ref=e245] [cursor=pointer]:
+              - /url: /docs/configuration
+            - link "API Reference" [ref=e246] [cursor=pointer]:
+              - /url: /docs/api
+            - link "Blog" [ref=e247] [cursor=pointer]:
+              - /url: /blog
+          - generic [ref=e248]:
+            - heading "Company" [level=4] [ref=e249]
+            - link "About" [ref=e250] [cursor=pointer]:
+              - /url: /about
+            - link "Contact" [ref=e251] [cursor=pointer]:
+              - /url: /contact
+            - link "Privacy" [ref=e252] [cursor=pointer]:
+              - /url: /privacy
+            - link "Terms" [ref=e253] [cursor=pointer]:
+              - /url: /terms
+          - generic [ref=e254]:
+            - heading "Community" [level=4] [ref=e255]
+            - link "GitHub" [ref=e256] [cursor=pointer]:
+              - /url: https://github.com/botzrdev/mcp-guard
+              - img [ref=e257]
+              - text: GitHub
+            - link "Twitter" [ref=e259] [cursor=pointer]:
+              - /url: https://twitter.com/mcp_guard
+              - img [ref=e260]
+              - text: Twitter
+      - generic [ref=e262]:
+        - paragraph [ref=e263]: © 2026 mcp-guard. Open source under AGPL-3.0.
+        - link "Built with Rust" [ref=e265] [cursor=pointer]:
+          - /url: https://github.com/botzrdev/mcp-guard
+          - img [ref=e266]
+          - text: Built with Rust
+```

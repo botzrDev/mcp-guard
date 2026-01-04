@@ -7,7 +7,7 @@ test.describe('Landing Page', () => {
 
     test('should display homepage with hero section', async ({ page }) => {
         // Check page title
-        await expect(page).toHaveTitle(/mcp-guard/i);
+        await expect(page).toHaveTitle(/mcp.?guard/i);
 
         // Check hero section elements
         const heroHeading = page.locator('h1').first();
@@ -20,7 +20,7 @@ test.describe('Landing Page', () => {
         await expect(navbar).toBeVisible();
 
         // Check for key nav links
-        const docsLink = page.getByRole('link', { name: /docs|documentation/i });
+        const docsLink = page.getByRole('link', { name: /docs|documentation/i }).first();
         await expect(docsLink).toBeVisible();
     });
 
@@ -68,7 +68,7 @@ test.describe('Login Page', () => {
     test('should display feature list', async ({ page }) => {
         // Check for features mentioned on login page
         const licenseFeature = page.getByText(/license management/i);
-        const apiKeyFeature = page.getByText(/api key/i);
+        const apiKeyFeature = page.getByText(/api key/i).first();
 
         await expect(licenseFeature).toBeVisible();
         await expect(apiKeyFeature).toBeVisible();
@@ -99,7 +99,7 @@ test.describe('Navigation Flow', () => {
     test('should navigate from homepage to docs', async ({ page }) => {
         await page.goto('/');
 
-        const docsLink = page.getByRole('link', { name: /docs|documentation/i });
+        const docsLink = page.getByRole('link', { name: /docs|documentation/i }).first();
         await docsLink.click();
 
         await expect(page).toHaveURL(/\/docs/);
