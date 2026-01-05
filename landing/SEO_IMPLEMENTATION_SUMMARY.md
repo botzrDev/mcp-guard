@@ -118,10 +118,10 @@
    - [ ] Add property at https://search.google.com/search-console
    - [ ] Get verification meta tag code
    - [ ] Uncomment and add code to `index.html`
-   - [ ] Submit sitemap at `https://mcp-guard.com/sitemap.xml`
+   - [ ] Submit sitemap at `https://mcpg.botzr.com/sitemap.xml`
 
 4. **Update Domain URLs**
-   - [ ] Replace all instances of `https://mcp-guard.com` with your actual domain in:
+   - [x] Replace all instances of `https://mcp-guard.com` with your actual domain in:
      - `index.html` (canonical, OG tags, Twitter tags, Schema.org)
      - `robots.txt` (sitemap URL)
      - `sitemap.xml` (all URL locations)
@@ -167,7 +167,7 @@ Before going live, verify:
 - [ ] Social media images are created and optimized
 - [ ] GA4 is configured and tracking
 - [ ] Google Search Console is verified
-- [ ] All placeholder URLs updated with real domain
+- [x] All placeholder URLs updated with real domain
 
 ---
 

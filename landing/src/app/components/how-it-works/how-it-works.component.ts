@@ -791,7 +791,7 @@ export class HowItWorksComponent implements OnInit, OnDestroy, AfterViewInit {
       title: 'Install',
       description: 'Download and run. No containers. No orchestration. No infrastructure degree required.',
       icon: 'terminal',
-      code: 'curl -fsSL https://mcp.guard/install.sh | sh',
+      code: 'curl -fsSL https://mcpg.botzr.com/install.sh | sh',
       brandColor: '#FF7A30',
     },
     {

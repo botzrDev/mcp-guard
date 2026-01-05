@@ -1,6 +1,6 @@
 # Social Media Images Specification
 
-This document outlines the requirements for creating social media preview images (Open Graph and Twitter Cards) for mcp-guard.com.
+This document outlines the requirements for creating social media preview images (Open Graph and Twitter Cards) for mcpg.botzr.com.
 
 ## Image Requirements
 
@@ -50,7 +50,7 @@ Text Secondary: #B0B0B0 (--text-secondary)
 
 ```
 ┌─────────────────────────────────────────────────┐
-│  [Logo]                         mcp-guard.com   │ ← Header (60px)
+│  [Logo]                         mcpg.botzr.com  │ ← Header (60px)
 │                                                 │
 │         Secure Your MCP Servers                 │ ← Main Title (80px font)
 │         in 5 Minutes                            │
@@ -114,7 +114,7 @@ Similar to OG image but with adjusted proportions:
 │                                                 │
 │  $ cargo install mcp-guard                      │
 │                                                 │
-│  [Shield Icon]          mcp-guard.com           │
+│  [Shield Icon]          mcpg.botzr.com          │
 └─────────────────────────────────────────────────┘
 ```
 

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://mcp.guard/logo.svg" alt="mcp-guard" width="64" height="64">
+  <img src="https://mcpg.botzr.com/logo.svg" alt="mcp-guard" width="64" height="64">
   <h1>mcp-guard</h1>
   <p><strong>MCP security without the infrastructure tax.</strong></p>
   <p>One binary. One config file. Production-ready in 5 minutes.</p>
@@ -15,7 +15,7 @@
     <a href="#quick-start">Quick Start</a> &bull;
     <a href="#features">Features</a> &bull;
     <a href="#pricing">Pricing</a> &bull;
-    <a href="https://mcp.guard/docs">Documentation</a>
+    <a href="https://mcpg.botzr.com/docs">Documentation</a>
   </p>
 </div>
 
@@ -51,7 +51,7 @@ Three commands. That's it.
 
 ```bash
 # 1. Install
-curl -fsSL https://mcp.guard/install.sh | sh
+curl -fsSL https://mcpg.botzr.com/install.sh | sh
 
 # 2. Configure
 mcp-guard init
@@ -223,7 +223,7 @@ Your agents stay fast. Your infrastructure stays simple.
 | **Pro** | $12/mo | Small teams, production apps |
 | **Enterprise** | $29 + $8/seat | Compliance, multi-server |
 
-<sub>Founder pricing: 40% off forever for early adopters. [Lock in your discount →](https://mcp.guard/pricing)</sub>
+<sub>Founder pricing: 40% off forever for early adopters. [Lock in your discount →](https://mcpg.botzr.com/pricing)</sub>
 
 <br>
 
@@ -251,19 +251,19 @@ Options:
 
 | Topic | Guide |
 |-------|-------|
-| Getting Started | [Quick Start](https://mcp.guard/docs/quickstart) |
-| Authentication | [Auth Guide](https://mcp.guard/docs/auth) |
-| Transports | [Stdio/HTTP/SSE](https://mcp.guard/docs/transports) |
-| Rate Limiting | [Rate Limits](https://mcp.guard/docs/rate-limiting) |
-| Observability | [Metrics & Tracing](https://mcp.guard/docs/observability) |
-| Deployment | [Production Guide](https://mcp.guard/docs/deployment) |
-| API Reference | [HTTP API](https://mcp.guard/docs/api) |
+| Getting Started | [Quick Start](https://mcpg.botzr.com/docs/quickstart) |
+| Authentication | [Auth Guide](https://mcpg.botzr.com/docs/auth) |
+| Transports | [Stdio/HTTP/SSE](https://mcpg.botzr.com/docs/transports) |
+| Rate Limiting | [Rate Limits](https://mcpg.botzr.com/docs/rate-limiting) |
+| Observability | [Metrics & Tracing](https://mcpg.botzr.com/docs/observability) |
+| Deployment | [Production Guide](https://mcpg.botzr.com/docs/deployment) |
+| API Reference | [HTTP API](https://mcpg.botzr.com/docs/api) |
 
 <br>
 
 ## Security
 
-Security vulnerabilities should be reported via [security@mcp.guard](mailto:security@mcp.guard).
+Security vulnerabilities should be reported via [support@botzr.com](mailto:support@botzr.com).
 
 See [SECURITY.md](SECURITY.md) for our security policy.
 

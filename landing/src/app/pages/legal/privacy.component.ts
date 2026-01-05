@@ -35,7 +35,7 @@ import { Component, ChangeDetectionStrategy } from '@angular/core';
         <p>We implement appropriate technical and organizational security measures designed to protect the security of any personal information we process. However, please also look after your own data security by protecting your API keys and configuration secrets.</p>
 
         <h2>5. Contact Us</h2>
-        <p>If you have questions or comments about this policy, you may email us at privacy@mcp-guard.com.</p>
+        <p>If you have questions or comments about this policy, you may email us at support@botzr.com.</p>
       </div>
     </div>
   `,

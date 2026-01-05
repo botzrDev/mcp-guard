@@ -1,5 +1,5 @@
 # robots.txt for MCP Guard
-# https://mcp-guard.com/robots.txt
+# https://mcpg.botzr.com/robots.txt
 
 User-agent: *
 Allow: /
@@ -12,4 +12,4 @@ Disallow: /oauth/
 Crawl-delay: 1
 
 # Sitemap location
-Sitemap: https://mcp-guard.com/sitemap.xml
+Sitemap: https://mcpg.botzr.com/sitemap.xml
