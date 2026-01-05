@@ -6,13 +6,76 @@
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="A lightweight security gateway for Model Context Protocol servers. OAuth 2.1, JWT, rate limiting, and audit logs. Single binary, no Docker required.">
+  <meta name="keywords" content="MCP security, Model Context Protocol, API gateway, OAuth 2.1, JWT authentication, rate limiting, Rust, security proxy, MCP server, API key authentication, audit logs, observability">
+  <meta name="author" content="MCP Guard">
   <meta name="theme-color" content="#050508">
-  <link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
 
-  <!-- Open Graph -->
-  <meta property="og:title" content="MCP Guard — Secure Your MCP Servers in 5 Minutes">
-  <meta property="og:description" content="A lightweight security gateway for MCP servers. OAuth 2.1, JWT, rate limiting, and audit logs.">
+  <!-- Canonical URL - UPDATE WITH YOUR DOMAIN -->
+  <link rel="canonical" href="https://mcp-guard.com">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+  <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
+  <meta property="og:url" content="https://mcp-guard.com">
+  <meta property="og:title" content="MCP Guard — Secure Your MCP Servers in 5 Minutes">
+  <meta property="og:description" content="A lightweight security gateway for MCP servers. OAuth 2.1, JWT, rate limiting, and audit logs. Single binary, no Docker required.">
+  <meta property="og:image" content="https://mcp-guard.com/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="MCP Guard">
+
+  <!-- Twitter / X Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://mcp-guard.com">
+  <meta name="twitter:title" content="MCP Guard — Secure Your MCP Servers in 5 Minutes">
+  <meta name="twitter:description" content="Production-grade MCP security in 5 minutes. No Docker. No DevOps team. One binary, one config file.">
+  <meta name="twitter:image" content="https://mcp-guard.com/twitter-card.png">
+  <meta name="twitter:creator" content="@mcpguard">
+
+  <!-- Google Search Console Verification - ADD YOUR VERIFICATION CODE -->
+  <!-- <meta name="google-site-verification" content="YOUR_VERIFICATION_CODE_HERE"> -->
+
+  <!-- Schema.org Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "MCP Guard",
+    "applicationCategory": "SecurityApplication",
+    "operatingSystem": "Linux, macOS, Windows",
+    "description": "A lightweight security gateway for Model Context Protocol servers with OAuth 2.1, JWT, rate limiting, and audit logs.",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "featureList": [
+      "OAuth 2.1 Authentication",
+      "JWT (HS256/JWKS) Support",
+      "Per-Identity Rate Limiting",
+      "Audit Logging",
+      "Prometheus Metrics",
+      "OpenTelemetry Tracing",
+      "Multi-Server Routing",
+      "mTLS Support"
+    ],
+    "codeRepository": "https://github.com/mcp-guard/mcp-guard",
+    "programmingLanguage": "Rust",
+    "license": "https://www.gnu.org/licenses/agpl-3.0.html"
+  }
+  </script>
+
+  <!-- Google Analytics 4 - ADD YOUR GA4 MEASUREMENT ID -->
+  <!-- <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script> -->
 
   <!-- Preconnect to fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">

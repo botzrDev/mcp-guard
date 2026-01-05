@@ -99,6 +99,8 @@ pub struct PkceState {
     pub created_at: Instant,
     /// Client IP that initiated the OAuth flow (for binding validation)
     pub client_ip: IpAddr,
+    /// Redirect URI to use for token exchange (if provided by frontend)
+    pub redirect_uri: Option<String>,
 }
 
 /// OAuth state storage (state -> PKCE verifier)
@@ -475,6 +477,14 @@ fn cleanup_expired_oauth_states(store: &OAuthStateStore) {
     store.retain(|_, state| state.created_at.elapsed() < expiry);
 }
 
+/// Query parameters for OAuth authorize
+#[derive(Debug, serde::Deserialize)]
+pub struct OAuthAuthorizeParams {
+    pub provider: Option<String>,
+    pub redirect_uri: Option<String>,
+    pub scope: Option<String>,
+}
+
 /// OAuth authorize endpoint - initiates the OAuth flow
 /// Initiate OAuth authorization flow with PKCE.
 ///
@@ -483,6 +493,7 @@ fn cleanup_expired_oauth_states(store: &OAuthStateStore) {
 async fn oauth_authorize(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    Query(params): Query<OAuthAuthorizeParams>,
 ) -> Result<impl IntoResponse, AppError> {
     let oauth_provider = state
         .oauth_provider
@@ -519,6 +530,7 @@ async fn oauth_authorize(
             code_verifier,
             created_at: Instant::now(),
             client_ip,
+            redirect_uri: params.redirect_uri,
         },
     );
 
@@ -618,6 +630,7 @@ async fn oauth_callback(
         oauth_provider,
         &code,
         &pkce_state.code_verifier,
+        None, // Use configured redirect_uri for token exchange
     )
     .await?;
 
@@ -625,13 +638,21 @@ async fn oauth_callback(
 
     // SECURITY: Add Cache-Control headers to prevent token caching
     // This prevents browsers and proxies from caching sensitive OAuth tokens
-    Ok((
-        [
-            (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate"),
-            (header::PRAGMA, "no-cache"),
-        ],
-        Json(tokens),
-    ))
+    let headers = [
+        (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate"),
+        (header::PRAGMA, "no-cache"),
+    ];
+
+    // If a redirect URI was provided in the initial request (e.g. from frontend),
+    // redirect back to it with the token.
+    if let Some(redirect_uri) = pkce_state.redirect_uri {
+        let target_url = format!("{}?token={}", redirect_uri, tokens.access_token);
+        tracing::info!(to = %target_url, "Redirecting to frontend");
+        return Ok((headers, Redirect::temporary(&target_url).into_response()).into_response());
+    }
+
+    // Otherwise return JSON (for CLI or direct API usage)
+    Ok((headers, Json(tokens).into_response()).into_response())
 }
 
 /// Exchange authorization code for tokens
@@ -640,6 +661,7 @@ async fn exchange_code_for_tokens(
     oauth_provider: &OAuthAuthProvider,
     code: &str,
     code_verifier: &str,
+    redirect_uri: Option<&str>,
 ) -> Result<OAuthTokenResponse, AppError> {
     let oauth_config = config
         .auth
@@ -652,7 +674,7 @@ async fn exchange_code_for_tokens(
     let mut form = vec![
         ("grant_type", "authorization_code"),
         ("code", code),
-        ("redirect_uri", &oauth_config.redirect_uri),
+        ("redirect_uri", redirect_uri.unwrap_or(&oauth_config.redirect_uri)),
         ("client_id", &oauth_config.client_id),
         ("code_verifier", code_verifier),
     ];

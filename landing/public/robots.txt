@@ -1,0 +1,15 @@
+# robots.txt for MCP Guard
+# https://mcp-guard.com/robots.txt
+
+User-agent: *
+Allow: /
+
+# Disallow admin and auth routes
+Disallow: /dashboard/
+Disallow: /oauth/
+
+# Crawl-delay for polite bots
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://mcp-guard.com/sitemap.xml

@@ -668,6 +668,12 @@ async fn handle_check_upstream(
 /// This function is called BEFORE starting the server to ensure license compliance.
 #[allow(unused_variables)] // config unused in free tier (no pro/enterprise features)
 fn validate_license_for_config(config: &Config) -> anyhow::Result<()> {
+    // SECURITY: Allow bypassing license check in development mode
+    if std::env::var("MCP_GUARD_SKIP_LICENSE_CHECK").is_ok() {
+        tracing::warn!("Bypassing license check (MCP_GUARD_SKIP_LICENSE_CHECK is set)");
+        return Ok(());
+    }
+
     // Check if Pro features are being used
     #[cfg(feature = "pro")]
     if config.requires_pro_features() {

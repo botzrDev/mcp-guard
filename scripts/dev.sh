@@ -202,7 +202,7 @@ backend_start() {
     cd "$PROJECT_ROOT"
     
     # Start backend in background
-    RUST_LOG=info cargo run --release -- run > "$BACKEND_LOG" 2>&1 &
+    RUST_LOG=info MCP_GUARD_SKIP_LICENSE_CHECK=true cargo run --features pro,enterprise -- run > "$BACKEND_LOG" 2>&1 &
     local server_pid=$!
     echo "$server_pid" > "$BACKEND_PID_FILE"
     

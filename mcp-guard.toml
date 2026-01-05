@@ -3,24 +3,44 @@
 # Documentation: https://github.com/botzrdev/mcp-guard
 
 [server]
-host = "127.0.0.1"
+host = "0.0.0.0"
 port = 3000
 
-# Authentication - Demo API key (replace in production!)
+# CORS Configuration for local development
+[server.cors]
+enabled = true
+allowed_origins = ["http://localhost:4200", "http://localhost:4201"]
+allowed_methods = ["GET", "POST", "OPTIONS"]
+allowed_headers = ["Authorization", "Content-Type"]
+
+# Authentication
 [[auth.api_keys]]
 id = "demo-user"
 key_hash = "0XiRNzUXl3YgkCNW3GKq4fiGEPJ/kQQQ0iD8hMl5d/g="
-allowed_tools = []  # Empty = all tools allowed
+allowed_tools = []
 rate_limit = 100
 
-# Test API key for manual testing
 [[auth.api_keys]]
 id = "manual-test"
 key_hash = "P9FN1lOw5JgHfOcFCB63hJw6eMbx8Vw0tHoWJ1KOvnU="
-allowed_tools = []  # Empty = all tools allowed
+allowed_tools = []
 rate_limit = 100
 
-# Generate production keys with: mcp-guard keygen --user-id <name>
+# GitHub OAuth
+[auth.oauth]
+provider = "github"
+client_id = "set_via_env_var"
+client_secret = "set_via_env_var"
+redirect_uri = "http://localhost:3000/oauth/callback"
+scopes = ["read:user", "user:email"]
+
+# Note: Google OAuth can be added by uncommenting below
+# [[auth.oauth]]
+# provider = "google"
+# client_id = "test-google-id"
+# client_secret = "test-google-secret"
+# redirect_uri = "http://localhost:4200/auth/callback"
+# scopes = ["openid", "profile", "email"]
 
 [rate_limit]
 enabled = true
@@ -36,5 +56,3 @@ transport = "stdio"
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 
-# Full configuration reference with all options:
-# https://github.com/botzrdev/mcp-guard/blob/main/templates/mcp-guard.toml

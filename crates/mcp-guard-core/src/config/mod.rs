@@ -757,8 +757,35 @@ impl Config {
             toml::from_str(&content).map_err(|e| ConfigError::Parse(e.to_string()))?
         };
 
+        // Apply environment variable overrides
+        let mut config = config;
+        config.apply_env_overrides();
+
         config.validate()?;
         Ok(config)
+    }
+
+    /// Apply environment variable overrides
+    pub fn apply_env_overrides(&mut self) {
+        use std::env;
+
+        // OAuth overrides
+        if let Some(oauth) = &mut self.auth.oauth {
+            if let Ok(id) = env::var("MCP_GUARD_AUTH_OAUTH_CLIENT_ID") {
+                oauth.client_id = id;
+            }
+            if let Ok(secret) = env::var("MCP_GUARD_AUTH_OAUTH_CLIENT_SECRET") {
+                oauth.client_secret = Some(secret);
+            }
+            if let Ok(uri) = env::var("MCP_GUARD_AUTH_OAUTH_REDIRECT_URI") {
+                oauth.redirect_uri = uri;
+            }
+        }
+
+        // Database override
+        if let Ok(url) = env::var("MCP_GUARD_DATABASE_URL") {
+            self.database_url = Some(url);
+        }
     }
 
     /// Validate the configuration
