@@ -1,4 +1,5 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners, APP_INITIALIZER, inject } from '@angular/core';
+import { provideHttpClient } from '@angular/common/http';
 import { provideRouter, withInMemoryScrolling, withViewTransitions, Router, NavigationEnd } from '@angular/router';
 import { routes } from './app.routes';
 import { ScrollAnimationService } from './shared/scroll-animation.service';
@@ -30,6 +31,7 @@ function initializeScrollService() {
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    provideHttpClient(),
     provideRouter(
       routes,
       withInMemoryScrolling({

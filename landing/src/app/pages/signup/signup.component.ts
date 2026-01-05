@@ -1,5 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { environment } from '../../../environments/environment';
@@ -453,7 +455,8 @@ export class SignupComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    private http: HttpClient
   ) { }
 
   ngOnInit() {
@@ -493,18 +496,16 @@ export class SignupComponent implements OnInit {
       // Initialize Stripe
       const stripe = Stripe(this.stripePublishableKey);
 
-      // Create checkout session via your backend API
-      // For now, redirect directly to Stripe checkout
-      // Note: metadata and subscriptionData (trial period) require server-side 
-      // Checkout Session creation. For client-side redirectToCheckout, we use
-      // clientReferenceId to pass the plan info - configure trial in Stripe Dashboard.
+      // Create checkout session via backend API
+      const response = await firstValueFrom(this.http.post<any>(`${environment.apiUrl}/api/billing/checkout`, {
+        email: this.email,
+        price_id: this.stripePriceId,
+        success_url: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${window.location.origin}/pricing`
+      }));
+
       const { error } = await stripe.redirectToCheckout({
-        lineItems: [{ price: this.stripePriceId, quantity: 1 }],
-        mode: 'subscription',
-        successUrl: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${window.location.origin}/pricing`,
-        customerEmail: this.email,
-        clientReferenceId: this.plan()
+        sessionId: response.session_id
       });
 
       if (error) {

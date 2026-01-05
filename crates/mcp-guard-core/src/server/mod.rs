@@ -39,6 +39,7 @@ use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 pub mod dashboard;
+pub mod billing;
 
 // ============================================================================
 // Constants
@@ -1236,6 +1237,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         router = router
             .route("/oauth/authorize", get(oauth_authorize))
             .route("/oauth/callback", get(oauth_callback));
+    }
+
+    if state.config.stripe_secret_key.is_some() {
+        router = router.route("/api/billing/checkout", post(billing::create_checkout_session));
     }
 
     // Mount dashboard routes

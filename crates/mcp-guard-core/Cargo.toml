@@ -101,6 +101,9 @@ flate2 = "1.0"
 # Glob pattern matching for tool rate limits
 glob = "0.3"
 
+# Billing
+stripe = { version = "0.30", features = ["runtime-tokio-hyper"] }
+
 [features]
 default = []
 # Pro tier features (OAuth, JWT JWKS, HTTP/SSE transports)

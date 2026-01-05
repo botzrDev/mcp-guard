@@ -80,6 +80,9 @@ pub struct Config {
 
     /// Database URL for persistent storage
     pub database_url: Option<String>,
+
+    /// Stripe secret key for billing
+    pub stripe_secret_key: Option<String>,
 }
 
 /// Server configuration
@@ -785,6 +788,11 @@ impl Config {
         // Database override
         if let Ok(url) = env::var("MCP_GUARD_DATABASE_URL") {
             self.database_url = Some(url);
+        }
+
+        // Stripe override
+        if let Ok(key) = env::var("STRIPE_SECRET_KEY") {
+            self.stripe_secret_key = Some(key);
         }
     }
 
