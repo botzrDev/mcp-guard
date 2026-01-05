@@ -17,6 +17,10 @@ describe('LoginComponent', () => {
             isLoading: jest.fn().mockReturnValue(false),
             loginWithGitHub: jest.fn(),
             loginWithGoogle: jest.fn(),
+            sendMagicLink: jest.fn().mockResolvedValue(true),
+            resetMagicLinkState: jest.fn(),
+            magicLinkSent: jest.fn().mockReturnValue(false),
+            magicLinkEmail: jest.fn().mockReturnValue(null),
         };
 
         await TestBed.configureTestingModule({
@@ -150,6 +154,10 @@ describe('LoginComponent', () => {
                 isLoading: jest.fn().mockReturnValue(true),
                 loginWithGitHub: jest.fn(),
                 loginWithGoogle: jest.fn(),
+                sendMagicLink: jest.fn().mockResolvedValue(true),
+                resetMagicLinkState: jest.fn(),
+                magicLinkSent: jest.fn().mockReturnValue(false),
+                magicLinkEmail: jest.fn().mockReturnValue(null),
             };
 
             TestBed.resetTestingModule();
@@ -172,6 +180,83 @@ describe('LoginComponent', () => {
 
             expect(githubBtn.disabled).toBe(true);
             expect(googleBtn.disabled).toBe(true);
+        });
+
+        it('should render magic link email form', () => {
+            const emailInput = fixture.nativeElement.querySelector('.input-group input[type="email"]');
+            const magicLinkBtn = fixture.nativeElement.querySelector('.magic-link-btn');
+
+            expect(emailInput).toBeTruthy();
+            expect(magicLinkBtn).toBeTruthy();
+            expect(magicLinkBtn.textContent).toContain('Continue with Email');
+        });
+
+        it('should render divider between OAuth and magic link', () => {
+            const divider = fixture.nativeElement.querySelector('.divider');
+            expect(divider).toBeTruthy();
+            expect(divider.textContent).toContain('or');
+        });
+    });
+
+    describe('magic link actions', () => {
+        beforeEach(() => {
+            fixture.detectChanges();
+        });
+
+        it('should call sendMagicLink when form is submitted', () => {
+            component.email.set('test@example.com');
+            component.sendMagicLink();
+
+            expect(authServiceMock.sendMagicLink).toHaveBeenCalledWith('test@example.com');
+        });
+
+        it('should not call sendMagicLink when email is empty', () => {
+            component.email.set('');
+            component.sendMagicLink();
+
+            expect(authServiceMock.sendMagicLink).not.toHaveBeenCalled();
+        });
+
+        it('should call resetMagicLinkState when resetting', () => {
+            component.email.set('test@example.com');
+            component.resetMagicLink();
+
+            expect(authServiceMock.resetMagicLinkState).toHaveBeenCalled();
+            expect(component.email()).toBe('');
+        });
+    });
+
+    describe('magic link success state', () => {
+        it('should show success message when magic link is sent', async () => {
+            const sentAuthServiceMock: jest.Mocked<Partial<AuthService>> = {
+                isLoading: jest.fn().mockReturnValue(false),
+                loginWithGitHub: jest.fn(),
+                loginWithGoogle: jest.fn(),
+                sendMagicLink: jest.fn().mockResolvedValue(true),
+                resetMagicLinkState: jest.fn(),
+                magicLinkSent: jest.fn().mockReturnValue(true),
+                magicLinkEmail: jest.fn().mockReturnValue('sent@example.com'),
+            };
+
+            TestBed.resetTestingModule();
+            await TestBed.configureTestingModule({
+                imports: [LoginComponent],
+                providers: [
+                    { provide: AuthService, useValue: sentAuthServiceMock },
+                    {
+                        provide: ActivatedRoute,
+                        useValue: { queryParams: queryParamsSubject.asObservable() },
+                    },
+                ],
+            }).compileComponents();
+
+            const sentFixture = TestBed.createComponent(LoginComponent);
+            sentFixture.detectChanges();
+
+            const successSection = sentFixture.nativeElement.querySelector('.magic-link-success');
+            expect(successSection).toBeTruthy();
+            expect(successSection.textContent).toContain('Check your email');
+            expect(successSection.textContent).toContain('sent@example.com');
         });
     });
 });

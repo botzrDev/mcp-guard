@@ -92,7 +92,7 @@ import { CommonModule } from '@angular/common';
           <div class="install-bar">
             <code class="install-code">
               <span class="prompt">$</span>
-              <span class="command">curl -fsSL https://mcp.guard/install.sh | sh</span>
+              <span class="command">cargo install mcp-guard</span>
             </code>
             <button class="copy-btn" (click)="copyCommand()" [class.copied]="copied()">
               @if (copied()) {
@@ -641,7 +641,7 @@ export class HeroComponent implements OnInit, OnDestroy {
   ngOnDestroy() { }
 
   copyCommand() {
-    navigator.clipboard.writeText('curl -fsSL https://mcp.guard/install.sh | sh');
+    navigator.clipboard.writeText('cargo install mcp-guard');
     this.copied.set(true);
     setTimeout(() => this.copied.set(false), 2000);
   }

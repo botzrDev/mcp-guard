@@ -1,5 +1,5 @@
 export type UserRole = 'user' | 'admin';
-export type AuthProvider = 'github' | 'google';
+export type AuthProvider = 'github' | 'google' | 'magic_link';
 export type LicenseTier = 'free' | 'pro' | 'enterprise';
 export type LicenseStatus = 'active' | 'expired' | 'trial';
 

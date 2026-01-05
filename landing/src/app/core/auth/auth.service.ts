@@ -83,6 +83,50 @@ export class AuthService {
         window.location.href = `${API_BASE}/oauth/authorize?provider=google&redirect_uri=${returnUrl}`;
     }
 
+    private magicLinkSentState = signal(false);
+    private magicLinkEmailState = signal<string | null>(null);
+    readonly magicLinkSent = this.magicLinkSentState.asReadonly();
+    readonly magicLinkEmail = this.magicLinkEmailState.asReadonly();
+
+    async sendMagicLink(email: string): Promise<boolean> {
+        this.loading.set(true);
+        this.error.set(null);
+        this.magicLinkSentState.set(false);
+
+        try {
+            const response = await fetch(`${API_BASE}/auth/magic-link`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email,
+                    redirect_uri: window.location.origin + '/auth/callback'
+                }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                this.error.set(data.message || 'Failed to send magic link');
+                this.loading.set(false);
+                return false;
+            }
+
+            this.magicLinkSentState.set(true);
+            this.magicLinkEmailState.set(email);
+            this.loading.set(false);
+            return true;
+        } catch {
+            this.error.set('Network error. Please try again.');
+            this.loading.set(false);
+            return false;
+        }
+    }
+
+    resetMagicLinkState(): void {
+        this.magicLinkSentState.set(false);
+        this.magicLinkEmailState.set(null);
+        this.error.set(null);
+    }
+
     handleCallback(token: string): boolean {
         try {
             const payload = this.decodeToken(token);

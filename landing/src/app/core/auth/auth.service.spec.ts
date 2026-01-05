@@ -251,4 +251,83 @@ describe('AuthService', () => {
             expect(routerSpy.navigate).toHaveBeenCalledWith(['/dashboard']);
         });
     });
+
+    describe('magic link', () => {
+        const originalFetch = global.fetch;
+
+        beforeEach(() => {
+            global.fetch = jest.fn();
+        });
+
+        afterEach(() => {
+            global.fetch = originalFetch;
+        });
+
+        it('should have magicLinkSent false initially', () => {
+            expect(service.magicLinkSent()).toBe(false);
+        });
+
+        it('should have magicLinkEmail null initially', () => {
+            expect(service.magicLinkEmail()).toBeNull();
+        });
+
+        it('should send magic link successfully', async () => {
+            (global.fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({ success: true }),
+            });
+
+            const result = await service.sendMagicLink('test@example.com');
+
+            expect(result).toBe(true);
+            expect(service.magicLinkSent()).toBe(true);
+            expect(service.magicLinkEmail()).toBe('test@example.com');
+            expect(service.isLoading()).toBe(false);
+            expect((global.fetch as jest.Mock)).toHaveBeenCalledWith(
+                expect.stringContaining('/auth/magic-link'),
+                expect.objectContaining({
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                })
+            );
+        });
+
+        it('should handle magic link failure', async () => {
+            (global.fetch as jest.Mock).mockResolvedValueOnce({
+                ok: false,
+                json: () => Promise.resolve({ message: 'Email not found' }),
+            });
+
+            const result = await service.sendMagicLink('invalid@example.com');
+
+            expect(result).toBe(false);
+            expect(service.magicLinkSent()).toBe(false);
+            expect(service.authError()).toBe('Email not found');
+            expect(service.isLoading()).toBe(false);
+        });
+
+        it('should handle network error', async () => {
+            (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
+
+            const result = await service.sendMagicLink('test@example.com');
+
+            expect(result).toBe(false);
+            expect(service.authError()).toBe('Network error. Please try again.');
+            expect(service.isLoading()).toBe(false);
+        });
+
+        it('should reset magic link state', async () => {
+            (global.fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({ success: true }),
+            });
+            await service.sendMagicLink('test@example.com');
+
+            service.resetMagicLinkState();
+
+            expect(service.magicLinkSent()).toBe(false);
+            expect(service.magicLinkEmail()).toBeNull();
+            expect(service.authError()).toBeNull();
+        });
+    });
 });
