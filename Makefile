@@ -1,11 +1,18 @@
 # MCP Guard - Development Makefile
 # Run 'make help' for available commands
 
-.PHONY: help build test clean run dev frontend-* backend-*
+.PHONY: help build test clean run dev frontend-* backend-* dev-*
 
 # Default target
 help:
 	@echo "MCP Guard Development Commands"
+	@echo ""
+	@echo "Unified Development:"
+	@echo "  make dev            Start all services (backend + frontend)"
+	@echo "  make dev-stop       Stop all services gracefully"
+	@echo "  make dev-restart    Restart all services"
+	@echo "  make dev-status     Show status of all services"
+	@echo "  make dev-logs       Tail logs from all services"
 	@echo ""
 	@echo "Backend (Rust):"
 	@echo "  make build          Build the backend in release mode"
@@ -25,7 +32,6 @@ help:
 	@echo "  make frontend-clean Clean frontend build artifacts"
 	@echo ""
 	@echo "Full Stack:"
-	@echo "  make dev-all        Start both backend and frontend"
 	@echo "  make build-all      Build both backend and frontend"
 	@echo "  make clean-all      Clean all build artifacts"
 	@echo ""
@@ -90,18 +96,34 @@ frontend-status:
 	@./scripts/frontend.sh status
 
 # =============================================================================
-# Full Stack Commands
+# Unified Development Commands (use scripts/dev.sh)
 # =============================================================================
 
-dev-all: frontend
-	@echo "Starting backend..."
-	cargo run -- run
+dev:
+	@./scripts/dev.sh start
+
+dev-stop:
+	@./scripts/dev.sh stop
+
+dev-restart:
+	@./scripts/dev.sh restart
+
+dev-status:
+	@./scripts/dev.sh status
+
+dev-logs:
+	@./scripts/dev.sh logs
+
+# =============================================================================
+# Full Stack Build Commands
+# =============================================================================
 
 build-all: build frontend-build
 	@echo "Both backend and frontend built successfully"
 
 clean-all: clean frontend-clean
 	@echo "All build artifacts cleaned"
+
 
 clean:
 	cargo clean

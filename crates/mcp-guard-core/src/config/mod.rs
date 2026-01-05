@@ -1094,6 +1094,7 @@ mod tests {
                 url: None,
                 servers: vec![],
             },
+            database_url: None,
         }
     }
 
@@ -1113,6 +1114,7 @@ mod tests {
                 url: Some("http://localhost:8080".to_string()),
                 servers: vec![],
             },
+            database_url: None,
         }
     }
 

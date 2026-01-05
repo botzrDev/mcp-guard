@@ -495,20 +495,16 @@ export class SignupComponent implements OnInit {
 
       // Create checkout session via your backend API
       // For now, redirect directly to Stripe checkout
+      // Note: metadata and subscriptionData (trial period) require server-side 
+      // Checkout Session creation. For client-side redirectToCheckout, we use
+      // clientReferenceId to pass the plan info - configure trial in Stripe Dashboard.
       const { error } = await stripe.redirectToCheckout({
         lineItems: [{ price: this.stripePriceId, quantity: 1 }],
         mode: 'subscription',
         successUrl: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${window.location.origin}/pricing`,
         customerEmail: this.email,
-        clientReferenceId: this.plan(),
-        metadata: {
-          tier: this.plan()
-        },
-        // Trial period
-        subscriptionData: {
-          trialPeriodDays: 7
-        }
+        clientReferenceId: this.plan()
       });
 
       if (error) {

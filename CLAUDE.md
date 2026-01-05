@@ -47,7 +47,19 @@ mcp-guard/
 
 ### Key Commands
 ```bash
-# Development
+# Unified Development (start all services)
+./scripts/dev.sh start         # Start backend + frontend
+./scripts/dev.sh stop          # Stop all services gracefully
+./scripts/dev.sh restart       # Restart all services
+./scripts/dev.sh status        # Show service status
+./scripts/dev.sh logs          # Tail all logs
+
+# Or use make shortcuts
+make dev                       # Start all services
+make dev-stop                  # Stop all services
+make dev-status                # Show status
+
+# Backend Only
 cargo build                    # Build debug
 cargo test                     # Run tests
 cargo clippy -- -D warnings    # Lint
@@ -58,6 +70,7 @@ mcp-guard validate             # Check config
 mcp-guard keygen --user-id X   # Generate API key
 mcp-guard run                  # Start server
 ```
+
 
 ### Performance Targets
 | Metric | Target |

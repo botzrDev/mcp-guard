@@ -58,5 +58,5 @@ jsonwebtoken = "9.3"
 
 [features]
 default = []
-# pro = ["mcp-guard-pro", "mcp-guard-core/pro"]
-# enterprise = ["pro", "mcp-guard-enterprise", "mcp-guard-core/enterprise"]
+pro = ["mcp-guard-core/pro"]
+enterprise = ["pro", "mcp-guard-core/enterprise"]

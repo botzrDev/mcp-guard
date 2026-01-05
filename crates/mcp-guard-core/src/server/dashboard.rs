@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     response::Json,
-    routing::{delete, get, post},
+    routing::{delete, get},
     Router,
 };
 use serde::{Deserialize, Serialize};
@@ -69,7 +69,7 @@ pub struct AuditLog {
     pub ip_address: String,
 }
 
-pub fn dashboard_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
+pub fn dashboard_router(_state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
         .route("/stats", get(get_stats))
         .route("/license", get(get_license))

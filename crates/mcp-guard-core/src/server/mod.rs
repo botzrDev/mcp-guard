@@ -1938,6 +1938,7 @@ mod tests {
                 url: Some("http://localhost".into()),
                 servers: vec![],
             },
+            database_url: None,
         };
 
         Arc::new(AppState {
@@ -1953,6 +1954,7 @@ mod tests {
             started_at: Instant::now(),
             ready: Arc::new(RwLock::new(true)),
             mtls_provider: None,
+            db: None,
         })
     }
 
@@ -2046,6 +2048,7 @@ mod tests {
                 url: Some("http://localhost".into()),
                 servers: vec![],
             },
+            database_url: None,
         };
 
         config.auth.oauth = Some(OAuthConfig {

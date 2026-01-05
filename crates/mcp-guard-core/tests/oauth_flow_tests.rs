@@ -94,6 +94,7 @@ async fn test_oauth_authorize_stores_pkce_state() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -192,6 +193,7 @@ async fn test_oauth_callback_successful_token_exchange() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -264,6 +266,7 @@ async fn test_oauth_callback_rejects_ip_mismatch() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -317,6 +320,7 @@ async fn test_oauth_callback_rejects_missing_code() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -385,6 +389,7 @@ async fn test_oauth_callback_token_exchange_failure() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -452,6 +457,7 @@ async fn test_oauth_callback_minimal_token_response() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -528,6 +534,7 @@ async fn test_oauth_callback_missing_access_token() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -596,6 +603,7 @@ async fn test_oauth_callback_confidential_client() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -669,6 +677,7 @@ async fn test_oauth_callback_public_client() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);

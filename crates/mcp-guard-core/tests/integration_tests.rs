@@ -57,6 +57,7 @@ fn test_config_validation_stdio() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
     };
 
     assert!(config.validate().is_ok());
@@ -78,6 +79,7 @@ fn test_config_validation_stdio_missing_command() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
     };
 
     let result = config.validate();
@@ -103,6 +105,7 @@ fn test_config_validation_http_missing_url() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
     };
 
     let result = config.validate();
@@ -316,6 +319,7 @@ fn test_config_validation_http_valid() {
             url: Some("http://localhost:8080/mcp".to_string()),
             servers: vec![],
         },
+        database_url: None,
     };
 
     assert!(config.validate().is_ok());
@@ -338,6 +342,7 @@ fn test_config_validation_sse_valid() {
             url: Some("http://localhost:8080/mcp/stream".to_string()),
             servers: vec![],
         },
+        database_url: None,
     };
 
     assert!(config.validate().is_ok());
@@ -360,6 +365,7 @@ fn test_config_validation_http_requires_pro() {
             url: Some("http://localhost:8080/mcp".to_string()),
             servers: vec![],
         },
+        database_url: None,
     };
 
     let result = config.validate();
@@ -383,6 +389,7 @@ fn test_config_validation_sse_requires_pro() {
             url: Some("http://localhost:8080/mcp/stream".to_string()),
             servers: vec![],
         },
+        database_url: None,
     };
 
     let result = config.validate();
@@ -408,6 +415,7 @@ fn test_config_validation_sse_missing_url() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
     };
 
     let result = config.validate();
@@ -775,6 +783,7 @@ async fn test_health_endpoint_response_structure() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
     };
 
     // Create minimal app state
@@ -791,6 +800,7 @@ async fn test_health_endpoint_response_structure() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -879,6 +889,7 @@ async fn test_live_endpoint() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
     };
 
     let state = Arc::new(AppState {
@@ -894,6 +905,7 @@ async fn test_live_endpoint() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -942,6 +954,7 @@ async fn test_ready_endpoint_when_ready() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
     };
 
     let state = Arc::new(AppState {
@@ -957,6 +970,7 @@ async fn test_ready_endpoint_when_ready() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)), // Ready = true
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -1010,6 +1024,7 @@ async fn test_ready_endpoint_when_not_ready() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
     };
 
     let state = Arc::new(AppState {
@@ -1025,6 +1040,7 @@ async fn test_ready_endpoint_when_not_ready() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(false)), // Ready = false
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -1152,6 +1168,7 @@ async fn test_oauth_authorize_not_configured() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
     };
 
     let state = Arc::new(AppState {
@@ -1167,6 +1184,7 @@ async fn test_oauth_authorize_not_configured() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -1220,6 +1238,7 @@ async fn test_oauth_authorize_generates_redirect() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
     };
 
     let oauth_config = OAuthConfig {
@@ -1252,6 +1271,7 @@ async fn test_oauth_authorize_generates_redirect() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -1319,6 +1339,7 @@ async fn test_oauth_callback_rejects_missing_state() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
     };
 
     let oauth_config = OAuthConfig {
@@ -1351,6 +1372,7 @@ async fn test_oauth_callback_rejects_missing_state() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -1403,6 +1425,7 @@ async fn test_oauth_callback_rejects_invalid_state() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
     };
 
     let oauth_config = OAuthConfig {
@@ -1435,6 +1458,7 @@ async fn test_oauth_callback_rejects_invalid_state() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -1487,6 +1511,7 @@ async fn test_oauth_callback_handles_provider_error() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
     };
 
     let oauth_config = OAuthConfig {
@@ -1519,6 +1544,7 @@ async fn test_oauth_callback_handles_provider_error() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -1684,6 +1710,7 @@ async fn test_routes_endpoint_lists_servers() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);
@@ -1741,6 +1768,7 @@ async fn test_routes_endpoint_unavailable_when_single_server() {
             url: None,
             servers: vec![], // No multi-server routing
         },
+        database_url: None,
     };
 
     let state = Arc::new(AppState {
@@ -1756,6 +1784,7 @@ async fn test_routes_endpoint_unavailable_when_single_server() {
         started_at: Instant::now(),
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
+        db: None,
     });
 
     let app = build_router(state);

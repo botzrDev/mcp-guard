@@ -101,6 +101,7 @@ async fn test_app_state_creation_with_api_key() {
         started_at: Instant::now(),
         ready,
         mtls_provider: None,
+        db: None,
     });
 
     // Verify state is created correctly

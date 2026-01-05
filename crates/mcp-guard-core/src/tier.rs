@@ -267,6 +267,7 @@ mod tests {
                 url: None,
                 servers: vec![],
             },
+            database_url: None,
         }
     }
 
