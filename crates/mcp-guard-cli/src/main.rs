@@ -25,7 +25,7 @@ use tokio_util::sync::CancellationToken;
 use mcp_guard_core::{
     audit::{AuditLogger, AuditLoggerHandle},
     auth::{
-        ApiKeyProvider, AuthProvider, JwtProvider, MtlsAuthProvider, MultiProvider,
+        ApiKeyProvider, AuthProvider, DatabaseAuthProvider, JwtProvider, MtlsAuthProvider, MultiProvider,
         OAuthAuthProvider,
     },
     cli::{
@@ -58,6 +58,15 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
     // Initialize Prometheus metrics
     let metrics_handle = init_metrics();
 
+    // Set up database connection
+    let db = if let Some(url) = &config.database_url {
+        tracing::info!("Initializing database connection");
+        Some(mcp_guard_core::db::Database::new(url).await
+            .map_err(|e| anyhow::anyhow!("Failed to connect to database: {}", e))?)
+    } else {
+        None
+    };
+
     // Set up OAuth provider (separate from MultiProvider for auth code flow)
     let oauth_provider: Option<Arc<OAuthAuthProvider>> =
         if let Some(oauth_config) = config.auth.oauth.clone() {
@@ -83,6 +92,12 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
                 config.auth.api_keys.len()
             );
             providers.push(Arc::new(ApiKeyProvider::new(config.auth.api_keys.clone())));
+        }
+
+        // Add Database provider if configured
+        if let Some(database) = &db {
+            tracing::info!("Enabling database authentication");
+            providers.push(Arc::new(DatabaseAuthProvider::new(database.api_keys())));
         }
 
         // Add JWT provider if configured
@@ -224,6 +239,7 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
         started_at: Instant::now(),
         ready,
         mtls_provider,
+        db: db.clone(),
     });
 
     Ok(BootstrapResult {
@@ -235,6 +251,9 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Load .env file
+    dotenvy::dotenv().ok();
+
     let cli = Cli::parse_args();
     if let Err(e) = run_cli(cli).await {
         eprintln!("Error: {}", e);

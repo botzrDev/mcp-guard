@@ -1,9 +1,10 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { User, JwtPayload, UserRole } from './auth.models';
+import { environment } from '../../../environments/environment';
 
 const TOKEN_KEY = 'mcp_guard_token';
-const API_BASE = ''; // Will be configured via environment
+const API_BASE = environment.apiUrl;
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {

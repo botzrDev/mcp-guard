@@ -29,6 +29,7 @@ pub mod guard_tools;
 pub mod mcp_server;
 pub mod observability;
 pub mod rate_limit;
+pub mod db;
 pub mod router;
 pub mod server;
 pub mod tier;

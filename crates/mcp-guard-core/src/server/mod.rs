@@ -138,6 +138,8 @@ pub struct AppState {
     pub ready: Arc<RwLock<bool>>,
     /// mTLS provider for client certificate auth via reverse proxy headers
     pub mtls_provider: Option<Arc<MtlsAuthProvider>>,
+    /// Database connection for persistent storage (users, API keys)
+    pub db: Option<crate::db::Database>,
 }
 
 /// Health check response (detailed)

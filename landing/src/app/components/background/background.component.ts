@@ -20,6 +20,13 @@ interface Node {
   pulsePhase: number;
 }
 
+interface DataPacket {
+  connectionIdx: number;
+  progress: number; // 0 to 1
+  speed: number;
+  reverse: boolean; // travel direction
+}
+
 @Component({
   selector: 'app-background',
   standalone: true,
@@ -92,6 +99,7 @@ interface Node {
             }
           </g>
         }
+
       </svg>
 
       <!-- Layer 4: Canvas for Particles -->
@@ -323,7 +331,16 @@ export class BackgroundComponent implements OnInit, OnDestroy, AfterViewInit {
   private platformId = inject(PLATFORM_ID);
   private animationFrameId: number | null = null;
   private particles: Particle[] = [];
+  private packets: DataPacket[] = [];
   private ctx: CanvasRenderingContext2D | null = null;
+  private nodeToggleInterval: ReturnType<typeof setInterval> | null = null;
+  private isMobile = false;
+
+  // Animation constants
+  private readonly PACKET_COUNT = 8;
+  private readonly PACKET_COUNT_MOBILE = 4;
+  private readonly ATTRACTION_STRENGTH = 0.00008;
+  private readonly ATTRACTION_STRENGTH_MOBILE = 0.00004;
 
   prefersReducedMotion = signal(false);
   nodes = signal<Node[]>([]);
@@ -337,6 +354,9 @@ export class BackgroundComponent implements OnInit, OnDestroy, AfterViewInit {
       this.prefersReducedMotion.set(mediaQuery.matches);
       mediaQuery.addEventListener('change', (e) => this.prefersReducedMotion.set(e.matches));
 
+      // Detect mobile
+      this.isMobile = window.innerWidth < 768;
+
       // Generate network nodes
       this.generateNodes();
 
@@ -349,6 +369,7 @@ export class BackgroundComponent implements OnInit, OnDestroy, AfterViewInit {
     if (isPlatformBrowser(this.platformId) && !this.prefersReducedMotion()) {
       this.initCanvas();
       this.generateParticles();
+      this.generatePackets();
       this.animate();
     }
   }
@@ -356,6 +377,9 @@ export class BackgroundComponent implements OnInit, OnDestroy, AfterViewInit {
   ngOnDestroy() {
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
+    }
+    if (this.nodeToggleInterval) {
+      clearInterval(this.nodeToggleInterval);
     }
   }
 
@@ -397,7 +421,7 @@ export class BackgroundComponent implements OnInit, OnDestroy, AfterViewInit {
 
     // Periodically toggle node active states
     if (isPlatformBrowser(this.platformId)) {
-      setInterval(() => {
+      this.nodeToggleInterval = setInterval(() => {
         const current = this.nodes();
         const updated = current.map(node => ({
           ...node,
@@ -465,9 +489,56 @@ export class BackgroundComponent implements OnInit, OnDestroy, AfterViewInit {
     const canvas = this.canvasRef.nativeElement;
     this.ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Update and draw particles
+    // Get active nodes for particle attraction
+    const activeNodes = this.nodes().filter(n => n.active);
+    const attractionStrength = this.isMobile ? this.ATTRACTION_STRENGTH_MOBILE : this.ATTRACTION_STRENGTH;
+
+    // Update and draw particles with attraction
     for (let i = 0; i < this.particles.length; i++) {
       const p = this.particles[i];
+
+      // Apply attraction to nearest active node
+      if (activeNodes.length > 0) {
+        let nearestDist = Infinity;
+        let nearestNode = activeNodes[0];
+
+        for (const node of activeNodes) {
+          // Convert SVG coordinates to canvas coordinates
+          const nodeX = (node.x / 1920) * canvas.width;
+          const nodeY = (node.y / 1080) * canvas.height;
+          const dx = nodeX - p.x;
+          const dy = nodeY - p.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearestNode = node;
+          }
+        }
+
+        // Apply attraction force
+        const targetX = (nearestNode.x / 1920) * canvas.width;
+        const targetY = (nearestNode.y / 1080) * canvas.height;
+        p.vx += (targetX - p.x) * attractionStrength;
+        p.vy += (targetY - p.y) * attractionStrength;
+
+        // Dampen velocity to prevent runaway acceleration
+        p.vx *= 0.99;
+        p.vy *= 0.99;
+
+        // If particle gets very close to node, fade it out and respawn
+        if (nearestDist < 30) {
+          p.opacity -= 0.02;
+          if (p.opacity <= 0) {
+            // Respawn at edge
+            p.x = Math.random() * canvas.width;
+            p.y = canvas.height + 50;
+            p.vx = (Math.random() - 0.5) * 0.3;
+            p.vy = -0.2 - Math.random() * 0.3;
+            p.opacity = 0.1 + Math.random() * 0.3;
+          }
+        }
+      }
 
       // Update position
       p.x += p.vx;
@@ -478,12 +549,17 @@ export class BackgroundComponent implements OnInit, OnDestroy, AfterViewInit {
       if (p.y < -50 || p.x < -50 || p.x > canvas.width + 50) {
         p.x = Math.random() * canvas.width;
         p.y = canvas.height + 50;
+        p.vx = (Math.random() - 0.5) * 0.3;
+        p.vy = -0.2 - Math.random() * 0.3;
         p.opacity = 0.1 + Math.random() * 0.3;
       }
 
       // Draw particle
       this.drawParticle(p);
     }
+
+    // Update and draw data packets
+    this.updateAndDrawPackets(canvas);
 
     this.animationFrameId = requestAnimationFrame(() => this.animate());
   }
@@ -534,6 +610,95 @@ export class BackgroundComponent implements OnInit, OnDestroy, AfterViewInit {
       this.ctx.closePath();
       this.ctx.stroke();
     }
+
+    this.ctx.restore();
+  }
+
+  // === Data Packet Methods ===
+
+  private generatePackets() {
+    const packetCount = this.isMobile ? this.PACKET_COUNT_MOBILE : this.PACKET_COUNT;
+    const connections = this.connections();
+
+    if (connections.length === 0) return;
+
+    for (let i = 0; i < packetCount; i++) {
+      this.packets.push(this.createPacket());
+    }
+  }
+
+  private createPacket(): DataPacket {
+    const connections = this.connections();
+    return {
+      connectionIdx: Math.floor(Math.random() * connections.length),
+      progress: Math.random(), // Start at random position along line
+      speed: 0.003 + Math.random() * 0.004, // Vary speed slightly
+      reverse: Math.random() > 0.5
+    };
+  }
+
+  private updateAndDrawPackets(canvas: HTMLCanvasElement) {
+    if (!this.ctx) return;
+
+    const connections = this.connections();
+    if (connections.length === 0) return;
+
+    // Ensure we have enough packets
+    const targetCount = this.isMobile ? this.PACKET_COUNT_MOBILE : this.PACKET_COUNT;
+    while (this.packets.length < targetCount) {
+      this.packets.push(this.createPacket());
+    }
+
+    for (let i = 0; i < this.packets.length; i++) {
+      const packet = this.packets[i];
+      const conn = connections[packet.connectionIdx];
+
+      if (!conn) {
+        // Connection no longer exists, reassign
+        packet.connectionIdx = Math.floor(Math.random() * connections.length);
+        continue;
+      }
+
+      // Update progress
+      packet.progress += packet.reverse ? -packet.speed : packet.speed;
+
+      // If packet reached end, respawn on new connection
+      if (packet.progress >= 1 || packet.progress <= 0) {
+        packet.connectionIdx = Math.floor(Math.random() * connections.length);
+        packet.progress = packet.reverse ? 1 : 0;
+        packet.reverse = Math.random() > 0.5;
+        packet.speed = 0.003 + Math.random() * 0.004;
+      }
+
+      // Calculate position along the line (convert SVG coords to canvas coords)
+      const x1 = (conn.x1 / 1920) * canvas.width;
+      const y1 = (conn.y1 / 1080) * canvas.height;
+      const x2 = (conn.x2 / 1920) * canvas.width;
+      const y2 = (conn.y2 / 1080) * canvas.height;
+
+      const x = x1 + (x2 - x1) * packet.progress;
+      const y = y1 + (y2 - y1) * packet.progress;
+
+      // Draw packet as glowing dot
+      this.drawPacket(x, y);
+    }
+  }
+
+  private drawPacket(x: number, y: number) {
+    if (!this.ctx) return;
+
+    // Outer glow
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.arc(x, y, 8, 0, Math.PI * 2);
+    this.ctx.fillStyle = 'rgba(255, 122, 48, 0.2)';
+    this.ctx.fill();
+
+    // Inner bright core
+    this.ctx.beginPath();
+    this.ctx.arc(x, y, 3, 0, Math.PI * 2);
+    this.ctx.fillStyle = '#FF7A30';
+    this.ctx.fill();
 
     this.ctx.restore();
   }

@@ -77,6 +77,9 @@ pub struct Config {
 
     /// Upstream MCP server configuration
     pub upstream: UpstreamConfig,
+
+    /// Database URL for persistent storage
+    pub database_url: Option<String>,
 }
 
 /// Server configuration
@@ -772,6 +775,7 @@ impl Config {
         self.validate_mtls()?;
         self.validate_tracing()?;
         self.validate_upstream()
+        // Database validation is handled at connection time
     }
 
     // ========================================================================

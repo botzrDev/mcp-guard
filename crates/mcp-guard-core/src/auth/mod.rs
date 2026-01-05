@@ -238,6 +238,62 @@ impl AuthProvider for ApiKeyProvider {
     }
 }
 
+/// Database-backed authentication provider
+pub struct DatabaseAuthProvider {
+    repository: crate::db::ApiKeyRepository,
+}
+
+impl DatabaseAuthProvider {
+    pub fn new(repository: crate::db::ApiKeyRepository) -> Self {
+        Self { repository }
+    }
+
+    fn hash_key(key: &str) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(key.as_bytes());
+        base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            hasher.finalize(),
+        )
+    }
+}
+
+#[async_trait]
+impl AuthProvider for DatabaseAuthProvider {
+    async fn authenticate(&self, token: &str) -> Result<Identity, AuthError> {
+        let hash = Self::hash_key(token);
+        
+        let api_key = self.repository.find_by_hash(&hash).await
+            .map_err(|e| AuthError::Internal(e.to_string()))?;
+
+        if let Some(key) = api_key {
+            // Check expiration
+            if let Some(expires) = key.expires_at {
+                if expires < chrono::Utc::now() {
+                    return Err(AuthError::TokenExpired);
+                }
+            }
+
+            Ok(Identity {
+                id: key.user_id.unwrap_or_else(|| key.id.to_string()),
+                name: key.name.or(Some("API Key".to_string())),
+                allowed_tools: key.allowed_tools.and_then(|v| {
+                    serde_json::from_value(v).ok()
+                }),
+                rate_limit: key.rate_limit.map(|r| r as u32),
+                claims: HashMap::new(),
+            })
+        } else {
+            Err(AuthError::InvalidApiKey)
+        }
+    }
+
+    fn name(&self) -> &str {
+        "database"
+    }
+}
+
 /// Combined authentication provider that tries multiple providers in sequence
 ///
 /// Attempts authentication against each configured provider until one succeeds.

@@ -18,6 +18,7 @@ name = "mcp-guard"
 path = "src/main.rs"
 
 [dependencies]
+dotenvy = "0.15"
 # Core library (with feature passthrough)
 mcp-guard-core = { path = "../mcp-guard-core", version = "1.0.0" }
 
