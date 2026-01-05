@@ -140,6 +140,8 @@ pub struct AppState {
     pub ready: Arc<RwLock<bool>>,
     /// mTLS provider for client certificate auth via reverse proxy headers
     pub mtls_provider: Option<Arc<MtlsAuthProvider>>,
+    /// JWT provider for session token minting
+    pub jwt_provider: Option<Arc<crate::auth::JwtProvider>>,
     /// Database connection for persistent storage (users, API keys)
     pub db: Option<crate::db::Database>,
 }
@@ -635,6 +637,26 @@ async fn oauth_callback(
     .await?;
 
     tracing::info!("OAuth code exchange successful");
+    
+    // Verify identity with provider (fetches user profile)
+    let identity = oauth_provider
+        .authenticate(&tokens.access_token)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to resolve identity from OAuth token");
+            AppError::unauthorized("Failed to verify identity with provider")
+        })?;
+
+    // Mint session JWT
+    let jwt_provider = state.jwt_provider.as_ref().ok_or_else(|| {
+        tracing::error!("JWT provider not configured - required for OAuth sessions");
+        AppError::internal("Server configuration error")
+    })?;
+
+    let session_token = jwt_provider.mint_token(&identity).map_err(|e| {
+        tracing::error!(error = %e, "Failed to mint session token");
+        AppError::internal("Failed to create session")
+    })?;
 
     // SECURITY: Add Cache-Control headers to prevent token caching
     // This prevents browsers and proxies from caching sensitive OAuth tokens
@@ -646,8 +668,8 @@ async fn oauth_callback(
     // If a redirect URI was provided in the initial request (e.g. from frontend),
     // redirect back to it with the token.
     if let Some(redirect_uri) = pkce_state.redirect_uri {
-        let target_url = format!("{}?token={}", redirect_uri, tokens.access_token);
-        tracing::info!(to = %target_url, "Redirecting to frontend");
+        let target_url = format!("{}?token={}", redirect_uri, session_token);
+        tracing::info!(to = %target_url, "Redirecting to frontend with session token");
         return Ok((headers, Redirect::temporary(&target_url).into_response()).into_response());
     }
 
@@ -1976,6 +1998,7 @@ mod tests {
             started_at: Instant::now(),
             ready: Arc::new(RwLock::new(true)),
             mtls_provider: None,
+            jwt_provider: None,
             db: None,
         })
     }

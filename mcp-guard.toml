@@ -26,6 +26,15 @@ key_hash = "P9FN1lOw5JgHfOcFCB63hJw6eMbx8Vw0tHoWJ1KOvnU="
 allowed_tools = []
 rate_limit = 100
 
+# JWT Configuration (Required for OAuth session)
+[auth.jwt]
+mode = "simple"
+secret = "dev-secret-key-at-least-32-chars-long-for-hs256"
+issuer = "mcp-guard"
+audience = "mcp-guard-ui"
+user_id_claim = "sub"
+scopes_claim = "scope"
+
 # GitHub OAuth
 [auth.oauth]
 provider = "github"

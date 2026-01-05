@@ -82,8 +82,9 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
         };
 
     // Set up authentication provider(s)
-    let auth_provider: Arc<dyn AuthProvider> = {
+    let (auth_provider, jwt_provider_arc): (Arc<dyn AuthProvider>, Option<Arc<JwtProvider>>) = {
         let mut providers: Vec<Arc<dyn AuthProvider>> = Vec::new();
+        let mut jwt_provider_arc = None;
 
         // Add API key provider if configured
         if !config.auth.api_keys.is_empty() {
@@ -109,7 +110,8 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
             );
             // Start background refresh for JWKS mode with shutdown coordination
             jwt_provider.start_background_refresh(shutdown_token.clone());
-            providers.push(jwt_provider);
+            providers.push(jwt_provider.clone());
+            jwt_provider_arc = Some(jwt_provider);
         }
 
         // Add OAuth provider for token validation (shares with oauth_provider)
@@ -122,16 +124,17 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
             tracing::warn!(
                 "No authentication providers configured - all requests will be rejected"
             );
-            Arc::new(ApiKeyProvider::new(vec![])) // Deny all
+            (Arc::new(ApiKeyProvider::new(vec![])), jwt_provider_arc) // Deny all
         } else if providers.len() == 1 {
             // Safe: we just checked length is exactly 1
-            providers
+            let provider = providers
                 .into_iter()
                 .next()
-                .unwrap_or_else(|| Arc::new(ApiKeyProvider::new(vec![])))
+                .unwrap_or_else(|| Arc::new(ApiKeyProvider::new(vec![])));
+            (provider, jwt_provider_arc)
         } else {
             tracing::info!("Using multi-provider authentication");
-            Arc::new(MultiProvider::new(providers))
+            (Arc::new(MultiProvider::new(providers)), jwt_provider_arc)
         }
     };
 
@@ -239,6 +242,7 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
         started_at: Instant::now(),
         ready,
         mtls_provider,
+        jwt_provider: jwt_provider_arc,
         db: db.clone(),
     });
 

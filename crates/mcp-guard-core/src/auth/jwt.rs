@@ -43,7 +43,8 @@ const JWKS_REFRESH_FRACTION_DENOMINATOR: u64 = 4;
 const MAX_JWT_CLAIMS_SIZE: usize = 16 * 1024; // 16KB
 
 use jsonwebtoken::{
-    decode, decode_header, errors::ErrorKind as JwtErrorKind, Algorithm, DecodingKey, Validation,
+    decode, decode_header, errors::ErrorKind as JwtErrorKind, Algorithm, DecodingKey, EncodingKey,
+    Validation,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -86,6 +87,8 @@ pub struct JwtProvider {
     config: JwtConfig,
     /// For simple mode: pre-computed decoding key
     simple_key: Option<DecodingKey>,
+    /// For simple mode: pre-computed encoding key
+    simple_encoding_key: Option<EncodingKey>,
     /// For JWKS mode: cached keys
     jwks_cache: Option<Arc<RwLock<JwksCache>>>,
     /// HTTP client for JWKS fetching
@@ -98,9 +101,11 @@ impl JwtProvider {
         match &config.mode {
             JwtMode::Simple { secret } => {
                 let key = DecodingKey::from_secret(secret.as_bytes());
+                let encoding_key = EncodingKey::from_secret(secret.as_bytes());
                 Ok(Self {
                     config,
                     simple_key: Some(key),
+                    simple_encoding_key: Some(encoding_key),
                     jwks_cache: None,
                     http_client: None,
                 })
@@ -121,6 +126,7 @@ impl JwtProvider {
                 Ok(Self {
                     config,
                     simple_key: None,
+                    simple_encoding_key: None,
                     jwks_cache: Some(cache),
                     http_client: Some(client),
                 })
@@ -304,6 +310,42 @@ impl JwtProvider {
                 _ => vec![],
             })
             .unwrap_or_default()
+    }
+
+    /// Mint a new JWT for the given identity
+    pub fn mint_token(&self, identity: &Identity) -> Result<String, AuthError> {
+        let encoding_key = self
+            .simple_encoding_key
+            .as_ref()
+            .ok_or_else(|| AuthError::Internal("Signing keys not available (JWKS mode)".into()))?;
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let mut claims = identity.claims.clone();
+        
+        // Ensure standard claims are set
+        claims.insert(self.config.user_id_claim.clone(), serde_json::json!(identity.id));
+        claims.insert("iss".to_string(), serde_json::json!(self.config.issuer));
+        claims.insert("aud".to_string(), serde_json::json!(self.config.audience));
+        claims.insert("iat".to_string(), serde_json::json!(now));
+        
+        // Default expiration: 24 hours
+        claims.insert("exp".to_string(), serde_json::json!(now + 86400));
+
+        if let Some(name) = &identity.name {
+            claims.insert("name".to_string(), serde_json::json!(name));
+        }
+        
+        // Add scopes if user has tools mapped
+        // This is a simplification; ideally we'd map tools back to scopes or persist original scopes
+        // For now, we rely on the identity.claims preserving the original scope claim if available
+        
+        let header = jsonwebtoken::Header::new(Algorithm::HS256);
+        jsonwebtoken::encode(&header, &claims, encoding_key)
+            .map_err(|e| AuthError::Internal(format!("Failed to sign token: {}", e)))
     }
 }
 
