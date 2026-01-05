@@ -9,6 +9,7 @@
     <a href="https://github.com/mcp-guard/mcp-guard/actions/workflows/ci.yml"><img src="https://github.com/mcp-guard/mcp-guard/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License"></a>
     <a href="https://github.com/mcp-guard/mcp-guard/releases"><img src="https://img.shields.io/github/v/release/mcp-guard/mcp-guard" alt="Release"></a>
+    <a href="https://discord.gg/krRa4GVx"><img src="https://img.shields.io/badge/discord-join%20community-7289da" alt="Discord"></a>
   </p>
 
   <p>
