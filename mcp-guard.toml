@@ -9,7 +9,7 @@ port = 3000
 # CORS Configuration for local development
 [server.cors]
 enabled = true
-allowed_origins = ["http://localhost:4200", "http://localhost:4201"]
+allowed_origins = ["http://localhost:4200", "http://localhost:4201", "https://mcpg.botzr.com"]
 allowed_methods = ["GET", "POST", "OPTIONS"]
 allowed_headers = ["Authorization", "Content-Type"]
 
@@ -40,7 +40,7 @@ scopes_claim = "scope"
 provider = "github"
 client_id = "set_via_env_var"
 client_secret = "set_via_env_var"
-redirect_uri = "http://localhost:3000/oauth/callback"
+redirect_uri = "http://localhost:4200/auth/callback"
 scopes = ["read:user", "user:email"]
 
 # Note: Google OAuth can be added by uncommenting below

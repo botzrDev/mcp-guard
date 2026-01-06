@@ -42,3 +42,9 @@ __screenshots__/
 .DS_Store
 Thumbs.db
 .ng-serve.pid
+
+# Environment files with secrets
+# Note: environment.prod.ts contains production keys and should be managed carefully
+.env
+.env.local
+.env.*.local

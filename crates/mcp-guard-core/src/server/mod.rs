@@ -784,6 +784,8 @@ pub async fn auth_middleware(
     mut request: Request<Body>,
     next: Next,
 ) -> Result<Response, AppError> {
+    tracing::info!("Auth middleware hit: {} {}", request.method(), request.uri());
+    
     // Try mTLS authentication first (if configured and headers present)
     if let Some(ref mtls_provider) = state.mtls_provider {
         // SECURITY: Use the secure method that validates client IP
@@ -1240,7 +1242,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     }
 
     if state.config.stripe_secret_key.is_some() {
+        tracing::info!("Registering Stripe billing route");
         router = router.route("/api/billing/checkout", post(billing::create_checkout_session));
+    } else {
+        tracing::warn!("Stripe secret key missing, billing route not registered");
     }
 
     // Mount dashboard routes

@@ -6,8 +6,6 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { environment } from '../../../environments/environment';
 
-declare const Stripe: any;
-
 @Component({
   selector: 'app-signup',
   standalone: true,
@@ -449,10 +447,6 @@ export class SignupComponent implements OnInit {
   error = signal<string | null>(null);
   plan = signal<string>('pro');
 
-  // Stripe configuration
-  private stripePublishableKey = environment.stripePublishableKey;
-  private stripePriceId = environment.stripePriceId;
-
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -466,20 +460,6 @@ export class SignupComponent implements OnInit {
         this.plan.set(params['plan']);
       }
     });
-
-    // Load Stripe.js
-    this.loadStripe();
-  }
-
-  private loadStripe() {
-    if (typeof Stripe !== 'undefined') {
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://js.stripe.com/v3/';
-    script.async = true;
-    document.head.appendChild(script);
   }
 
   async handleSubmit(event: Event) {
@@ -493,28 +473,42 @@ export class SignupComponent implements OnInit {
     this.error.set(null);
 
     try {
-      // Initialize Stripe
-      const stripe = Stripe(this.stripePublishableKey);
-
       // Create checkout session via backend API
-      const response = await firstValueFrom(this.http.post<any>(`${environment.apiUrl}/api/billing/checkout`, {
-        email: this.email,
-        price_id: this.stripePriceId,
-        success_url: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${window.location.origin}/pricing`
-      }));
+      const response = await firstValueFrom(
+        this.http.post<{ session_id: string; url: string }>(
+          `${environment.apiUrl}/api/billing/checkout`,
+          {
+            email: this.email,
+            price_id: environment.stripePriceId,
+            success_url: `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${window.location.origin}/pricing`
+          }
+        )
+      );
 
-      const { error } = await stripe.redirectToCheckout({
-        sessionId: response.session_id
-      });
-
-      if (error) {
-        this.error.set(error.message || 'Failed to start checkout');
-        this.loading.set(false);
+      // Redirect to Stripe Checkout using the URL
+      // Modern Stripe API - direct redirect to checkout URL
+      if (response.url) {
+        window.location.href = response.url;
+      } else {
+        throw new Error('No checkout URL received from server');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Checkout error:', err);
-      this.error.set('An unexpected error occurred. Please try again.');
+
+      // Provide helpful error messages based on error type
+      if (err.status === 404) {
+        this.error.set('Checkout service is not available. Please contact support.');
+      } else if (err.status === 500) {
+        this.error.set('Server error. Please try again in a few moments.');
+      } else if (err.status === 0 || !navigator.onLine) {
+        this.error.set('No internet connection. Please check your network.');
+      } else if (err.error?.error) {
+        this.error.set(err.error.error);
+      } else {
+        this.error.set('Failed to start checkout. Please try again.');
+      }
+
       this.loading.set(false);
     }
   }
