@@ -222,7 +222,7 @@ Your agents stay fast. Your infrastructure stays simple.
 | **Pro** | $12/mo | Small teams, production apps |
 | **Enterprise** | $29 + $8/seat | Compliance, multi-server |
 
-<sub>Founder pricing: 40% off forever for early adopters. [Lock in your discount →](https://mcpg.botzr.com/pricing)</sub>
+<sub>Founder pricing: 40% off forever for early adopters. [Lock in your discount →](docs/pricing.md)</sub>
 
 <br>
 
@@ -250,13 +250,13 @@ Options:
 
 | Topic | Guide |
 |-------|-------|
-| Getting Started | [Quick Start](https://mcpg.botzr.com/docs/quickstart) |
-| Authentication | [Auth Guide](https://mcpg.botzr.com/docs/auth) |
-| Transports | [Stdio/HTTP/SSE](https://mcpg.botzr.com/docs/transports) |
-| Rate Limiting | [Rate Limits](https://mcpg.botzr.com/docs/rate-limiting) |
-| Observability | [Metrics & Tracing](https://mcpg.botzr.com/docs/observability) |
-| Deployment | [Production Guide](https://mcpg.botzr.com/docs/deployment) |
-| API Reference | [HTTP API](https://mcpg.botzr.com/docs/api) |
+| Getting Started | [Quick Start](docs/quickstart.md) |
+| Authentication | [Auth Guide](docs/authentication.md) |
+| Transports | [Stdio/HTTP/SSE](docs/configuration.md) |
+| Rate Limiting | [Rate Limits](docs/rate-limiting.md) |
+| Observability | [Metrics & Tracing](docs/observability.md) |
+| Deployment | [Production Guide](docs/deployment.md) |
+| API Reference | [HTTP API](docs/api/http.md) |
 
 <br>
 
