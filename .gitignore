@@ -94,3 +94,6 @@ temp/
 *.tmp
 *.bak
 *.backup
+
+# Windows NTFS alternate data stream files (break Windows checkout)
+*:Zone.Identifier
