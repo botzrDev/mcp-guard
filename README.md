@@ -1,22 +1,19 @@
 <div align="center">
-  <img src="https://mcpg.botzr.com/logo.svg" alt="mcp-guard" width="64" height="64">
   <h1>mcp-guard</h1>
   <p><strong>MCP security without the infrastructure tax.</strong></p>
   <p>One binary. One config file. Production-ready in 5 minutes.</p>
 
   <p>
-    <a href="https://crates.io/crates/mcp-guard"><img src="https://img.shields.io/crates/v/mcp-guard.svg" alt="Crates.io"></a>
-    <a href="https://github.com/mcp-guard/mcp-guard/actions/workflows/ci.yml"><img src="https://github.com/mcp-guard/mcp-guard/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="https://github.com/botzrDev/mcp-guard/actions/workflows/ci.yml"><img src="https://github.com/botzrDev/mcp-guard/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License"></a>
-    <a href="https://github.com/mcp-guard/mcp-guard/releases"><img src="https://img.shields.io/github/v/release/mcp-guard/mcp-guard" alt="Release"></a>
-    <a href="https://discord.gg/krRa4GVx"><img src="https://img.shields.io/badge/discord-join%20community-7289da" alt="Discord"></a>
+    <a href="#build-from-source"><img src="https://img.shields.io/badge/status-source--only-orange.svg" alt="Status: source only"></a>
   </p>
 
   <p>
     <a href="#quick-start">Quick Start</a> &bull;
     <a href="#features">Features</a> &bull;
     <a href="#pricing">Pricing</a> &bull;
-    <a href="https://mcpg.botzr.com/docs">Documentation</a>
+    <a href="docs/">Documentation</a>
   </p>
 </div>
 
@@ -48,11 +45,12 @@ If your AI agent can access it, so can anyone else.
 
 ## Quick Start
 
-Three commands. That's it.
+Build from source, then configure and run.
 
 ```bash
 # 1. Install
-curl -fsSL https://mcpg.botzr.com/install.sh | sh
+git clone https://github.com/botzrDev/mcp-guard
+cd mcp-guard && cargo install --path crates/mcp-guard
 
 # 2. Configure
 mcp-guard init
@@ -68,18 +66,18 @@ curl -H "Authorization: Bearer mcp_YOUR_KEY" http://localhost:3000/health
 ```
 
 <details>
-<summary><strong>Alternative installation methods</strong></summary>
+<summary><strong>Build from source</strong></summary>
+
+`mcp-guard` is currently **source-only**. It is not yet published to crates.io, there is
+no Homebrew tap, and no prebuilt binaries are published. Build it yourself:
 
 ```bash
-# From crates.io (requires Rust)
-cargo install mcp-guard
-
-# Homebrew (macOS/Linux)
-brew install mcp-guard/tap/mcp-guard
-
-# Download binary directly
-curl -fsSL https://github.com/mcp-guard/mcp-guard/releases/latest/download/mcp-guard-$(uname -s)-$(uname -m).tar.gz | tar -xz
+git clone https://github.com/botzrDev/mcp-guard
+cd mcp-guard
+cargo build --release
 ```
+
+The binary lands in `target/release/mcp-guard`.
 
 </details>
 
@@ -276,7 +274,7 @@ We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ```bash
 # Clone and build
-git clone https://github.com/mcp-guard/mcp-guard
+git clone https://github.com/botzrDev/mcp-guard
 cd mcp-guard
 cargo build
 
