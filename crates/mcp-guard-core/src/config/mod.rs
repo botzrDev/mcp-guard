@@ -1130,6 +1130,7 @@ mod tests {
                 servers: vec![],
             },
             database_url: None,
+            stripe_secret_key: None,
         }
     }
 
@@ -1150,6 +1151,7 @@ mod tests {
                 servers: vec![],
             },
             database_url: None,
+            stripe_secret_key: None,
         }
     }
 

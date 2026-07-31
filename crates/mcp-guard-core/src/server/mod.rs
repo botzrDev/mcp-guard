@@ -1533,6 +1533,7 @@ mod tests {
                 code_verifier: "verifier".to_string(),
                 created_at: Instant::now(),
                 client_ip: "127.0.0.1".parse().unwrap(),
+                redirect_uri: None,
             },
         );
 
@@ -1583,6 +1584,7 @@ mod tests {
                     code_verifier: "verifier".to_string(),
                     created_at: Instant::now(),
                     client_ip: "127.0.0.1".parse().unwrap(),
+                    redirect_uri: None,
                 },
             );
         }
@@ -1845,6 +1847,7 @@ mod tests {
                 code_verifier: "verifier123".to_string(),
                 created_at: Instant::now(),
                 client_ip,
+                redirect_uri: None,
             },
         );
 
@@ -2003,6 +2006,7 @@ mod tests {
                 servers: vec![],
             },
             database_url: None,
+            stripe_secret_key: None,
         };
 
         Arc::new(AppState {
@@ -2081,7 +2085,16 @@ mod tests {
         // No oauth provider specific in default state
 
         let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 1234));
-        let result = oauth_authorize(State(state), ConnectInfo(addr)).await;
+        let result = oauth_authorize(
+            State(state),
+            ConnectInfo(addr),
+            Query(OAuthAuthorizeParams {
+                provider: None,
+                redirect_uri: None,
+                scope: None,
+            }),
+        )
+        .await;
 
         assert!(matches!(
             result,
@@ -2114,6 +2127,7 @@ mod tests {
                 servers: vec![],
             },
             database_url: None,
+            stripe_secret_key: None,
         };
 
         config.auth.oauth = Some(OAuthConfig {

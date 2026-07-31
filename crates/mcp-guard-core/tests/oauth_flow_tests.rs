@@ -46,6 +46,8 @@ fn create_test_config() -> Config {
             url: None,
             servers: vec![],
         },
+        database_url: None,
+        stripe_secret_key: None,
     }
 }
 
@@ -95,6 +97,7 @@ async fn test_oauth_authorize_stores_pkce_state() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -177,6 +180,7 @@ async fn test_oauth_callback_successful_token_exchange() {
             code_verifier: test_verifier.to_string(),
             created_at: Instant::now(),
             client_ip,
+            redirect_uri: None,
         },
     );
 
@@ -194,6 +198,7 @@ async fn test_oauth_callback_successful_token_exchange() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -250,6 +255,7 @@ async fn test_oauth_callback_rejects_ip_mismatch() {
             code_verifier: "verifier".to_string(),
             created_at: Instant::now(),
             client_ip: original_ip,
+            redirect_uri: None,
         },
     );
 
@@ -267,6 +273,7 @@ async fn test_oauth_callback_rejects_ip_mismatch() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -304,6 +311,7 @@ async fn test_oauth_callback_rejects_missing_code() {
             code_verifier: "verifier".to_string(),
             created_at: Instant::now(),
             client_ip,
+            redirect_uri: None,
         },
     );
 
@@ -321,6 +329,7 @@ async fn test_oauth_callback_rejects_missing_code() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -373,6 +382,7 @@ async fn test_oauth_callback_token_exchange_failure() {
             code_verifier: "verifier".to_string(),
             created_at: Instant::now(),
             client_ip,
+            redirect_uri: None,
         },
     );
 
@@ -390,6 +400,7 @@ async fn test_oauth_callback_token_exchange_failure() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -441,6 +452,7 @@ async fn test_oauth_callback_minimal_token_response() {
             code_verifier: "verifier".to_string(),
             created_at: Instant::now(),
             client_ip,
+            redirect_uri: None,
         },
     );
 
@@ -458,6 +470,7 @@ async fn test_oauth_callback_minimal_token_response() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -518,6 +531,7 @@ async fn test_oauth_callback_missing_access_token() {
             code_verifier: "verifier".to_string(),
             created_at: Instant::now(),
             client_ip,
+            redirect_uri: None,
         },
     );
 
@@ -535,6 +549,7 @@ async fn test_oauth_callback_missing_access_token() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -587,6 +602,7 @@ async fn test_oauth_callback_confidential_client() {
             code_verifier: "verifier".to_string(),
             created_at: Instant::now(),
             client_ip,
+            redirect_uri: None,
         },
     );
 
@@ -604,6 +620,7 @@ async fn test_oauth_callback_confidential_client() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -661,6 +678,7 @@ async fn test_oauth_callback_public_client() {
             code_verifier: "verifier".to_string(),
             created_at: Instant::now(),
             client_ip,
+            redirect_uri: None,
         },
     );
 
@@ -678,6 +696,7 @@ async fn test_oauth_callback_public_client() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);

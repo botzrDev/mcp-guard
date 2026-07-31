@@ -58,6 +58,7 @@ fn test_config_validation_stdio() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     assert!(config.validate().is_ok());
@@ -80,6 +81,7 @@ fn test_config_validation_stdio_missing_command() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let result = config.validate();
@@ -106,6 +108,7 @@ fn test_config_validation_http_missing_url() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let result = config.validate();
@@ -320,6 +323,7 @@ fn test_config_validation_http_valid() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     assert!(config.validate().is_ok());
@@ -343,6 +347,7 @@ fn test_config_validation_sse_valid() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     assert!(config.validate().is_ok());
@@ -416,6 +421,7 @@ fn test_config_validation_sse_missing_url() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let result = config.validate();
@@ -444,6 +450,8 @@ fn test_config_validation_port_zero() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
+        stripe_secret_key: None,
     };
 
     let result = config.validate();
@@ -471,6 +479,8 @@ fn test_config_validation_rate_limit_zero_rps() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
+        stripe_secret_key: None,
     };
 
     let result = config.validate();
@@ -501,6 +511,8 @@ fn test_config_validation_rate_limit_zero_burst() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
+        stripe_secret_key: None,
     };
 
     let result = config.validate();
@@ -536,6 +548,8 @@ fn test_config_validation_audit_invalid_export_url() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
+        stripe_secret_key: None,
     };
 
     let result = config.validate();
@@ -571,6 +585,8 @@ fn test_config_validation_audit_zero_batch_size() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
+        stripe_secret_key: None,
     };
 
     let result = config.validate();
@@ -602,6 +618,8 @@ fn test_config_validation_tracing_invalid_sample_rate() {
             url: None,
             servers: vec![],
         },
+        database_url: None,
+        stripe_secret_key: None,
     };
 
     let result = config.validate();
@@ -784,6 +802,7 @@ async fn test_health_endpoint_response_structure() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     // Create minimal app state
@@ -801,6 +820,7 @@ async fn test_health_endpoint_response_structure() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -890,6 +910,7 @@ async fn test_live_endpoint() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let state = Arc::new(AppState {
@@ -906,6 +927,7 @@ async fn test_live_endpoint() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -955,6 +977,7 @@ async fn test_ready_endpoint_when_ready() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let state = Arc::new(AppState {
@@ -971,6 +994,7 @@ async fn test_ready_endpoint_when_ready() {
         ready: Arc::new(RwLock::new(true)), // Ready = true
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -1025,6 +1049,7 @@ async fn test_ready_endpoint_when_not_ready() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let state = Arc::new(AppState {
@@ -1041,6 +1066,7 @@ async fn test_ready_endpoint_when_not_ready() {
         ready: Arc::new(RwLock::new(false)), // Ready = false
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -1169,6 +1195,7 @@ async fn test_oauth_authorize_not_configured() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let state = Arc::new(AppState {
@@ -1185,6 +1212,7 @@ async fn test_oauth_authorize_not_configured() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -1239,6 +1267,7 @@ async fn test_oauth_authorize_generates_redirect() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let oauth_config = OAuthConfig {
@@ -1272,6 +1301,7 @@ async fn test_oauth_authorize_generates_redirect() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -1340,6 +1370,7 @@ async fn test_oauth_callback_rejects_missing_state() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let oauth_config = OAuthConfig {
@@ -1373,6 +1404,7 @@ async fn test_oauth_callback_rejects_missing_state() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -1426,6 +1458,7 @@ async fn test_oauth_callback_rejects_invalid_state() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let oauth_config = OAuthConfig {
@@ -1459,6 +1492,7 @@ async fn test_oauth_callback_rejects_invalid_state() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -1512,6 +1546,7 @@ async fn test_oauth_callback_handles_provider_error() {
             servers: vec![],
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let oauth_config = OAuthConfig {
@@ -1545,6 +1580,7 @@ async fn test_oauth_callback_handles_provider_error() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -1688,6 +1724,8 @@ async fn test_routes_endpoint_lists_servers() {
                 },
             ],
         },
+        database_url: None,
+        stripe_secret_key: None,
     };
 
     // Create router from server routes (using unchecked for localhost in tests)
@@ -1711,6 +1749,7 @@ async fn test_routes_endpoint_lists_servers() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
@@ -1769,6 +1808,7 @@ async fn test_routes_endpoint_unavailable_when_single_server() {
             servers: vec![], // No multi-server routing
         },
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let state = Arc::new(AppState {
@@ -1785,6 +1825,7 @@ async fn test_routes_endpoint_unavailable_when_single_server() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     let app = build_router(state);
