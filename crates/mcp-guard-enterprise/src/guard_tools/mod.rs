@@ -7,7 +7,7 @@
 // Unauthorized use, modification, or distribution is prohibited.
 //
 // For licensing information, visit: https://mcp-guard.io/pricing
-// For support, contact: austin@botzr.dev
+// For support, contact: austin@botzr.com
 //! Enterprise Guard Tools - Admin MCP tools for runtime management
 //!
 //! These tools require Enterprise license and admin authentication:

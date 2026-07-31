@@ -205,7 +205,7 @@ rate_limit = 500  # Higher limit for premium users
 
 **Response Time:** 48 hours for Pro tier
 
-Contact: [austin@botzr.dev](mailto:austin@botzr.dev)
+Contact: [austin@botzr.com](mailto:austin@botzr.com)
 
 Include:
 - License key (first 10 characters)
@@ -217,7 +217,7 @@ Include:
 
 - Renew license: [mcp-guard.io/account](https://mcp-guard.io/account)
 - Upgrade to Enterprise: [mcp-guard.io/pricing](https://mcp-guard.io/pricing)
-- Billing questions: [austin@botzr.dev](mailto:austin@botzr.dev)
+- Billing questions: [austin@botzr.com](mailto:austin@botzr.com)
 
 ---
 

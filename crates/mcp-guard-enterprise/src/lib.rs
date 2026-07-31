@@ -7,7 +7,7 @@
 // Unauthorized use, modification, or distribution is prohibited.
 //
 // For licensing information, visit: https://mcp-guard.io/pricing
-// For support, contact: austin@botzr.dev
+// For support, contact: austin@botzr.com
 //! MCP Guard Enterprise - Enterprise tier features for mcp-guard
 //!
 //! This crate provides Enterprise tier features that require a valid Enterprise license:

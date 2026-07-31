@@ -7,7 +7,7 @@
 // Unauthorized use, modification, or distribution is prohibited.
 //
 // For licensing information, visit: https://mcp-guard.io/pricing
-// For support, contact: austin@botzr.dev
+// For support, contact: austin@botzr.com
 //! License validation for mcp-guard Enterprise
 //!
 //! Enterprise licenses use online validation with offline caching:

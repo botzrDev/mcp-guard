@@ -305,7 +305,7 @@ Enterprise deployments can run **offline for up to 30 days** after successful on
 Enterprise licenses include a specified number of "seats" (users/instances). Seat usage is tracked via license validation. Exceeding seat limits will result in validation failures.
 
 **To add seats:**
-1. Contact [austin@botzr.dev](mailto:austin@botzr.dev)
+1. Contact [austin@botzr.com](mailto:austin@botzr.com)
 2. Additional seats: $8/user/month
 3. Updated license key will be issued
 
@@ -320,7 +320,7 @@ Enterprise licenses include a specified number of "seats" (users/instances). Sea
 - High priority: 24 hours
 - Normal priority: 48 hours
 
-Contact: [austin@botzr.dev](mailto:austin@botzr.dev)
+Contact: [austin@botzr.com](mailto:austin@botzr.com)
 
 ### Dedicated Slack Channel
 
@@ -329,7 +329,7 @@ For teams with 10+ seats, we provide a dedicated Slack channel for:
 - Feature discussions
 - Direct access to engineering team
 
-Request Slack access: [austin@botzr.dev](mailto:austin@botzr.dev)
+Request Slack access: [austin@botzr.com](mailto:austin@botzr.com)
 
 ### Quarterly Check-ins
 
@@ -378,7 +378,7 @@ Error: License validation failed: Maximum seats exceeded (5/5)
 **Solutions:**
 1. Remove unused instances
 2. Purchase additional seats
-3. Contact [austin@botzr.dev](mailto:austin@botzr.dev) for seat expansion
+3. Contact [austin@botzr.com](mailto:austin@botzr.com) for seat expansion
 
 ### SIEM Export Failing
 

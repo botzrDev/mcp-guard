@@ -109,7 +109,7 @@ Activation:
 
 3. License will be validated online once, then cached for 30 days
 
-Support: austin@botzr.dev
+Support: austin@botzr.com
 ```
 
 ## Offline Grace Period

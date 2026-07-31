@@ -296,5 +296,5 @@ Commercial licenses available for Pro and Enterprise tiers.
 ---
 
 <div align="center">
-  <sub>Built by <a href="https://botzr.dev">botzr</a></sub>
+  <sub>Built by <a href="https://botzr.com">botzr</a></sub>
 </div>

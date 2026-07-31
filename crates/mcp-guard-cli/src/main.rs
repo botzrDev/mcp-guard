@@ -708,7 +708,7 @@ fn validate_license_for_config(config: &Config) -> anyhow::Result<()> {
                  To renew or upgrade:\n\
                    https://mcp-guard.io/account\n\
                  For support:\n\
-                   austin@botzr.dev",
+                   austin@botzr.com",
                 e
             )
         })?;
@@ -753,7 +753,7 @@ fn validate_license_for_config(config: &Config) -> anyhow::Result<()> {
                    https://mcp-guard.io/pricing\n\
                    Enterprise tier: $29/user/month\n\n\
                  For support:\n\
-                   austin@botzr.dev",
+                   austin@botzr.com",
                 e
             )
         })?;

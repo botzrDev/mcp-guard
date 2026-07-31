@@ -7,7 +7,7 @@
 // Unauthorized use, modification, or distribution is prohibited.
 //
 // For licensing information, visit: https://mcp-guard.io/pricing
-// For support, contact: austin@botzr.dev
+// For support, contact: austin@botzr.com
 //! MCP Guard Pro - Commercial features for mcp-guard
 //!
 //! This crate provides Pro tier features that require a valid license:
