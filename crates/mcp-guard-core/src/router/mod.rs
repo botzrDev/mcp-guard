@@ -97,7 +97,7 @@ impl ServerRouter {
         }
 
         // Sort routes by path prefix length (longer = more specific = higher priority)
-        routes.sort_by(|a, b| b.config.path_prefix.len().cmp(&a.config.path_prefix.len()));
+        routes.sort_by_key(|r| std::cmp::Reverse(r.config.path_prefix.len()));
 
         Ok(Self {
             routes,
