@@ -30,11 +30,20 @@ allow = [
     "Unicode-3.0",
     "Unicode-DFS-2016",
     "MPL-2.0",
+    # Workspace's own license (root/core/cli use the AGPL-3.0 SPDX id)
+    "AGPL-3.0",
+    # aws-lc-sys ships an OpenSSL-licensed component (permissive, pre-Apache-2.0 OpenSSL license)
+    "OpenSSL",
+    # webpki-roots (Mozilla CA bundle metadata) is CDLA-Permissive-2.0
+    "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.8
 exceptions = [
     # ring uses ISC which is fine
     { name = "ring", allow = ["ISC"] },
+    # Workspace's own commercial crates - not external dependencies
+    { name = "mcp-guard-pro", allow = ["LicenseRef-Commercial"] },
+    { name = "mcp-guard-enterprise", allow = ["LicenseRef-Commercial"] },
 ]
 
 [bans]
