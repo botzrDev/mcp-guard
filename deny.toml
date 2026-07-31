@@ -14,7 +14,14 @@ targets = [
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 # Deny any crates with known vulnerabilities
-ignore = []
+ignore = [
+    # rsa Marvin timing sidechannel: no fixed release exists; rsa only enters
+    # Cargo.lock via sqlx-mysql, which this workspace never enables (postgres-only)
+    "RUSTSEC-2023-0071",
+    # http-types ASCII-invariant notice: pulled in via async-stripe, no fixed
+    # http-types release available
+    "RUSTSEC-2026-0174",
+]
 
 [licenses]
 # License policy - Allow common permissive licenses

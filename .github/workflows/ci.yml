@@ -83,6 +83,10 @@ jobs:
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # RUSTSEC-2023-0071: rsa Marvin sidechannel, no fixed release; lockfile-only via
+          # never-enabled sqlx-mysql. RUSTSEC-2026-0174: http-types notice via async-stripe,
+          # no fixed release. Both also ignored in deny.toml [advisories].
+          ignore: RUSTSEC-2023-0071,RUSTSEC-2026-0174
 
   deny:
     name: License & Dependency Check
