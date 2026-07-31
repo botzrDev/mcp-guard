@@ -85,18 +85,7 @@ Includes:
 - Rust 1.75+ (if building from source)
 - Internet connection for initial license validation
 
-### Option 1: Pre-built Binary (Recommended)
-
-```bash
-# Download Enterprise binary
-curl -fsSL https://mcp-guard.io/install-enterprise.sh | bash
-
-# Verify installation
-mcp-guard version
-# Should show: Tier: Enterprise
-```
-
-### Option 2: Build from Source
+### Build from Source
 
 ```bash
 # Clone repository

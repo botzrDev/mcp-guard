@@ -60,18 +60,7 @@ MCP-Guard Pro extends the free tier with enterprise-grade authentication and tra
 - Valid Pro license key (starts with `pro_`)
 - Rust 1.75+ (if building from source)
 
-### Option 1: Pre-built Binary (Recommended)
-
-```bash
-# Download Pro binary
-curl -fsSL https://mcp-guard.io/install-pro.sh | bash
-
-# Verify installation
-mcp-guard version
-# Should show: Tier: Pro
-```
-
-### Option 2: Build from Source
+### Build from Source
 
 ```bash
 # Clone repository
