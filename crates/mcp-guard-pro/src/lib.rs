@@ -20,7 +20,7 @@
 //!
 //! # License
 //!
-//! This crate requires a valid Pro license key. Get one at https://mcp-guard.io/pricing
+//! This crate requires a valid Pro license key. Get one at <https://mcp-guard.io/pricing>
 //!
 //! # Usage
 //!
