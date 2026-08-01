@@ -76,10 +76,6 @@ futures = "0.3"
 sqlx = { version = "0.8.1", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json"] }
 dotenvy = "0.15"
 
-# Platform-specific (Unix signals for graceful shutdown)
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
-
 # HTTP client (for JWKS fetching)
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
 
@@ -103,6 +99,10 @@ glob = "0.3"
 
 # Billing
 stripe = { package = "async-stripe", version = "0.38", features = ["runtime-tokio-hyper"] }
+
+# Platform-specific (Unix signals for graceful shutdown)
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [features]
 default = []
