@@ -325,24 +325,27 @@ impl JwtProvider {
             .as_secs() as i64;
 
         let mut claims = identity.claims.clone();
-        
+
         // Ensure standard claims are set
-        claims.insert(self.config.user_id_claim.clone(), serde_json::json!(identity.id));
+        claims.insert(
+            self.config.user_id_claim.clone(),
+            serde_json::json!(identity.id),
+        );
         claims.insert("iss".to_string(), serde_json::json!(self.config.issuer));
         claims.insert("aud".to_string(), serde_json::json!(self.config.audience));
         claims.insert("iat".to_string(), serde_json::json!(now));
-        
+
         // Default expiration: 24 hours
         claims.insert("exp".to_string(), serde_json::json!(now + 86400));
 
         if let Some(name) = &identity.name {
             claims.insert("name".to_string(), serde_json::json!(name));
         }
-        
+
         // Add scopes if user has tools mapped
         // This is a simplification; ideally we'd map tools back to scopes or persist original scopes
         // For now, we rely on the identity.claims preserving the original scope claim if available
-        
+
         let header = jsonwebtoken::Header::new(Algorithm::HS256);
         jsonwebtoken::encode(&header, &claims, encoding_key)
             .map_err(|e| AuthError::Internal(format!("Failed to sign token: {}", e)))

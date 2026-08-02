@@ -50,6 +50,8 @@ fn create_test_config(port: u16) -> Config {
         },
         audit: AuditConfig::default(),
         tracing: TracingConfig::default(),
+        database_url: None,
+        stripe_secret_key: None,
     }
 }
 
@@ -102,6 +104,7 @@ async fn test_app_state_creation_with_api_key() {
         ready,
         mtls_provider: None,
         db: None,
+        jwt_provider: None,
     });
 
     // Verify state is created correctly
@@ -197,6 +200,7 @@ async fn test_oauth_state_store_operations() {
             code_verifier: "verifier1".to_string(),
             created_at: Instant::now(),
             client_ip: std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
+            redirect_uri: None,
         },
     );
 
@@ -226,6 +230,7 @@ async fn test_oauth_state_store_multiple_entries() {
                 code_verifier: format!("verifier{}", i),
                 created_at: Instant::now(),
                 client_ip: std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
+                redirect_uri: None,
             },
         );
     }

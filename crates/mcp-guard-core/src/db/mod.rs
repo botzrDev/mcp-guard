@@ -1,8 +1,8 @@
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct DbUser {
@@ -37,7 +37,7 @@ impl Database {
             .max_connections(5)
             .connect(database_url)
             .await?;
-        
+
         // Run migrations
         sqlx::migrate!("./migrations").run(&pool).await?;
 
@@ -45,11 +45,15 @@ impl Database {
     }
 
     pub fn users(&self) -> UserRepository {
-        UserRepository { pool: self.pool.clone() }
+        UserRepository {
+            pool: self.pool.clone(),
+        }
     }
 
     pub fn api_keys(&self) -> ApiKeyRepository {
-        ApiKeyRepository { pool: self.pool.clone() }
+        ApiKeyRepository {
+            pool: self.pool.clone(),
+        }
     }
 }
 
@@ -64,7 +68,7 @@ impl UserRepository {
             INSERT INTO users (id, email, role)
             VALUES ($1, $2, $3)
             RETURNING id, email, name, role, created_at, updated_at
-            "#
+            "#,
         )
         .bind(id)
         .bind(email)
@@ -77,7 +81,7 @@ impl UserRepository {
 
     pub async fn find_by_id(&self, id: &str) -> Result<Option<DbUser>, sqlx::Error> {
         sqlx::query_as::<_, DbUser>(
-            r#"SELECT id, email, name, role, created_at, updated_at FROM users WHERE id = $1"#
+            r#"SELECT id, email, name, role, created_at, updated_at FROM users WHERE id = $1"#,
         )
         .bind(id)
         .fetch_optional(&self.pool)

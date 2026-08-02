@@ -38,8 +38,8 @@ use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
-pub mod dashboard;
 pub mod billing;
+pub mod dashboard;
 
 // ============================================================================
 // Constants
@@ -638,7 +638,7 @@ async fn oauth_callback(
     .await?;
 
     tracing::info!("OAuth code exchange successful");
-    
+
     // Verify identity with provider (fetches user profile)
     let identity = oauth_provider
         .authenticate(&tokens.access_token)
@@ -697,7 +697,10 @@ async fn exchange_code_for_tokens(
     let mut form = vec![
         ("grant_type", "authorization_code"),
         ("code", code),
-        ("redirect_uri", redirect_uri.unwrap_or(&oauth_config.redirect_uri)),
+        (
+            "redirect_uri",
+            redirect_uri.unwrap_or(&oauth_config.redirect_uri),
+        ),
         ("client_id", &oauth_config.client_id),
         ("code_verifier", code_verifier),
     ];
@@ -784,8 +787,12 @@ pub async fn auth_middleware(
     mut request: Request<Body>,
     next: Next,
 ) -> Result<Response, AppError> {
-    tracing::info!("Auth middleware hit: {} {}", request.method(), request.uri());
-    
+    tracing::info!(
+        "Auth middleware hit: {} {}",
+        request.method(),
+        request.uri()
+    );
+
     // Try mTLS authentication first (if configured and headers present)
     if let Some(ref mtls_provider) = state.mtls_provider {
         // SECURITY: Use the secure method that validates client IP
@@ -1243,7 +1250,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
 
     if state.config.stripe_secret_key.is_some() {
         tracing::info!("Registering Stripe billing route");
-        router = router.route("/api/billing/checkout", post(billing::create_checkout_session));
+        router = router.route(
+            "/api/billing/checkout",
+            post(billing::create_checkout_session),
+        );
     } else {
         tracing::warn!("Stripe secret key missing, billing route not registered");
     }
@@ -1523,6 +1533,7 @@ mod tests {
                 code_verifier: "verifier".to_string(),
                 created_at: Instant::now(),
                 client_ip: "127.0.0.1".parse().unwrap(),
+                redirect_uri: None,
             },
         );
 
@@ -1573,6 +1584,7 @@ mod tests {
                     code_verifier: "verifier".to_string(),
                     created_at: Instant::now(),
                     client_ip: "127.0.0.1".parse().unwrap(),
+                    redirect_uri: None,
                 },
             );
         }
@@ -1835,6 +1847,7 @@ mod tests {
                 code_verifier: "verifier123".to_string(),
                 created_at: Instant::now(),
                 client_ip,
+                redirect_uri: None,
             },
         );
 
@@ -1993,6 +2006,7 @@ mod tests {
                 servers: vec![],
             },
             database_url: None,
+            stripe_secret_key: None,
         };
 
         Arc::new(AppState {
@@ -2071,7 +2085,16 @@ mod tests {
         // No oauth provider specific in default state
 
         let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 1234));
-        let result = oauth_authorize(State(state), ConnectInfo(addr)).await;
+        let result = oauth_authorize(
+            State(state),
+            ConnectInfo(addr),
+            Query(OAuthAuthorizeParams {
+                provider: None,
+                redirect_uri: None,
+                scope: None,
+            }),
+        )
+        .await;
 
         assert!(matches!(
             result,
@@ -2104,6 +2127,7 @@ mod tests {
                 servers: vec![],
             },
             database_url: None,
+            stripe_secret_key: None,
         };
 
         config.auth.oauth = Some(OAuthConfig {

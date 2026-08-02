@@ -25,7 +25,7 @@
 //! # License
 //!
 //! This crate requires a valid Enterprise license key with online validation.
-//! Get one at https://mcp-guard.io/pricing
+//! Get one at <https://mcp-guard.io/pricing>
 //!
 //! # Usage
 //!

@@ -263,8 +263,11 @@ impl DatabaseAuthProvider {
 impl AuthProvider for DatabaseAuthProvider {
     async fn authenticate(&self, token: &str) -> Result<Identity, AuthError> {
         let hash = Self::hash_key(token);
-        
-        let api_key = self.repository.find_by_hash(&hash).await
+
+        let api_key = self
+            .repository
+            .find_by_hash(&hash)
+            .await
             .map_err(|e| AuthError::Internal(e.to_string()))?;
 
         if let Some(key) = api_key {
@@ -278,9 +281,9 @@ impl AuthProvider for DatabaseAuthProvider {
             Ok(Identity {
                 id: key.user_id.unwrap_or_else(|| key.id.to_string()),
                 name: key.name.or(Some("API Key".to_string())),
-                allowed_tools: key.allowed_tools.and_then(|v| {
-                    serde_json::from_value(v).ok()
-                }),
+                allowed_tools: key
+                    .allowed_tools
+                    .and_then(|v| serde_json::from_value(v).ok()),
                 rate_limit: key.rate_limit.map(|r| r as u32),
                 claims: HashMap::new(),
             })

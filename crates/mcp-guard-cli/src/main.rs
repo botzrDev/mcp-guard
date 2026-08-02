@@ -25,8 +25,8 @@ use tokio_util::sync::CancellationToken;
 use mcp_guard_core::{
     audit::{AuditLogger, AuditLoggerHandle},
     auth::{
-        ApiKeyProvider, AuthProvider, DatabaseAuthProvider, JwtProvider, MtlsAuthProvider, MultiProvider,
-        OAuthAuthProvider,
+        ApiKeyProvider, AuthProvider, DatabaseAuthProvider, JwtProvider, MtlsAuthProvider,
+        MultiProvider, OAuthAuthProvider,
     },
     cli::{
         apply_key_to_config, generate_api_key, generate_config_with_demo_key, hash_api_key, Cli,
@@ -61,8 +61,11 @@ pub async fn bootstrap(config: Config) -> anyhow::Result<BootstrapResult> {
     // Set up database connection
     let db = if let Some(url) = &config.database_url {
         tracing::info!("Initializing database connection");
-        Some(mcp_guard_core::db::Database::new(url).await
-            .map_err(|e| anyhow::anyhow!("Failed to connect to database: {}", e))?)
+        Some(
+            mcp_guard_core::db::Database::new(url)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to connect to database: {}", e))?,
+        )
     } else {
         None
     };

@@ -173,7 +173,7 @@ impl TokenCache {
             .collect();
 
         // Sort by age (oldest first)
-        entries.sort_by(|a, b| a.1.cmp(&b.1));
+        entries.sort_by_key(|e| e.1);
 
         // Remove oldest entries until we're under the limit
         let to_remove = self.entries.len() - CACHE_MAX_ENTRIES + 50; // Remove 50 extra to avoid frequent eviction

@@ -250,7 +250,7 @@ mod tests {
     use super::*;
     use crate::config::{
         AuditConfig, AuthConfig, MtlsConfig, RateLimitConfig, ServerConfig, ServerRouteConfig,
-        TracingConfig, UpstreamConfig,
+        TracingConfig, TransportType, UpstreamConfig,
     };
 
     fn create_minimal_config() -> Config {
@@ -268,6 +268,7 @@ mod tests {
                 servers: vec![],
             },
             database_url: None,
+            stripe_secret_key: None,
         }
     }
 

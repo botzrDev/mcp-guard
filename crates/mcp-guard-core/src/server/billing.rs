@@ -1,11 +1,10 @@
-use axum::{
-    extract::{State},
-    Json,
-    response::IntoResponse,
-};
+use axum::{extract::State, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use stripe::{CheckoutSession, CheckoutSessionMode, Client, CreateCheckoutSession, CreateCheckoutSessionLineItems, CreateCheckoutSessionSubscriptionData};
+use stripe::{
+    CheckoutSession, CheckoutSessionMode, Client, CreateCheckoutSession,
+    CreateCheckoutSessionLineItems, CreateCheckoutSessionSubscriptionData,
+};
 
 use crate::server::{AppError, AppState};
 
@@ -53,7 +52,9 @@ pub async fn create_checkout_session(
             allow_promotion_codes: Some(true),
             ..Default::default()
         },
-    ).await.map_err(|e| {
+    )
+    .await
+    .map_err(|e| {
         tracing::error!("Stripe error: {}", e);
         AppError::internal("Failed to create checkout session")
     })?;

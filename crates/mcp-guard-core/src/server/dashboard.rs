@@ -1,3 +1,4 @@
+use crate::server::AppState;
 use axum::{
     extract::{Path, State},
     response::Json,
@@ -6,7 +7,6 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::server::AppState;
 
 #[derive(Debug, Serialize)]
 pub struct Stats {
@@ -81,10 +81,10 @@ pub fn dashboard_router(_state: Arc<AppState>) -> Router<Arc<AppState>> {
 
 async fn get_stats(State(state): State<Arc<AppState>>) -> Json<Stats> {
     Json(Stats {
-        active_connections: 42, // Mocked
+        active_connections: 42,  // Mocked
         total_requests: 1234567, // Mocked
         uptime_secs: state.started_at.elapsed().as_secs(),
-        api_calls: 85432, // Mocked
+        api_calls: 85432,   // Mocked
         success_rate: 99.9, // Mocked
     })
 }
@@ -123,7 +123,11 @@ async fn create_api_key(Json(payload): Json<CreateApiKeyRequest>) -> Json<Create
     // In a real implementation, this would generate a key, hash it, and store it
     Json(CreateApiKeyResponse {
         id: uuid::Uuid::new_v4().to_string(),
-        key: format!("mcp_{}_{}", payload.name.to_lowercase(), uuid::Uuid::new_v4().to_string().replace("-", "")),
+        key: format!(
+            "mcp_{}_{}",
+            payload.name.to_lowercase(),
+            uuid::Uuid::new_v4().to_string().replace("-", "")
+        ),
     })
 }
 
