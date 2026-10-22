@@ -38,7 +38,7 @@ rate_limit = 2  # Very low limit for testing
 [auth.jwt]
 mode = "simple"
 secret = "mcp-guard-test-secret-key-32-chars!!"
-issuer = "https://test.mcp-guard.io"
+issuer = "https://test.mcpg.botzr.com"
 audience = "mcp-guard"
 user_id_claim = "sub"
 scopes_claim = "scope"

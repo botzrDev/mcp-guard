@@ -6,7 +6,7 @@
   <p>
     <a href="https://github.com/botzrDev/mcp-guard/actions/workflows/ci.yml"><img src="https://github.com/botzrDev/mcp-guard/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License"></a>
-    <a href="#build-from-source"><img src="https://img.shields.io/badge/status-source--only-orange.svg" alt="Status: source only"></a>
+    <a href="https://crates.io/crates/mcp-guard"><img src="https://img.shields.io/crates/v/mcp-guard.svg" alt="crates.io"></a>
   </p>
 
   <p>
@@ -49,8 +49,7 @@ Build from source, then configure and run.
 
 ```bash
 # 1. Install
-git clone https://github.com/botzrDev/mcp-guard
-cd mcp-guard && cargo install --path crates/mcp-guard
+cargo install mcp-guard
 
 # 2. Configure
 mcp-guard init
@@ -68,8 +67,7 @@ curl -H "Authorization: Bearer mcp_YOUR_KEY" http://localhost:3000/health
 <details>
 <summary><strong>Build from source</strong></summary>
 
-`mcp-guard` is currently **source-only**. It is not yet published to crates.io, there is
-no Homebrew tap, and no prebuilt binaries are published. Build it yourself:
+There is no Homebrew tap and no prebuilt binaries yet. To build the latest code yourself:
 
 ```bash
 git clone https://github.com/botzrDev/mcp-guard
@@ -216,13 +214,7 @@ Your agents stay fast. Your infrastructure stays simple.
 
 ## Pricing
 
-| Tier | Price | Best For |
-|------|-------|----------|
-| **Free** | $0 | Open source, side projects |
-| **Pro** | $12/mo | Small teams, production apps |
-| **Enterprise** | $29 + $8/seat | Compliance, multi-server |
-
-<sub>Founder pricing: 40% off forever for early adopters. [Lock in your discount →](docs/pricing.md)</sub>
+The free tier is open source under AGPL-3.0. Pro and Enterprise licenses are not on sale yet.
 
 <br>
 

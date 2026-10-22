@@ -85,18 +85,18 @@ curl -X POST http://localhost:8787/sign \
 
 ```bash
 wrangler deploy --env production
-# Deploys to https://sign.mcp-guard.io
+# Deploys to https://sign.mcpg.botzr.com
 ```
 
 ### Custom Domain
 
-To use custom domain `sign.mcp-guard.io`:
+To use custom domain `sign.mcpg.botzr.com`:
 
 1. Add route in `wrangler.toml`:
    ```toml
    [env.production]
    routes = [
-     { pattern = "sign.mcp-guard.io/*", custom_domain = true }
+     { pattern = "sign.mcpg.botzr.com/*", custom_domain = true }
    ]
    ```
 
@@ -207,7 +207,7 @@ Health check endpoint (no authentication required).
 export API_SECRET="your-api-secret-key"
 
 # Generate license with default expiry (1 year)
-curl -X POST https://sign.mcp-guard.io/sign \
+curl -X POST https://sign.mcpg.botzr.com/sign \
   -H "Content-Type: application/json" \
   -H "X-API-Secret: $API_SECRET" \
   -d '{
@@ -215,7 +215,7 @@ curl -X POST https://sign.mcp-guard.io/sign \
   }'
 
 # Generate license with custom expiry
-curl -X POST https://sign.mcp-guard.io/sign \
+curl -X POST https://sign.mcpg.botzr.com/sign \
   -H "Content-Type: application/json" \
   -H "X-API-Secret: $API_SECRET" \
   -d '{
@@ -224,7 +224,7 @@ curl -X POST https://sign.mcp-guard.io/sign \
   }'
 
 # Generate license with specific features
-curl -X POST https://sign.mcp-guard.io/sign \
+curl -X POST https://sign.mcpg.botzr.com/sign \
   -H "Content-Type: application/json" \
   -H "X-API-Secret: $API_SECRET" \
   -d '{
@@ -239,7 +239,7 @@ curl -X POST https://sign.mcp-guard.io/sign \
 ```typescript
 // In Stripe webhook handler
 async function generateProLicense(customerEmail: string): Promise<string> {
-  const response = await fetch('https://sign.mcp-guard.io/sign', {
+  const response = await fetch('https://sign.mcpg.botzr.com/sign', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -271,7 +271,7 @@ def generate_license(email: str, api_secret: str) -> dict:
     expires_at = (datetime.now() + timedelta(days=365)).isoformat()
 
     response = requests.post(
-        'https://sign.mcp-guard.io/sign',
+        'https://sign.mcpg.botzr.com/sign',
         headers={
             'Content-Type': 'application/json',
             'X-API-Secret': api_secret
@@ -297,7 +297,7 @@ print(f"License key: {license_data['license_key']}")
 
 ```bash
 # Generate test license
-curl -X POST https://sign.mcp-guard.io/sign \
+curl -X POST https://sign.mcpg.botzr.com/sign \
   -H "Content-Type: application/json" \
   -H "X-API-Secret: $API_SECRET" \
   -d '{
@@ -306,7 +306,7 @@ curl -X POST https://sign.mcp-guard.io/sign \
   }' | jq .
 
 # Extract license key
-LICENSE_KEY=$(curl -X POST https://sign.mcp-guard.io/sign \
+LICENSE_KEY=$(curl -X POST https://sign.mcpg.botzr.com/sign \
   -H "Content-Type: application/json" \
   -H "X-API-Secret: $API_SECRET" \
   -d '{"licensee": "test@example.com"}' | jq -r .license_key)
@@ -323,13 +323,13 @@ mcp-guard version
 
 ```bash
 # Should fail without API secret
-curl -X POST https://sign.mcp-guard.io/sign \
+curl -X POST https://sign.mcpg.botzr.com/sign \
   -H "Content-Type: application/json" \
   -d '{"licensee": "test@example.com"}'
 # Expected: 401 Unauthorized
 
 # Should fail with invalid API secret
-curl -X POST https://sign.mcp-guard.io/sign \
+curl -X POST https://sign.mcpg.botzr.com/sign \
   -H "Content-Type: application/json" \
   -H "X-API-Secret: wrong-secret" \
   -d '{"licensee": "test@example.com"}'
@@ -462,7 +462,7 @@ date -u -d "+1 year" +"%Y-%m-%dT%H:%M:%SZ"
 2. Test end-to-end:
    ```bash
    # Generate license
-   LICENSE=$(curl -X POST https://sign.mcp-guard.io/sign \
+   LICENSE=$(curl -X POST https://sign.mcpg.botzr.com/sign \
      -H "Content-Type: application/json" \
      -H "X-API-Secret: $API_SECRET" \
      -d '{"licensee": "test@example.com"}' | jq -r .license_key)
@@ -536,7 +536,7 @@ If Worker is compromised:
 
 For issues or questions:
 - **GitHub**: https://github.com/yourusername/mcp-guard/issues
-- **Email**: support@mcp-guard.io
+- **Email**: support@mcpg.botzr.com
 - **Internal**: This Worker is internal infrastructure - not customer-facing
 
 ## License

@@ -17,7 +17,7 @@ id = "your-kv-namespace-id"  # Create with: wrangler kv:namespace create LICENSE
 # Environment variables
 [vars]
 STRIPE_API_VERSION = "2023-10-16"
-FROM_EMAIL = "licenses@mcp-guard.io"
+FROM_EMAIL = "licenses@mcpg.botzr.com"
 
 # For local development
 [env.development]
@@ -27,5 +27,5 @@ vars = { ENVIRONMENT = "development" }
 [env.production]
 vars = { ENVIRONMENT = "production" }
 routes = [
-  { pattern = "webhook.mcp-guard.io/*", custom_domain = true }
+  { pattern = "webhook.mcpg.botzr.com/*", custom_domain = true }
 ]

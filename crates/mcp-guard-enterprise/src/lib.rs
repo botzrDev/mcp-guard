@@ -6,7 +6,7 @@
 // MCP-Guard Enterprise requires a valid commercial license for use.
 // Unauthorized use, modification, or distribution is prohibited.
 //
-// For licensing information, visit: https://mcp-guard.io/pricing
+// For licensing information, visit: https://mcpg.botzr.com/pricing
 // For support, contact: austin@botzr.com
 //! MCP Guard Enterprise - Enterprise tier features for mcp-guard
 //!
@@ -25,7 +25,7 @@
 //! # License
 //!
 //! This crate requires a valid Enterprise license key with online validation.
-//! Get one at <https://mcp-guard.io/pricing>
+//! Get one at <https://mcpg.botzr.com/pricing>
 //!
 //! # Usage
 //!

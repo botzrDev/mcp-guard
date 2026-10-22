@@ -205,7 +205,7 @@ jobs:
             - **Pro tier** ($12/month): OAuth 2.1, JWT JWKS, HTTP/SSE transports
             - **Enterprise tier** ($29/user/month): mTLS, multi-server, SIEM, OpenTelemetry
 
-            Visit: https://mcp-guard.io/pricing
+            Visit: https://mcpg.botzr.com/pricing
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

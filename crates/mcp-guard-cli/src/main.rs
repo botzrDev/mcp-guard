@@ -468,7 +468,7 @@ fn handle_version() -> anyhow::Result<()> {
         println!("    - HTTP/SSE transports");
         println!("    - Per-identity rate limiting");
     } else {
-        println!("  [Pro] (upgrade at https://mcp-guard.io/pricing)");
+        println!("  [Pro] (upgrade at https://mcpg.botzr.com/pricing)");
         println!("    - OAuth 2.1 + PKCE authentication");
         println!("    - JWT JWKS mode (RS256/ES256)");
         println!("    - HTTP/SSE transports");
@@ -484,7 +484,7 @@ fn handle_version() -> anyhow::Result<()> {
         println!("    - Per-tool rate limiting");
         println!("    - Admin guard tools");
     } else {
-        println!("  [Enterprise] (upgrade at https://mcp-guard.io/pricing)");
+        println!("  [Enterprise] (upgrade at https://mcpg.botzr.com/pricing)");
         println!("    - mTLS client certificate authentication");
         println!("    - Multi-server routing");
         println!("    - SIEM audit log shipping");
@@ -696,7 +696,7 @@ fn validate_license_for_config(config: &Config) -> anyhow::Result<()> {
                  Set your license key:\n\
                    export MCP_GUARD_LICENSE_KEY=\"pro_xxx...\"\n\n\
                  Don't have a license? Get one at:\n\
-                   https://mcp-guard.io/pricing\n\
+                   https://mcpg.botzr.com/pricing\n\
                    Pro tier: $12/month"
             )
         })?;
@@ -709,7 +709,7 @@ fn validate_license_for_config(config: &Config) -> anyhow::Result<()> {
                  - Invalid\n\
                  - For a different tier\n\n\
                  To renew or upgrade:\n\
-                   https://mcp-guard.io/account\n\
+                   https://mcpg.botzr.com/account\n\
                  For support:\n\
                    austin@botzr.com",
                 e
@@ -727,7 +727,7 @@ fn validate_license_for_config(config: &Config) -> anyhow::Result<()> {
         if license.is_expiring_soon() {
             tracing::warn!(
                 days_remaining = license.days_until_expiry(),
-                "Pro license expires soon! Renew at https://mcp-guard.io/account"
+                "Pro license expires soon! Renew at https://mcpg.botzr.com/account"
             );
         }
     }
@@ -753,7 +753,7 @@ fn validate_license_for_config(config: &Config) -> anyhow::Result<()> {
                  Set your license key:\n\
                    export MCP_GUARD_LICENSE_KEY=\"ent_xxx...\"\n\n\
                  Don't have a license? Get one at:\n\
-                   https://mcp-guard.io/pricing\n\
+                   https://mcpg.botzr.com/pricing\n\
                    Enterprise tier: $29/user/month\n\n\
                  For support:\n\
                    austin@botzr.com",

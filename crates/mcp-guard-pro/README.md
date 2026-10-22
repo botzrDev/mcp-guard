@@ -3,7 +3,7 @@
 **Professional tier security gateway for Model Context Protocol (MCP) servers**
 
 [![License: Commercial](https://img.shields.io/badge/license-Commercial-red.svg)](LICENSE)
-[![Documentation](https://img.shields.io/badge/docs-mcp--guard.io-blue.svg)](https://docs.mcp-guard.io)
+[![Documentation](https://img.shields.io/badge/docs-mcp--guard.io-blue.svg)](https://docs.mcpg.botzr.com)
 
 ---
 
@@ -49,7 +49,7 @@ MCP-Guard Pro extends the free tier with enterprise-grade authentication and tra
 
 **$12/month** - Includes all Pro features listed above
 
-[Get your Pro license →](https://mcp-guard.io/pricing)
+[Get your Pro license →](https://mcpg.botzr.com/pricing)
 
 ---
 
@@ -185,10 +185,10 @@ rate_limit = 500  # Higher limit for premium users
 
 ### Documentation
 
-- [Full Documentation](https://docs.mcp-guard.io)
-- [OAuth Setup Guide](https://docs.mcp-guard.io/auth/oauth)
-- [JWT Configuration](https://docs.mcp-guard.io/auth/jwt)
-- [Troubleshooting](https://docs.mcp-guard.io/troubleshooting)
+- [Full Documentation](https://docs.mcpg.botzr.com)
+- [OAuth Setup Guide](https://docs.mcpg.botzr.com/auth/oauth)
+- [JWT Configuration](https://docs.mcpg.botzr.com/auth/jwt)
+- [Troubleshooting](https://docs.mcpg.botzr.com/troubleshooting)
 
 ### Email Support
 
@@ -204,8 +204,8 @@ Include:
 
 ### License Management
 
-- Renew license: [mcp-guard.io/account](https://mcp-guard.io/account)
-- Upgrade to Enterprise: [mcp-guard.io/pricing](https://mcp-guard.io/pricing)
+- Renew license: [mcpg.botzr.com/account](https://mcpg.botzr.com/account)
+- Upgrade to Enterprise: [mcpg.botzr.com/pricing](https://mcpg.botzr.com/pricing)
 - Billing questions: [austin@botzr.com](mailto:austin@botzr.com)
 
 ---
@@ -261,7 +261,7 @@ Need advanced features like mTLS, multi-server routing, or SIEM integration?
 - OpenTelemetry distributed tracing
 - Priority support (4hr SLA for critical issues)
 
-[Upgrade to Enterprise →](https://mcp-guard.io/pricing)
+[Upgrade to Enterprise →](https://mcpg.botzr.com/pricing)
 
 ---
 

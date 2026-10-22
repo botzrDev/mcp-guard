@@ -363,7 +363,7 @@ async function sendLicenseEmail(
 
             <h3>Installation:</h3>
             <p>Install MCP-Guard Pro with one command:</p>
-            <pre style="background: #1f2937; color: #f3f4f6; padding: 15px; border-radius: 5px; overflow-x: auto;">curl -fsSL https://mcp-guard.io/install-pro.sh | \
+            <pre style="background: #1f2937; color: #f3f4f6; padding: 15px; border-radius: 5px; overflow-x: auto;">curl -fsSL https://mcpg.botzr.com/install-pro.sh | \
   MCP_GUARD_LICENSE_KEY="${licenseKey}" bash</pre>
 
             <h3>What's Included:</h3>
@@ -375,14 +375,14 @@ async function sendLicenseEmail(
               <li>✓ Priority email support</li>
             </ul>
 
-            <a href="https://mcp-guard.io/docs/pro" class="button">View Documentation</a>
+            <a href="https://mcpg.botzr.com/docs/pro" class="button">View Documentation</a>
 
-            <p>Need help? Reply to this email or visit <a href="https://mcp-guard.io/support">our support page</a>.</p>
+            <p>Need help? Reply to this email or visit <a href="https://mcpg.botzr.com/support">our support page</a>.</p>
 
             <p>Best regards,<br>The MCP-Guard Team</p>
           </div>
           <div class="footer">
-            <p>MCP-Guard Pro | <a href="https://mcp-guard.io">mcp-guard.io</a></p>
+            <p>MCP-Guard Pro | <a href="https://mcpg.botzr.com">mcpg.botzr.com</a></p>
             <p>© 2025 Botzr. All rights reserved.</p>
           </div>
         </div>
@@ -415,7 +415,7 @@ async function sendCancellationEmail(
           <p>Your MCP-Guard Pro subscription has been cancelled.</p>
           <p>Your license will remain active until: <strong>${new Date(expiresAt).toLocaleDateString()}</strong></p>
           <p>After this date, Pro features will no longer be available.</p>
-          <p>Want to continue using Pro features? <a href="https://mcp-guard.io/pricing">Resubscribe here</a>.</p>
+          <p>Want to continue using Pro features? <a href="https://mcpg.botzr.com/pricing">Resubscribe here</a>.</p>
           <p>Questions? Reply to this email.</p>
           <p>Best regards,<br>The MCP-Guard Team</p>
         </div>

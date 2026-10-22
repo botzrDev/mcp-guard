@@ -370,11 +370,11 @@ Available Features:
     - Global rate limiting
     - File/console audit logging
     - Prometheus metrics
-  [Pro] (upgrade at https://mcp-guard.io/pricing)
+  [Pro] (upgrade at https://mcpg.botzr.com/pricing)
     - OAuth 2.1 + PKCE authentication
     - JWT JWKS mode (RS256/ES256)
     - HTTP/SSE transports
-  [Enterprise] (upgrade at https://mcp-guard.io/pricing)
+  [Enterprise] (upgrade at https://mcpg.botzr.com/pricing)
     - mTLS client certificate authentication
     - Multi-server routing
     - OpenTelemetry tracing
@@ -599,7 +599,7 @@ Error: HTTP transport requires a Pro license.
 The free tier supports stdio transport only.
 
 Upgrade to Pro for $12/month:
-→ https://mcp-guard.io/pricing
+→ https://mcpg.botzr.com/pricing
 ```
 
 For detailed tier comparison, see [Pricing & Tiers](pricing.md).

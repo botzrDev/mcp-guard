@@ -8,7 +8,7 @@ header = b64url(json.dumps({'alg': 'HS256', 'typ': 'JWT'}).encode())
 payload = b64url(json.dumps({
     'sub': 'jwt-user-123',
     'scope': 'read:files',
-    'iss': 'https://test.mcp-guard.io',
+    'iss': 'https://test.mcpg.botzr.com',
     'aud': 'mcp-guard',
     'exp': int(time.time()) + 3600
 }).encode())

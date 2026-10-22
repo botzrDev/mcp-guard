@@ -28,5 +28,5 @@ vars = { ENVIRONMENT = "development" }
 [env.production]
 vars = { ENVIRONMENT = "production" }
 routes = [
-  { pattern = "download.mcp-guard.io/*", custom_domain = true }
+  { pattern = "download.mcpg.botzr.com/*", custom_domain = true }
 ]

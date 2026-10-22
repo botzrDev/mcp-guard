@@ -97,3 +97,10 @@ temp/
 
 # Windows NTFS alternate data stream files (break Windows checkout)
 *:Zone.Identifier
+
+# local analysis artifacts
+.uveddi/
+uveddi_cache.db
+clean_report.py
+landing/playwright-report/
+landing/test-results/

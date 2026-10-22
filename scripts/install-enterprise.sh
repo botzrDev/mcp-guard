@@ -3,10 +3,10 @@
 # MCP-Guard Enterprise Installation Script
 #
 # Quick install:
-#   curl -fsSL https://mcp-guard.io/install-enterprise.sh | bash
+#   curl -fsSL https://mcpg.botzr.com/install-enterprise.sh | bash
 #
 # With license key:
-#   curl -fsSL https://mcp-guard.io/install-enterprise.sh | MCP_GUARD_LICENSE_KEY=ent_xxx bash
+#   curl -fsSL https://mcpg.botzr.com/install-enterprise.sh | MCP_GUARD_LICENSE_KEY=ent_xxx bash
 #
 
 set -e
@@ -20,7 +20,7 @@ PURPLE='\033[0;35m'
 NC='\033[0m' # No Color
 
 # Configuration
-DOWNLOAD_URL="https://download.mcp-guard.io/download"
+DOWNLOAD_URL="https://download.mcpg.botzr.com/download"
 TIER="enterprise"
 INSTALL_DIR="/usr/local/bin"
 BINARY_NAME="mcp-guard"
@@ -97,7 +97,7 @@ detect_platform() {
             ;;
         MINGW*|MSYS*|CYGWIN*)
             print_error "Windows installation not supported via this script"
-            print_info "Please download manually from: https://mcp-guard.io/downloads"
+            print_info "Please download manually from: https://mcpg.botzr.com/downloads"
             exit 1
             ;;
         *)
@@ -121,7 +121,7 @@ get_license_key() {
         # Prompt user
         echo ""
         print_enterprise "Enterprise license required for installation"
-        print_info "Don't have a license? Contact sales: ${PURPLE}sales@mcp-guard.io${NC}"
+        print_info "Don't have a license? Contact sales: ${PURPLE}sales@mcpg.botzr.com${NC}"
         echo ""
         read -r -p "Enter your Enterprise license key (ent_xxx...): " license_key
         echo ""
@@ -301,14 +301,14 @@ print_next_steps() {
     echo -e "     ${GREEN}mcp-guard run${NC}"
     echo ""
     echo -e "${BLUE}Enterprise Documentation:${NC}"
-    echo "  • Getting Started: https://mcp-guard.io/docs/enterprise"
-    echo "  • mTLS Setup:      https://mcp-guard.io/docs/enterprise/mtls"
-    echo "  • Multi-Server:    https://mcp-guard.io/docs/enterprise/multi-server"
-    echo "  • SIEM Integration: https://mcp-guard.io/docs/enterprise/siem"
+    echo "  • Getting Started: https://mcpg.botzr.com/docs/enterprise"
+    echo "  • mTLS Setup:      https://mcpg.botzr.com/docs/enterprise/mtls"
+    echo "  • Multi-Server:    https://mcpg.botzr.com/docs/enterprise/multi-server"
+    echo "  • SIEM Integration: https://mcpg.botzr.com/docs/enterprise/siem"
     echo ""
     echo -e "${BLUE}Enterprise Support:${NC}"
-    echo "  • Email:  support@mcp-guard.io (4-hour SLA)"
-    echo "  • Slack:  enterprise.mcp-guard.io/slack"
+    echo "  • Email:  support@mcpg.botzr.com (4-hour SLA)"
+    echo "  • Slack:  enterprise.mcpg.botzr.com/slack"
     echo "  • Phone:  Available in customer portal"
     echo ""
     echo -e "${PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

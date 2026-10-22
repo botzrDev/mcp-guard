@@ -61,7 +61,7 @@ cargo install mcp-guard
 ### Installation
 
 ```bash
-curl -fsSL https://mcp-guard.io/install-pro.sh | bash
+curl -fsSL https://mcpg.botzr.com/install-pro.sh | bash
 export MCP_GUARD_LICENSE_KEY="pro_xxx..."
 ```
 
@@ -99,7 +99,7 @@ Pro licenses are validated cryptographically (offline) or via our licensing serv
 ### Installation
 
 ```bash
-curl -fsSL https://mcp-guard.io/install-enterprise.sh | bash
+curl -fsSL https://mcpg.botzr.com/install-enterprise.sh | bash
 export MCP_GUARD_LICENSE_KEY="ent_xxx..."
 ```
 
@@ -155,7 +155,7 @@ Error: HTTP transport requires a Pro license.
 The free tier supports stdio transport only.
 
 Upgrade to Pro for $12/month:
-→ https://mcp-guard.io/pricing
+→ https://mcpg.botzr.com/pricing
 
 Or use stdio transport:
 [upstream]
@@ -183,14 +183,14 @@ The gateway will continue running but will refuse to start new instances until t
 
 ### Can I try Pro/Enterprise features before purchasing?
 
-Contact us at sales@mcp-guard.io for a 14-day trial license.
+Contact us at sales@mcpg.botzr.com for a 14-day trial license.
 
 ---
 
 ## Get Started
 
-→ [Purchase a license at mcp-guard.io/pricing](https://mcp-guard.io/pricing)
+→ [Purchase a license at mcpg.botzr.com/pricing](https://mcpg.botzr.com/pricing)
 
 → [Quick Start Guide](quickstart.md)
 
-→ [Contact Sales](mailto:sales@mcp-guard.io)
+→ [Contact Sales](mailto:sales@mcpg.botzr.com)

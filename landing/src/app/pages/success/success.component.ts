@@ -35,7 +35,7 @@ import { ActivatedRoute } from '@angular/router';
                 <div class="step-content">
                   <strong>Install MCP-Guard</strong>
                   <p>One command to get started:</p>
-                  <pre class="install-command">curl -fsSL https://mcp-guard.io/install-pro.sh | \\
+                  <pre class="install-command">curl -fsSL https://mcpg.botzr.com/install-pro.sh | \\
   MCP_GUARD_LICENSE_KEY=pro_xxx... bash</pre>
                 </div>
               </li>
@@ -63,7 +63,7 @@ import { ActivatedRoute } from '@angular/router';
 
           <div class="support-box">
             <h4>Need help?</h4>
-            <p>Reply to your license email or contact <a href="mailto:support@mcp-guard.io">support&#64;mcp-guard.io</a></p>
+            <p>Reply to your license email or contact <a href="mailto:support@mcpg.botzr.com">support&#64;mcpg.botzr.com</a></p>
             <p class="response-time">Average response time: 12 hours</p>
           </div>
         </div>

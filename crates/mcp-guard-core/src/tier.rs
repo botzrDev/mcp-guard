@@ -27,7 +27,7 @@ use crate::config::{JwtMode, TransportType};
 
 /// Pricing page URL for upgrade messages
 #[allow(dead_code)]
-const PRICING_URL: &str = "https://mcp-guard.io/pricing";
+const PRICING_URL: &str = "https://mcpg.botzr.com/pricing";
 
 /// Validate that the configuration only uses features available in the current tier.
 ///

@@ -3,7 +3,7 @@
 **Enterprise-grade security and observability for Model Context Protocol (MCP) servers**
 
 [![License: Commercial](https://img.shields.io/badge/license-Commercial-red.svg)](LICENSE)
-[![Documentation](https://img.shields.io/badge/docs-mcp--guard.io-blue.svg)](https://docs.mcp-guard.io)
+[![Documentation](https://img.shields.io/badge/docs-mcp--guard.io-blue.svg)](https://docs.mcpg.botzr.com)
 
 ---
 
@@ -73,7 +73,7 @@ Includes:
 - Quarterly check-ins
 - Custom feature requests (subject to approval)
 
-[Get your Enterprise license →](https://mcp-guard.io/pricing)
+[Get your Enterprise license →](https://mcpg.botzr.com/pricing)
 
 ---
 
@@ -329,11 +329,11 @@ Enterprise customers receive quarterly check-in calls to:
 
 ### Documentation
 
-- [Enterprise Setup Guide](https://docs.mcp-guard.io/enterprise/setup)
-- [Multi-Server Routing](https://docs.mcp-guard.io/enterprise/multi-server)
-- [mTLS Configuration](https://docs.mcp-guard.io/enterprise/mtls)
+- [Enterprise Setup Guide](https://docs.mcpg.botzr.com/enterprise/setup)
+- [Multi-Server Routing](https://docs.mcpg.botzr.com/enterprise/multi-server)
+- [mTLS Configuration](https://docs.mcpg.botzr.com/enterprise/mtls)
 - [Keygen.sh Setup](../../docs/enterprise/keygen-setup.md)
-- [SIEM Integration](https://docs.mcp-guard.io/enterprise/siem)
+- [SIEM Integration](https://docs.mcpg.botzr.com/enterprise/siem)
 
 ---
 
