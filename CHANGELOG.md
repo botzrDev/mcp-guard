@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+#### Local mode (stdio proxy)
+- `mcp-guard doctor`: scans Claude Desktop, Claude Code, Cursor, Windsurf and VS Code
+  configs (or any JSON file) and reports unguarded stdio servers, remote servers
+  without TLS or auth, and guard configs that need attention. `--json`, `--strict`.
+- `mcp-guard wrap` / `mcp-guard unwrap`: rewrite a client's config so its stdio
+  servers launch through `mcp-guard serve`, with a generated per-server config,
+  a timestamped backup, and the original command restored on unwrap. Environment
+  variables stay on the client entry so secrets never enter guard configs.
+- `[policy]` config section: `allowed_tools`, `denied_tools` (globs),
+  `pin_tools`, `tools_lock`, `on_pin_mismatch`.
+- Tool pinning: tool definitions are hashed into a reviewable JSON lockfile on
+  first use. Changed or new tools are hidden from `tools/list` and rejected
+  (error `-32011`) until accepted with `mcp-guard pin --accept`.
+- `mcp-guard pin`: spawns the upstream, diffs its tools against the lockfile with
+  old and new descriptions, exits 1 when out of date, `--accept` to re-pin.
+- Audit logging in serve mode: every tool call and denial is recorded.
+
+### Changed
+- `mcp-guard serve` now forwards the client's `initialize` request and
+  `notifications/initialized` to the upstream instead of answering the handshake
+  itself, so upstreams that require initialization work. The upstream's
+  negotiated protocol version and capabilities are passed through.
+- `serve` preserves client request ids, forwards upstream notifications to the
+  client, and answers upstream-initiated requests with method-not-found instead
+  of misreading them as responses.
+- Guard-only `serve` (no upstream) negotiates the protocol version: it echoes a
+  known revision (2024-11-05 through 2025-11-25) or offers 2025-11-25.
+- `audit.stdout` is ignored in serve mode, where stdout carries the protocol.
+- README rewritten to describe the workspace that exists (four crates, local and
+  gateway modes, honest performance and protocol sections, roadmap).
+
 ## [1.0.0] - 2025-12-26
 
 ### Added

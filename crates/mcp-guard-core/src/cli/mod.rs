@@ -127,11 +127,105 @@ pub enum Commands {
         timeout: u64,
     },
 
-    /// Run as an MCP server (stdio mode) for use with Claude Desktop
+    /// Run as a stdio proxy in front of the upstream server (for Claude Desktop, Cursor, ...)
     ///
-    /// This mode allows mcp-guard to be launched as a subprocess by MCP clients.
-    /// It communicates via stdin/stdout using JSON-RPC 2.0.
+    /// The MCP client launches mcp-guard as a subprocess; mcp-guard launches the
+    /// configured upstream and applies `[policy]`, pinning and audit logging.
     Serve,
+
+    /// Put mcp-guard in front of the stdio servers in an MCP client's config
+    ///
+    /// Rewrites the client's configuration so each stdio server is launched through
+    /// `mcp-guard serve`, with a generated per-server config under the mcp-guard
+    /// config directory. The original file is backed up first.
+    Wrap {
+        /// Client to modify: claude-desktop, claude-code, cursor, windsurf, vscode, or a JSON file path
+        #[arg(long)]
+        client: String,
+
+        /// Only wrap these server names (repeatable). Default: every stdio server
+        #[arg(long = "server")]
+        servers: Vec<String>,
+
+        /// Tools the agent may call (comma-separated globs). Default: all
+        #[arg(long)]
+        allow: Option<String>,
+
+        /// Tools the agent may never call (comma-separated globs), e.g. "delete_*,execute_*"
+        #[arg(long)]
+        deny: Option<String>,
+
+        /// Do not pin tool definitions
+        #[arg(long)]
+        no_pin: bool,
+
+        /// Show what would change without writing anything
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Directory for generated guard configs and audit logs
+        /// (default: $MCP_GUARD_HOME, else ~/.config/mcp-guard)
+        #[arg(long)]
+        config_dir: Option<PathBuf>,
+
+        /// Path to the mcp-guard binary the client should launch (default: this executable)
+        #[arg(long)]
+        guard_bin: Option<PathBuf>,
+    },
+
+    /// Restore servers previously wrapped with `mcp-guard wrap`
+    Unwrap {
+        /// Client to modify: claude-desktop, claude-code, cursor, windsurf, vscode, or a JSON file path
+        #[arg(long)]
+        client: String,
+
+        /// Only unwrap these server names (repeatable). Default: every wrapped server
+        #[arg(long = "server")]
+        servers: Vec<String>,
+
+        /// Show what would change without writing anything
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Scan MCP client configs and report unprotected servers
+    ///
+    /// Looks at Claude Desktop, Claude Code, Cursor, Windsurf and VS Code configs
+    /// (or the clients given with --client) and reports stdio servers running
+    /// without mcp-guard, remote servers without TLS or auth, and guard configs
+    /// that need attention.
+    Doctor {
+        /// Restrict to these clients or files (repeatable). Default: all known clients
+        #[arg(long = "client")]
+        clients: Vec<String>,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Exit non-zero when any WARN or HIGH finding is present (for CI)
+        #[arg(long)]
+        strict: bool,
+    },
+
+    /// Pin, review or accept the upstream's tool definitions
+    ///
+    /// Spawns the upstream from the config file, fetches tools/list and compares it
+    /// with the lockfile. Without --accept, changes are reported and the exit code
+    /// is 1 when the lockfile is out of date.
+    Pin {
+        /// Write the lockfile with the current definitions
+        #[arg(long)]
+        accept: bool,
+
+        /// Print every tool and its hash
+        #[arg(long)]
+        show: bool,
+
+        /// Timeout in seconds for the upstream to answer
+        #[arg(short, long, default_value = "15")]
+        timeout: u64,
+    },
 }
 
 impl Cli {
