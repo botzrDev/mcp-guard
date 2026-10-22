@@ -29,8 +29,8 @@ use mcp_guard_core::{
         MultiProvider, OAuthAuthProvider,
     },
     cli::{
-        apply_key_to_config, generate_api_key, generate_config_with_demo_key, hash_api_key, Cli,
-        Commands,
+        apply_key_to_config, apply_policy_suggestion, generate_api_key,
+        generate_config_with_demo_key, hash_api_key, Cli, Commands, PolicyAction,
     },
     clients::{
         self, ClientKind, DiscoveryEnv, LoadedClientConfig, Severity, UnwrapAction, WrapAction,
@@ -40,6 +40,7 @@ use mcp_guard_core::{
     mcp_server::{fetch_upstream_tools, McpServer, McpServerConfig},
     observability::{init_metrics, init_tracing},
     pin::ToolLockfile,
+    policy::{self, Decision},
     rate_limit::RateLimitService,
     router::ServerRouter,
     server::{self, new_oauth_state_store, AppState},
@@ -325,6 +326,12 @@ async fn run_cli(cli: Cli) -> anyhow::Result<()> {
             show,
             timeout,
         } => handle_pin(&cli.config, accept, show, timeout, cli.verbose).await,
+        Commands::Policy { action } => match action {
+            PolicyAction::Test { tool, args } => handle_policy_test(&cli.config, &tool, &args),
+            PolicyAction::Suggest { apply, audit_log } => {
+                handle_policy_suggest(&cli.config, apply, audit_log)
+            }
+        },
     }
 }
 
@@ -1244,6 +1251,193 @@ fn handle_doctor(client_specs: &[String], json: bool, strict: bool) -> anyhow::R
 
     if strict && (report.count(Severity::High) > 0 || report.count(Severity::Warn) > 0) {
         std::process::exit(1);
+    }
+    Ok(())
+}
+
+// ============================================================================
+// Policy: test / suggest
+// ============================================================================
+
+fn handle_policy_test(
+    config_path: &std::path::PathBuf,
+    tool: &str,
+    args: &str,
+) -> anyhow::Result<()> {
+    let config = Config::from_file(config_path)?;
+    let arguments: serde_json::Value = serde_json::from_str(args)
+        .map_err(|e| anyhow::anyhow!("--args must be a JSON object: {}", e))?;
+    if !arguments.is_object() {
+        anyhow::bail!("--args must be a JSON object, e.g. '{{\"path\": \"/tmp/x\"}}'");
+    }
+
+    let decision = policy::evaluate(&config.policy, tool, &arguments);
+    println!("Config:  {}", config_path.display());
+    println!("Mode:    {:?}", config.policy.mode);
+    println!("Call:    {} {}", tool, arguments);
+    match &decision {
+        Decision::Allow => {
+            println!("Result:  ALLOW");
+        }
+        Decision::Deny { reason, rule } => {
+            let enforced = config.policy.mode == mcp_guard_core::config::PolicyMode::Enforce;
+            println!(
+                "Result:  {}  ({})",
+                if enforced {
+                    "DENY"
+                } else {
+                    "WOULD DENY (observe mode, call is allowed)"
+                },
+                reason
+            );
+            if let Some(rule) = rule {
+                println!("Rule:    {}", rule);
+            }
+            if enforced {
+                std::process::exit(1);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[derive(Default)]
+struct AuditSummary {
+    entries: usize,
+    calls: std::collections::BTreeMap<String, usize>,
+    denied: std::collections::BTreeMap<String, usize>,
+    would_deny: std::collections::BTreeMap<(String, String), usize>,
+    first: Option<String>,
+    last: Option<String>,
+}
+
+fn summarize_audit_log(path: &std::path::Path) -> anyhow::Result<AuditSummary> {
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| anyhow::anyhow!("cannot read audit log {}: {}", path.display(), e))?;
+    let mut summary = AuditSummary::default();
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        summary.entries += 1;
+        if let Some(ts) = entry.get("timestamp").and_then(|t| t.as_str()) {
+            if summary.first.is_none() {
+                summary.first = Some(ts.to_string());
+            }
+            summary.last = Some(ts.to_string());
+        }
+        let tool = entry
+            .get("tool")
+            .and_then(|t| t.as_str())
+            .unwrap_or("")
+            .to_string();
+        match entry.get("event_type").and_then(|e| e.as_str()) {
+            Some("tool_call") if !tool.is_empty() => {
+                *summary.calls.entry(tool).or_default() += 1;
+            }
+            Some("authz_denied") if !tool.is_empty() => {
+                *summary.denied.entry(tool).or_default() += 1;
+            }
+            Some("policy_would_deny") if !tool.is_empty() => {
+                let reason = entry
+                    .get("message")
+                    .and_then(|m| m.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                *summary.would_deny.entry((tool, reason)).or_default() += 1;
+            }
+            _ => {}
+        }
+    }
+    Ok(summary)
+}
+
+fn handle_policy_suggest(
+    config_path: &std::path::PathBuf,
+    apply: bool,
+    audit_log: Option<std::path::PathBuf>,
+) -> anyhow::Result<()> {
+    let config = Config::from_file(config_path)?;
+    let log_path = match audit_log.or_else(|| config.audit.file.clone()) {
+        Some(p) if p.is_absolute() => p,
+        Some(p) => config_path.parent().map(|d| d.join(&p)).unwrap_or(p),
+        None => anyhow::bail!(
+            "no audit log to read: set [audit] file in {} or pass --audit-log",
+            config_path.display()
+        ),
+    };
+
+    let summary = summarize_audit_log(&log_path)?;
+    println!(
+        "Audit log: {}  ({} entries)",
+        log_path.display(),
+        summary.entries
+    );
+    if let (Some(first), Some(last)) = (&summary.first, &summary.last) {
+        println!("Window:    {}  to  {}", first, last);
+    }
+    println!("Mode now:  {:?}", config.policy.mode);
+    println!();
+
+    if summary.calls.is_empty() {
+        println!(
+            "No tool calls recorded yet. Run the server with `mode = \"observe\"` in [policy],"
+        );
+        println!("use the agent normally for a while, then run this command again.");
+        return Ok(());
+    }
+
+    println!("Tools the agent actually called:");
+    for (tool, n) in &summary.calls {
+        println!("  {:<40} {:>6} call(s)", tool, n);
+    }
+    if !summary.denied.is_empty() {
+        println!();
+        println!("Calls denied by the current policy:");
+        for (tool, n) in &summary.denied {
+            println!("  {:<40} {:>6}", tool, n);
+        }
+    }
+    if !summary.would_deny.is_empty() {
+        println!();
+        println!("Calls the current policy would have denied (observe mode):");
+        for ((tool, reason), n) in &summary.would_deny {
+            println!("  {:<40} {:>6}   {}", tool, n, reason);
+        }
+    }
+
+    let allowed: Vec<String> = summary.calls.keys().cloned().collect();
+    println!();
+    println!("Suggested least-privilege policy (every other tool is hidden and denied):");
+    println!();
+    println!("[policy]");
+    println!("mode = \"enforce\"");
+    println!(
+        "allowed_tools = [{}]",
+        allowed
+            .iter()
+            .map(|t| format!("\"{}\"", t))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    println!();
+
+    if apply {
+        apply_policy_suggestion(config_path, &allowed)
+            .map_err(|e| anyhow::anyhow!("failed to update {}: {}", config_path.display(), e))?;
+        println!(
+            "Applied to {}. Existing denied_tools and rules were kept. Restart the client to pick it up.",
+            config_path.display()
+        );
+    } else {
+        println!(
+            "Re-run with --apply to write this into {}.",
+            config_path.display()
+        );
     }
     Ok(())
 }

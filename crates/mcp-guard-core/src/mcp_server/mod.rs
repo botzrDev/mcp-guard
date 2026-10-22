@@ -34,11 +34,12 @@
 //! of what it did.
 
 use crate::audit::AuditLogger;
-use crate::config::{PinMismatchAction, PolicyConfig};
+use crate::config::{PinMismatchAction, PolicyConfig, PolicyMode};
 use crate::guard_tools::{
     is_guard_tool_method, FreeGuardTools, GuardToolsProvider, ToolDefinition,
 };
 use crate::pin::{PinDiff, PinStatus, ToolLockfile};
+use crate::policy::{self, Decision};
 use crate::transport::{Message, Transport, MAX_MESSAGE_SIZE};
 use metrics_exporter_prometheus::PrometheusHandle;
 use serde::{Deserialize, Serialize};
@@ -146,7 +147,8 @@ struct UpstreamToolPages {
 /// Why a tool was hidden or a call rejected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Denial {
-    Policy,
+    /// Rejected by `denied_tools`, `allowed_tools` or a rule; carries the reason.
+    Policy(String),
     PinMismatch(PinStatus),
     /// Pinning is on and the tool was never advertised by the upstream.
     NotAdvertised,
@@ -510,8 +512,11 @@ impl McpServer {
 
     /// Decide whether a tool may be listed or called.
     fn check_tool(&self, name: &str, pins: Option<&PinDiff>) -> Result<(), Denial> {
-        if !self.config.policy.allows(name) {
-            return Err(Denial::Policy);
+        if self.config.policy.mode == PolicyMode::Enforce && !self.config.policy.allows(name) {
+            return Err(Denial::Policy(format!(
+                "tool '{}' is not allowed by policy",
+                name
+            )));
         }
         if is_guard_tool_method(name) {
             return Ok(());
@@ -530,9 +535,9 @@ impl McpServer {
 
     fn denial_error(&self, name: &str, denial: &Denial) -> Value {
         match denial {
-            Denial::Policy => rpc_error(
+            Denial::Policy(reason) => rpc_error(
                 ERR_POLICY_DENIED,
-                format!("mcp-guard: tool '{}' is denied by policy", name),
+                format!("mcp-guard: call to '{}' denied by policy: {}", name, reason),
             ),
             Denial::PinMismatch(status) => {
                 let what = match status {
@@ -558,9 +563,9 @@ impl McpServer {
         }
     }
 
-    fn denial_reason(denial: &Denial) -> &'static str {
+    fn denial_reason(denial: &Denial) -> &str {
         match denial {
-            Denial::Policy => "denied by policy",
+            Denial::Policy(reason) => reason,
             Denial::PinMismatch(PinStatus::New) => "tool not pinned",
             Denial::PinMismatch(_) => "tool definition changed since pinned",
             Denial::NotAdvertised => "tool not advertised by upstream",
@@ -714,9 +719,22 @@ impl McpServer {
 
         debug!("Calling tool: {} with args: {:?}", tool_name, arguments);
 
-        // Policy first: cheap, and a denied tool never needs a pin lookup.
-        if !self.config.policy.allows(&tool_name) {
-            return (self.deny(&tool_name, Denial::Policy), Vec::new());
+        // Policy first: globs and argument rules. Cheap, and a denied tool
+        // never needs a pin lookup.
+        if let Decision::Deny { reason, rule } =
+            policy::evaluate(&self.config.policy, &tool_name, &arguments)
+        {
+            match self.config.policy.mode {
+                PolicyMode::Enforce => {
+                    return (self.deny(&tool_name, Denial::Policy(reason)), Vec::new());
+                }
+                PolicyMode::Observe => {
+                    warn!(tool = %tool_name, rule = ?rule, reason = %reason, "Policy (observe mode): would deny");
+                    if let Some(audit) = &self.audit {
+                        audit.log_policy_would_deny(LOCAL_IDENTITY, &tool_name, &reason);
+                    }
+                }
+            }
         }
 
         if is_guard_tool_method(&tool_name) {
@@ -1344,6 +1362,130 @@ mod tests {
             .collect();
         assert_eq!(names, vec!["delete_file"]);
         assert!(result.get("nextCursor").is_none());
+    }
+
+    fn policy_with_rules() -> PolicyConfig {
+        toml::from_str(
+            r#"
+pin_tools = false
+[[rules]]
+name = "workspace only"
+tools = ["write_file"]
+action = "deny"
+reason = "writes must stay under /work"
+[rules.when]
+path = { not_starts_with = "/work/" }
+"#,
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_argument_rule_denies_matching_call_and_allows_others() {
+        let mock = MockTransport::new();
+        mock.push_response(upstream_response(
+            nth_upstream_id(0),
+            json!({"content": []}),
+        ));
+        let config = McpServerConfig {
+            policy: policy_with_rules(),
+            ..McpServerConfig::default()
+        };
+        let server = McpServer::new(config, Some(Arc::new(mock.clone())), None);
+
+        let denied = only_response(
+            server
+                .handle_message(request(
+                    1,
+                    "tools/call",
+                    Some(json!({"name": "write_file", "arguments": {"path": "/etc/passwd"}})),
+                ))
+                .await,
+        );
+        let err = denied.error.unwrap();
+        assert_eq!(err["code"], ERR_POLICY_DENIED);
+        assert!(err["message"]
+            .as_str()
+            .unwrap()
+            .contains("writes must stay under /work"));
+        assert_eq!(mock.sent_count(), 0, "denied call never reaches upstream");
+
+        let allowed = only_response(
+            server
+                .handle_message(request(
+                    2,
+                    "tools/call",
+                    Some(json!({"name": "write_file", "arguments": {"path": "/work/notes.md"}})),
+                ))
+                .await,
+        );
+        assert!(allowed.result.is_some(), "{:?}", allowed.error);
+        assert_eq!(mock.sent_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_observe_mode_allows_but_records_would_deny() {
+        let dir = tempfile::tempdir().unwrap();
+        let audit_path = dir.path().join("audit.jsonl");
+        let audit_config = crate::config::AuditConfig {
+            enabled: true,
+            file: Some(audit_path.clone()),
+            stdout: false,
+            ..Default::default()
+        };
+        let (audit, handle) = AuditLogger::with_tasks(&audit_config).unwrap();
+
+        let mock = MockTransport::new();
+        mock.push_response(upstream_response(
+            nth_upstream_id(0),
+            json!({"content": []}),
+        ));
+        let mut policy = policy_with_rules();
+        policy.mode = PolicyMode::Observe;
+        policy.denied_tools = vec!["delete_*".into()];
+        let config = McpServerConfig {
+            policy,
+            ..McpServerConfig::default()
+        };
+        let server =
+            McpServer::new(config, Some(Arc::new(mock.clone())), None).with_audit(Arc::new(audit));
+
+        // Would be denied by the rule, but observe mode lets it through.
+        let response = only_response(
+            server
+                .handle_message(request(
+                    1,
+                    "tools/call",
+                    Some(json!({"name": "write_file", "arguments": {"path": "/etc/passwd"}})),
+                ))
+                .await,
+        );
+        assert!(response.result.is_some(), "{:?}", response.error);
+        assert_eq!(mock.sent_count(), 1);
+
+        // Observe mode also keeps denied tools visible in tools/list.
+        mock.push_response(upstream_response(
+            nth_upstream_id(1),
+            json!({"tools": [delete_file_tool()]}),
+        ));
+        let list = only_response(server.handle_message(request(2, "tools/list", None)).await);
+        let names: Vec<&str> = list.result.as_ref().unwrap()["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&"delete_file"));
+
+        handle.shutdown().await;
+        let log = std::fs::read_to_string(&audit_path).unwrap();
+        assert!(log.contains("policy_would_deny"), "{}", log);
+        assert!(log.contains("writes must stay under /work"), "{}", log);
+        assert!(
+            log.contains("tool_call"),
+            "the call itself is also recorded: {}",
+            log
+        );
     }
 
     #[tokio::test]

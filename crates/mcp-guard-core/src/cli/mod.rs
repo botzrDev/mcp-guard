@@ -208,6 +208,12 @@ pub enum Commands {
         strict: bool,
     },
 
+    /// Test a policy against a call, or generate one from what the agent actually used
+    Policy {
+        #[command(subcommand)]
+        action: PolicyAction,
+    },
+
     /// Pin, review or accept the upstream's tool definitions
     ///
     /// Spawns the upstream from the config file, fetches tools/list and compares it
@@ -225,6 +231,38 @@ pub enum Commands {
         /// Timeout in seconds for the upstream to answer
         #[arg(short, long, default_value = "15")]
         timeout: u64,
+    },
+}
+
+/// Subcommands of `mcp-guard policy`.
+#[derive(Debug, Subcommand)]
+pub enum PolicyAction {
+    /// Evaluate the `[policy]` in the config against one tool call and print the decision
+    ///
+    /// Example: mcp-guard policy test --tool write_file --args '{"path": "/etc/passwd"}'
+    Test {
+        /// Tool name
+        #[arg(long)]
+        tool: String,
+
+        /// Tool arguments as a JSON object (default: {})
+        #[arg(long, default_value = "{}")]
+        args: String,
+    },
+
+    /// Read the audit log and propose a least-privilege `[policy]` from observed calls
+    ///
+    /// Run the server in `mode = "observe"` for a while first. The suggestion lists
+    /// every tool the agent actually called as allowed_tools, reports what the
+    /// current rules would have denied, and with --apply writes it into the config.
+    Suggest {
+        /// Write the suggested allowed_tools and mode = "enforce" into the config file
+        #[arg(long)]
+        apply: bool,
+
+        /// Audit log to read (default: `[audit]` file from the config)
+        #[arg(long)]
+        audit_log: Option<PathBuf>,
     },
 }
 
@@ -524,5 +562,34 @@ pub fn apply_key_to_config(
     std::fs::write(&temp_path, &config_str)?;
     std::fs::rename(&temp_path, config_path)?;
 
+    Ok(())
+}
+
+/// Write a suggested `[policy]` into a config file, preserving comments and
+/// other sections. Sets `mode = "enforce"` and replaces `allowed_tools`.
+pub fn apply_policy_suggestion(
+    config_path: &std::path::Path,
+    allowed_tools: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
+    use toml_edit::{Array, DocumentMut, Item, Table};
+
+    let content = std::fs::read_to_string(config_path)?;
+    let mut doc: DocumentMut = content.parse()?;
+
+    if doc.get("policy").is_none() {
+        doc["policy"] = Item::Table(Table::new());
+    }
+    let policy = doc["policy"]
+        .as_table_mut()
+        .ok_or("policy section is not a table")?;
+
+    let mut arr = Array::new();
+    for tool in allowed_tools {
+        arr.push(tool.as_str());
+    }
+    policy.insert("mode", toml_edit::value("enforce"));
+    policy.insert("allowed_tools", toml_edit::value(arr));
+
+    std::fs::write(config_path, doc.to_string())?;
     Ok(())
 }

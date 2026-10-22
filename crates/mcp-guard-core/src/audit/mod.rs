@@ -361,6 +361,8 @@ pub enum EventType {
     ToolResponse,
     RateLimited,
     AuthzDenied,
+    /// Policy in observe mode: the call was allowed but would have been denied.
+    PolicyWouldDeny,
     Error,
 }
 
@@ -782,6 +784,17 @@ impl AuditLogger {
                 .with_identity(identity_id)
                 .with_tool(tool)
                 .with_success(false)
+                .with_message(reason),
+        );
+    }
+
+    /// Record a call that observe-mode policy let through but would have denied.
+    pub fn log_policy_would_deny(&self, identity_id: &str, tool: &str, reason: &str) {
+        self.log(
+            &AuditEntry::new(EventType::PolicyWouldDeny)
+                .with_identity(identity_id)
+                .with_tool(tool)
+                .with_success(true)
                 .with_message(reason),
         );
     }

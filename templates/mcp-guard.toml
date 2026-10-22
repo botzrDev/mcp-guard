@@ -434,3 +434,29 @@ pin_tools = true
 #   "deny"  hide them from tools/list and reject calls until `mcp-guard pin --accept`
 #   "warn"  allow them but log a warning and an audit event
 on_pin_mismatch = "deny"
+
+# "enforce" blocks what the policy denies. "observe" allows everything but records
+# what would have been denied; then `mcp-guard policy suggest --config <file>`
+# proposes a least-privilege allowed_tools list from the audit log.
+mode = "enforce"
+
+# Argument-level rules, evaluated in order after denied_tools/allowed_tools.
+# The first rule whose tools match and whose `when` conditions all hold decides.
+# Operators: exists, equals, not_equals, in, not_in, starts_with, not_starts_with,
+# ends_with, not_ends_with, contains, not_contains, glob, not_glob, regex,
+# not_regex, max_length, gt, gte, lt, lte. Test with:
+#   mcp-guard policy test --config <file> --tool write_file --args '{"path": "/etc/passwd"}'
+#
+# [[policy.rules]]
+# name = "writes stay in the workspace"
+# tools = ["write_file", "edit_file", "create_directory"]
+# action = "deny"
+# reason = "writes outside the project are blocked"
+# [policy.rules.when]
+# path = { not_starts_with = "/home/me/project/" }
+#
+# [[policy.rules]]
+# name = "never touch secrets"
+# action = "deny"
+# [policy.rules.when]
+# path = { contains = [".ssh", ".aws", ".env"] }

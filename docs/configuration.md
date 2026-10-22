@@ -609,8 +609,32 @@ on_pin_mismatch = "deny"
 | `pin_tools` | bool | `true` | Hash tool definitions into a lockfile on first use and compare on every `tools/list` |
 | `tools_lock` | path | `<config>.tools.lock.json` | Lockfile location, relative to the config file's directory unless absolute |
 | `on_pin_mismatch` | `"deny"` or `"warn"` | `"deny"` | `deny` hides new or changed tools and rejects calls (error -32011); `warn` allows them and logs |
+| `mode` | `"enforce"` or `"observe"` | `"enforce"` | `observe` allows everything and records what would have been denied (`policy_would_deny` audit events) for `mcp-guard policy suggest` |
+| `rules` | array of tables | `[]` | Argument-level rules, evaluated in order after the globs. See below |
 
 Denied tools are removed from `tools/list` so the model never sees them; calls return JSON-RPC error -32010. The built-in `guard/*` tools follow the same rules.
+
+#### `[[policy.rules]]`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `name` | string | none | Label shown in denials and audit entries |
+| `tools` | array | `["*"]` | Tool name globs the rule applies to |
+| `action` | `"allow"` or `"deny"` | required | What a match does |
+| `reason` | string | none | Explanation returned to the agent on deny |
+| `when` | table | `{}` | Argument path to condition. All conditions must hold. Empty matches every call |
+
+Condition operators: `exists`, `equals`, `not_equals`, `in`, `not_in`, `starts_with`, `not_starts_with`, `ends_with`, `not_ends_with`, `contains`, `not_contains`, `glob`, `not_glob`, `regex`, `not_regex`, `max_length`, `gt`, `gte`, `lt`, `lte`. String operators take one string or a list (any matches). Full semantics in [local-mode.md](local-mode.md#argument-level-rules).
+
+```toml
+[[policy.rules]]
+name = "writes stay in the workspace"
+tools = ["write_file", "edit_file"]
+action = "deny"
+reason = "writes outside the project are blocked"
+[policy.rules.when]
+path = { not_starts_with = "/home/me/project/" }
+```
 
 ## Complete Examples
 
