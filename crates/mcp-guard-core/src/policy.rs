@@ -41,6 +41,11 @@ pub enum Decision {
         /// Name or index of the rule that matched, when a rule decided.
         rule: Option<String>,
     },
+    /// Pause for human approval (`action = "hold"`).
+    Hold {
+        reason: String,
+        rule: String,
+    },
 }
 
 impl Decision {
@@ -51,7 +56,7 @@ impl Decision {
     pub fn reason(&self) -> Option<&str> {
         match self {
             Decision::Allow => None,
-            Decision::Deny { reason, .. } => Some(reason),
+            Decision::Deny { reason, .. } | Decision::Hold { reason, .. } => Some(reason),
         }
     }
 }
@@ -97,6 +102,13 @@ pub fn evaluate(policy: &PolicyConfig, tool: &str, arguments: &Value) -> Decisio
                     .clone()
                     .unwrap_or_else(|| format!("denied by rule '{}'", label)),
                 rule: Some(label),
+            },
+            RuleAction::Hold => Decision::Hold {
+                reason: rule
+                    .reason
+                    .clone()
+                    .unwrap_or_else(|| format!("held for approval by rule '{}'", label)),
+                rule: label,
             },
         };
     }
@@ -354,6 +366,31 @@ reason = "writes outside the workspace are blocked"
         assert!(!evaluate(&p, "write_file", &json!({})).is_allow());
         // Unrelated tool: no rule matches, allowed.
         assert!(evaluate(&p, "read_file", &json!({"path": "/etc/passwd"})).is_allow());
+    }
+
+    #[test]
+    fn hold_rule_produces_hold_decision() {
+        let p = policy_from(
+            r#"
+[[rules]]
+name = "confirm destructive"
+tools = ["delete_*", "run_shell"]
+action = "hold"
+reason = "destructive operation"
+"#,
+        );
+        assert_eq!(
+            evaluate(&p, "delete_file", &json!({})),
+            Decision::Hold {
+                reason: "destructive operation".into(),
+                rule: "confirm destructive".into()
+            }
+        );
+        assert!(evaluate(&p, "read_file", &json!({})).is_allow());
+        assert_eq!(
+            evaluate(&p, "run_shell", &json!({})).reason(),
+            Some("destructive operation")
+        );
     }
 
     #[test]

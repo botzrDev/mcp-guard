@@ -155,6 +155,10 @@ pub enum Commands {
         #[arg(long)]
         deny: Option<String>,
 
+        /// Tools that need your approval before each call (comma-separated globs)
+        #[arg(long)]
+        hold: Option<String>,
+
         /// Do not pin tool definitions
         #[arg(long)]
         no_pin: bool,
@@ -208,6 +212,45 @@ pub enum Commands {
         strict: bool,
     },
 
+    /// List calls waiting for approval (rules with action = "hold")
+    Holds {
+        /// Holds directory (default: `[policy.holds]` dir from the config)
+        #[arg(long)]
+        dir: Option<PathBuf>,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Approve a held call so it proceeds to the upstream
+    Approve {
+        /// Hold id (prefix is enough), "latest", or "all"
+        id: String,
+
+        /// Holds directory (default: `[policy.holds]` dir from the config)
+        #[arg(long)]
+        dir: Option<PathBuf>,
+
+        /// Optional note, recorded with the decision
+        #[arg(long)]
+        note: Option<String>,
+    },
+
+    /// Deny a held call
+    Deny {
+        /// Hold id (prefix is enough), "latest", or "all"
+        id: String,
+
+        /// Holds directory (default: `[policy.holds]` dir from the config)
+        #[arg(long)]
+        dir: Option<PathBuf>,
+
+        /// Optional reason, returned to the agent and recorded
+        #[arg(long)]
+        note: Option<String>,
+    },
+
     /// Show a recorded session as a timeline (flight recorder)
     ///
     /// Sessions are written by `mcp-guard serve` when `[recorder]` is enabled.
@@ -235,6 +278,10 @@ pub enum Commands {
         /// Print the raw records as JSON lines instead of a timeline
         #[arg(long)]
         json: bool,
+
+        /// Write a self-contained HTML report of the session to this file
+        #[arg(long)]
+        html: Option<PathBuf>,
     },
 
     /// Check a recorded session's hash chain for edits, gaps or reordering

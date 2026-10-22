@@ -746,6 +746,10 @@ pub struct PolicyConfig {
     /// and whose `when` conditions all hold decides; no match means allow.
     #[serde(default)]
     pub rules: Vec<PolicyRule>,
+
+    /// Human-in-the-loop settings for rules with `action = "hold"`.
+    #[serde(default)]
+    pub holds: HoldsConfig,
 }
 
 /// Whether policy decisions are enforced or only recorded.
@@ -763,6 +767,85 @@ pub enum PolicyMode {
 pub enum RuleAction {
     Allow,
     Deny,
+    /// Pause the call until a person approves it with `mcp-guard approve`,
+    /// or deny it when nobody does within `policy.holds.timeout_secs`.
+    Hold,
+}
+
+/// Settings for held calls (human-in-the-loop approval).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HoldsConfig {
+    /// Directory where pending holds and their approvals live.
+    /// Default: `<config stem>.holds/` next to the config file.
+    #[serde(default)]
+    pub dir: Option<PathBuf>,
+
+    /// How long a held call waits for approval before it is denied.
+    #[serde(default = "default_hold_timeout_secs")]
+    pub timeout_secs: u64,
+
+    /// Show a desktop notification when a call is held (macOS `osascript`,
+    /// Linux `notify-send`, Windows PowerShell toast). Best effort.
+    #[serde(default = "default_true")]
+    pub notify: bool,
+
+    /// Command to run when a call is held, instead of the desktop notification.
+    /// Placeholders: `{id}`, `{tool}`, `{reason}`, `{arguments}`, `{approve}`.
+    #[serde(default)]
+    pub notify_command: Option<Vec<String>>,
+}
+
+fn default_hold_timeout_secs() -> u64 {
+    120
+}
+
+impl Default for HoldsConfig {
+    fn default() -> Self {
+        Self {
+            dir: None,
+            timeout_secs: default_hold_timeout_secs(),
+            notify: true,
+            notify_command: None,
+        }
+    }
+}
+
+impl HoldsConfig {
+    /// Resolve the holds directory for a given config file path.
+    pub fn dir_for(&self, config_path: &std::path::Path) -> PathBuf {
+        resolve_sibling_dir(self.dir.as_deref(), config_path, "holds")
+    }
+}
+
+/// Resolve `explicit` relative to the config file's directory, or build
+/// `<config stem>.<suffix>/` next to the config file.
+pub(crate) fn resolve_sibling_dir(
+    explicit: Option<&std::path::Path>,
+    config_path: &std::path::Path,
+    suffix: &str,
+) -> PathBuf {
+    let parent = config_path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .map(|p| p.to_path_buf());
+    if let Some(explicit) = explicit {
+        if explicit.is_absolute() {
+            return explicit.to_path_buf();
+        }
+        return match parent {
+            Some(p) => p.join(explicit),
+            None => explicit.to_path_buf(),
+        };
+    }
+    let stem = config_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("mcp-guard");
+    let dir = format!("{}.{}", stem, suffix);
+    match parent {
+        Some(p) => p.join(dir),
+        None => PathBuf::from(dir),
+    }
 }
 
 /// One argument-level rule.
@@ -890,6 +973,7 @@ impl Default for PolicyConfig {
             on_pin_mismatch: default_pin_mismatch_action(),
             mode: PolicyMode::Enforce,
             rules: Vec::new(),
+            holds: HoldsConfig::default(),
         }
     }
 }
@@ -986,6 +1070,15 @@ pub struct RecorderConfig {
     /// that writes the recordings if you need that guarantee.
     #[serde(default)]
     pub signing_key_env: Option<String>,
+
+    /// Delete session files older than this many days when a new session starts.
+    #[serde(default)]
+    pub retention_days: Option<u32>,
+
+    /// Keep at most this many session files (oldest deleted first) when a new
+    /// session starts.
+    #[serde(default)]
+    pub max_sessions: Option<usize>,
 }
 
 fn default_max_payload_bytes() -> usize {
@@ -1001,6 +1094,8 @@ impl Default for RecorderConfig {
             include_results: true,
             redact: true,
             signing_key_env: None,
+            retention_days: None,
+            max_sessions: None,
         }
     }
 }
@@ -1008,24 +1103,7 @@ impl Default for RecorderConfig {
 impl RecorderConfig {
     /// Resolve the recordings directory for a given config file path.
     pub fn dir_for(&self, config_path: &std::path::Path) -> PathBuf {
-        if let Some(explicit) = &self.dir {
-            if explicit.is_absolute() {
-                return explicit.clone();
-            }
-            return match config_path.parent() {
-                Some(parent) if !parent.as_os_str().is_empty() => parent.join(explicit),
-                _ => explicit.clone(),
-            };
-        }
-        let stem = config_path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("mcp-guard");
-        let dir = format!("{}.recordings", stem);
-        match config_path.parent() {
-            Some(parent) if !parent.as_os_str().is_empty() => parent.join(dir),
-            _ => PathBuf::from(dir),
-        }
+        resolve_sibling_dir(self.dir.as_deref(), config_path, "recordings")
     }
 
     /// The signing key from the environment, if configured and present.

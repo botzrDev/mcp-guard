@@ -582,14 +582,40 @@ While the lockfile is out of date, `serve` hides the changed and new tools and r
 
 ---
 
+### holds
+
+List calls waiting for approval (rules with `action = "hold"`).
+
+```bash
+mcp-guard holds --config <guard config> [--dir <holds dir>] [--json]
+```
+
+---
+
+### approve / deny
+
+Decide a held call.
+
+```bash
+mcp-guard approve <id|latest|all> --config <guard config> [--note "..."]
+mcp-guard deny    <id|latest|all> --config <guard config> [--note "..."]
+```
+
+An id prefix is enough when it is unambiguous. Approved calls proceed to the upstream; denied ones fail with error `-32012` and your note. A hold that already timed out is reported as such.
+
+---
+
 ### replay
 
 Show a recorded session as a timeline.
 
 ```bash
 mcp-guard replay --config <guard config> [--session latest|<id>|<file>] [--list] [--denied] [--tool <name>] [--json]
+mcp-guard replay --config <guard config> --html session.html
 mcp-guard replay --dir <recordings dir> ...
 ```
+
+`--html` writes a self-contained report (metadata, integrity status, timeline with denials highlighted, raw records) that can be attached to a ticket or sent to an auditor.
 
 Each client request is one line with its arguments and outcome; denials and guard decisions are marked. The last line reports whether the hash chain is intact. `--list` shows every session with record and decision counts.
 

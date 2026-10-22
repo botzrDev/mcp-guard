@@ -37,6 +37,7 @@ use mcp_guard_core::{
         WrapOptions,
     },
     config::{Config, TransportType},
+    holds::{self, HoldOutcome},
     mcp_server::{fetch_upstream_tools, McpServer, McpServerConfig},
     observability::{init_metrics, init_tracing},
     pin::ToolLockfile,
@@ -305,13 +306,21 @@ async fn run_cli(cli: Cli) -> anyhow::Result<()> {
             servers,
             allow,
             deny,
+            hold,
             no_pin,
             dry_run,
             config_dir,
             guard_bin,
         } => handle_wrap(
-            &client, &servers, allow, deny, !no_pin, dry_run, config_dir, guard_bin,
+            &client, &servers, allow, deny, hold, !no_pin, dry_run, config_dir, guard_bin,
         ),
+        Commands::Holds { dir, json } => handle_holds(&cli.config, dir, json),
+        Commands::Approve { id, dir, note } => {
+            handle_decide(&cli.config, &id, dir, HoldOutcome::Approved, note)
+        }
+        Commands::Deny { id, dir, note } => {
+            handle_decide(&cli.config, &id, dir, HoldOutcome::Denied, note)
+        }
         Commands::Unwrap {
             client,
             servers,
@@ -334,7 +343,8 @@ async fn run_cli(cli: Cli) -> anyhow::Result<()> {
             denied,
             tool,
             json,
-        } => handle_replay(&cli.config, &session, dir, list, denied, tool, json),
+            html,
+        } => handle_replay(&cli.config, &session, dir, list, denied, tool, json, html),
         Commands::Verify { session, dir, json } => handle_verify(&cli.config, &session, dir, json),
         Commands::Policy { action } => match action {
             PolicyAction::Test { tool, args } => handle_policy_test(&cli.config, &tool, &args),
@@ -950,10 +960,22 @@ async fn handle_serve(config_path: &std::path::PathBuf, verbose: bool) -> anyhow
         None
     };
 
+    let has_hold_rules = config
+        .policy
+        .rules
+        .iter()
+        .any(|r| r.action == mcp_guard_core::config::RuleAction::Hold);
+    let holds_dir = if has_hold_rules {
+        Some(config.policy.holds.dir_for(config_path))
+    } else {
+        None
+    };
     let server_config = McpServerConfig {
         policy: config.policy.clone(),
         lock_path,
         upstream_label: upstream_label(&config),
+        holds_dir,
+        config_path: Some(config_path.display().to_string()),
         ..McpServerConfig::default()
     };
     let mut server = McpServer::new(server_config, upstream, metrics_handle)
@@ -1070,6 +1092,7 @@ fn handle_wrap(
     servers: &[String],
     allow: Option<String>,
     deny: Option<String>,
+    hold: Option<String>,
     pin_tools: bool,
     dry_run: bool,
     config_dir: Option<std::path::PathBuf>,
@@ -1093,6 +1116,7 @@ fn handle_wrap(
         only: servers.to_vec(),
         allowed_tools: allowed,
         denied_tools: split_list(deny),
+        held_tools: split_list(hold),
         pin_tools,
     };
 
@@ -1149,6 +1173,9 @@ fn handle_wrap(
         );
         println!("Tool definitions are pinned on first use; review them with `mcp-guard pin --config <guard config>`.");
         println!("Tighten access by editing [policy] in the generated config, then run `mcp-guard doctor`.");
+        if !opts.held_tools.is_empty() {
+            println!("Held tools wait for `mcp-guard approve <id> --config <guard config>`; `mcp-guard holds` lists what is waiting.");
+        }
     } else {
         println!("Nothing wrapped.");
     }
@@ -1292,6 +1319,115 @@ fn handle_doctor(client_specs: &[String], json: bool, strict: bool) -> anyhow::R
 }
 
 // ============================================================================
+// Holds: list / approve / deny
+// ============================================================================
+
+fn holds_dir(
+    config_path: &std::path::PathBuf,
+    dir: Option<std::path::PathBuf>,
+) -> anyhow::Result<std::path::PathBuf> {
+    if let Some(d) = dir {
+        return Ok(d);
+    }
+    let config = Config::from_file(config_path).map_err(|e| {
+        anyhow::anyhow!(
+            "cannot load {} ({}); pass --dir to point at a holds directory",
+            config_path.display(),
+            e
+        )
+    })?;
+    Ok(config.policy.holds.dir_for(config_path))
+}
+
+fn handle_holds(
+    config_path: &std::path::PathBuf,
+    dir: Option<std::path::PathBuf>,
+    json: bool,
+) -> anyhow::Result<()> {
+    let dir = holds_dir(config_path, dir)?;
+    let pending = holds::list(&dir)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&pending)?);
+        return Ok(());
+    }
+    if pending.is_empty() {
+        println!("No calls waiting for approval in {}", dir.display());
+        return Ok(());
+    }
+    println!("Calls waiting for approval ({}):", dir.display());
+    println!();
+    for req in &pending {
+        println!(
+            "  {}  {}  {}{}",
+            req.id,
+            req.tool,
+            req.arguments,
+            if req.is_expired() {
+                "  (expired; the agent has already been told no)"
+            } else {
+                ""
+            }
+        );
+        println!(
+            "          {}  [rule: {}]  requested {}  expires {}",
+            req.reason, req.rule, req.created_at, req.expires_at
+        );
+        println!(
+            "          approve: mcp-guard approve {} --config {}",
+            req.id,
+            req.config_path
+                .clone()
+                .unwrap_or_else(|| config_path.display().to_string())
+        );
+        println!();
+    }
+    Ok(())
+}
+
+fn handle_decide(
+    config_path: &std::path::PathBuf,
+    selector: &str,
+    dir: Option<std::path::PathBuf>,
+    outcome: HoldOutcome,
+    note: Option<String>,
+) -> anyhow::Result<()> {
+    let dir = holds_dir(config_path, dir)?;
+    let targets = holds::select(&dir, selector)?;
+    if targets.is_empty() {
+        anyhow::bail!(
+            "no pending hold matches '{}' in {} (run `mcp-guard holds`)",
+            selector,
+            dir.display()
+        );
+    }
+    if selector != "all" && selector != "latest" && targets.len() > 1 {
+        anyhow::bail!(
+            "'{}' matches {} pending holds; give more of the id",
+            selector,
+            targets.len()
+        );
+    }
+    for req in targets {
+        holds::decide(&dir, &req.id, outcome.clone(), note.as_deref())?;
+        println!(
+            "{} {}  {} {}",
+            match outcome {
+                HoldOutcome::Approved => "Approved",
+                HoldOutcome::Denied => "Denied  ",
+                HoldOutcome::TimedOut => "?",
+            },
+            req.id,
+            req.tool,
+            req.arguments
+        );
+        if req.is_expired() {
+            println!("          note: this hold had already expired; the agent was told no when the timeout passed");
+        }
+    }
+    Ok(())
+}
+
+// ============================================================================
 // Flight recorder: replay / verify
 // ============================================================================
 
@@ -1321,6 +1457,7 @@ fn handle_replay(
     denied_only: bool,
     tool: Option<String>,
     json: bool,
+    html: Option<std::path::PathBuf>,
 ) -> anyhow::Result<()> {
     let (dir, _) = recordings_dir(config_path, dir)?;
 
@@ -1383,6 +1520,13 @@ fn handle_replay(
         );
     };
     let loaded = Session::load(&path)?;
+
+    if let Some(out) = html {
+        let page = recorder::render_html(&loaded, recorder::verify(&loaded, None));
+        std::fs::write(&out, page)?;
+        println!("Wrote {} ({} records)", out.display(), loaded.records.len());
+        return Ok(());
+    }
 
     if json {
         for r in &loaded.records {
@@ -1525,6 +1669,13 @@ fn handle_policy_test(
     match &decision {
         Decision::Allow => {
             println!("Result:  ALLOW");
+        }
+        Decision::Hold { reason, rule } => {
+            println!(
+                "Result:  HOLD  ({}); the call waits up to {}s for `mcp-guard approve`",
+                reason, config.policy.holds.timeout_secs
+            );
+            println!("Rule:    {}", rule);
         }
         Decision::Deny { reason, rule } => {
             let enforced = config.policy.mode == mcp_guard_core::config::PolicyMode::Enforce;

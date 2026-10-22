@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Human-in-the-loop holds
+- `action = "hold"` on `[[policy.rules]]`: the call pauses until a person runs
+  `mcp-guard approve <id>`, or is denied (error `-32012`) after
+  `[policy.holds] timeout_secs`. Denial notes are returned to the agent.
+- `mcp-guard holds`, `mcp-guard approve`, `mcp-guard deny` (id prefix, `latest`,
+  `all`). Desktop notification on hold (macOS, Linux, Windows) or a custom
+  `notify_command` with placeholders.
+- `mcp-guard wrap --hold "delete_*,execute_*"` generates the rule.
+- Hold lifecycle recorded in the flight recorder (`hold_requested`,
+  `hold_approved`, `hold_denied`, `hold_timed_out`, `hold_would_request`).
+
+#### Flight recorder additions
+- `mcp-guard replay --html <file>`: self-contained HTML session report.
+- `[recorder] retention_days` and `max_sessions` prune old sessions at startup.
+
 #### Flight recorder
 - `[recorder]` config section and per-session JSONL recordings written by
   `mcp-guard serve`: every client request, every response, every guard

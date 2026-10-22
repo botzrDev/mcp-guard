@@ -38,6 +38,7 @@ use crate::config::{PinMismatchAction, PolicyConfig, PolicyMode};
 use crate::guard_tools::{
     is_guard_tool_method, FreeGuardTools, GuardToolsProvider, ToolDefinition,
 };
+use crate::holds::{self, HoldOutcome};
 use crate::pin::{PinDiff, PinStatus, ToolLockfile};
 use crate::policy::{self, Decision};
 use crate::recorder::Recorder;
@@ -68,6 +69,8 @@ pub const LOCAL_IDENTITY: &str = "local";
 pub const ERR_POLICY_DENIED: i64 = -32010;
 /// JSON-RPC error code: tool definition is new or changed since it was pinned.
 pub const ERR_PIN_MISMATCH: i64 = -32011;
+/// JSON-RPC error code: call was held for approval and denied or timed out.
+pub const ERR_HOLD_DENIED: i64 = -32012;
 
 /// Upper bound on tools/list pages followed when the upstream paginates.
 const MAX_TOOL_LIST_PAGES: usize = 100;
@@ -88,6 +91,10 @@ pub struct McpServerConfig {
     pub lock_path: Option<PathBuf>,
     /// Description of the upstream, recorded in the lockfile
     pub upstream_label: Option<String>,
+    /// Directory for held calls. `None` turns `action = "hold"` rules into denials.
+    pub holds_dir: Option<PathBuf>,
+    /// Config file path, shown in hold notifications so the approve command is complete.
+    pub config_path: Option<String>,
 }
 
 impl Default for McpServerConfig {
@@ -98,6 +105,8 @@ impl Default for McpServerConfig {
             policy: PolicyConfig::default(),
             lock_path: None,
             upstream_label: None,
+            holds_dir: None,
+            config_path: None,
         }
     }
 }
@@ -591,6 +600,10 @@ impl McpServer {
 
     fn denial_error(&self, name: &str, denial: &Denial) -> Value {
         match denial {
+            Denial::Policy(reason) if reason.starts_with("held for approval") => rpc_error(
+                ERR_HOLD_DENIED,
+                format!("mcp-guard: call to '{}' {}", name, reason),
+            ),
             Denial::Policy(reason) => rpc_error(
                 ERR_POLICY_DENIED,
                 format!("mcp-guard: call to '{}' denied by policy: {}", name, reason),
@@ -788,10 +801,9 @@ impl McpServer {
 
         // Policy first: globs and argument rules. Cheap, and a denied tool
         // never needs a pin lookup.
-        if let Decision::Deny { reason, rule } =
-            policy::evaluate(&self.config.policy, &tool_name, &arguments)
-        {
-            match self.config.policy.mode {
+        match policy::evaluate(&self.config.policy, &tool_name, &arguments) {
+            Decision::Allow => {}
+            Decision::Deny { reason, rule } => match self.config.policy.mode {
                 PolicyMode::Enforce => {
                     return (self.deny(&tool_name, Denial::Policy(reason)), Vec::new());
                 }
@@ -806,7 +818,25 @@ impl McpServer {
                         json!({ "reason": reason, "rule": rule }),
                     );
                 }
-            }
+            },
+            Decision::Hold { reason, rule } => match self.config.policy.mode {
+                PolicyMode::Observe => {
+                    info!(tool = %tool_name, rule = %rule, "Policy (observe mode): would hold for approval");
+                    self.record_decision(
+                        "hold_would_request",
+                        Some(&tool_name),
+                        json!({ "reason": reason, "rule": rule }),
+                    );
+                }
+                PolicyMode::Enforce => {
+                    if let Err(e) = self
+                        .hold_for_approval(&tool_name, &arguments, &reason, &rule)
+                        .await
+                    {
+                        return (self.deny(&tool_name, Denial::Policy(e)), Vec::new());
+                    }
+                }
+            },
         }
 
         if is_guard_tool_method(&tool_name) {
@@ -850,6 +880,83 @@ impl McpServer {
                 (Ok(result), forwarded)
             }
             Err(e) => (Err(e), forwarded),
+        }
+    }
+
+    /// Pause a call until a person approves it. `Ok(())` to proceed, `Err(reason)` to deny.
+    async fn hold_for_approval(
+        &self,
+        tool: &str,
+        arguments: &Value,
+        reason: &str,
+        rule: &str,
+    ) -> Result<(), String> {
+        let Some(dir) = &self.config.holds_dir else {
+            warn!(tool = %tool, "Rule asks to hold but no holds directory is configured; denying");
+            return Err(format!(
+                "{} (approval is not available in this setup)",
+                reason
+            ));
+        };
+        let holds_cfg = &self.config.policy.holds;
+        let timeout = std::time::Duration::from_secs(holds_cfg.timeout_secs);
+        let shown_args = match crate::recorder::Redactor::new(&[]) {
+            Ok(r) => r.redact_value(arguments).0,
+            Err(_) => arguments.clone(),
+        };
+        let request = holds::create(
+            dir,
+            timeout,
+            tool,
+            shown_args,
+            reason,
+            rule,
+            self.recorder.as_ref().map(|r| r.session_id()),
+            self.config.config_path.as_deref(),
+            self.config.upstream_label.as_deref(),
+        )
+        .map_err(|e| format!("{} (could not create hold: {})", reason, e))?;
+
+        warn!(
+            tool = %tool,
+            id = %request.id,
+            timeout_secs = holds_cfg.timeout_secs,
+            "Call held for approval. Run: {}",
+            holds::approve_command(&request)
+        );
+        holds::notify(holds_cfg, &request);
+        self.record_decision(
+            "hold_requested",
+            Some(tool),
+            json!({ "reason": reason, "rule": rule, "hold_id": request.id, "timeout_secs": holds_cfg.timeout_secs }),
+        );
+
+        let (outcome, decision) = holds::wait(dir, &request.id, timeout).await;
+        self.record_decision(
+            match outcome {
+                HoldOutcome::Approved => "hold_approved",
+                HoldOutcome::Denied => "hold_denied",
+                HoldOutcome::TimedOut => "hold_timed_out",
+            },
+            Some(tool),
+            json!({ "hold_id": request.id, "note": decision.note }),
+        );
+        match outcome {
+            HoldOutcome::Approved => {
+                info!(tool = %tool, id = %request.id, "Held call approved");
+                Ok(())
+            }
+            HoldOutcome::Denied => Err(format!(
+                "held for approval and denied{}",
+                decision
+                    .note
+                    .map(|n| format!(": {}", n))
+                    .unwrap_or_default()
+            )),
+            HoldOutcome::TimedOut => Err(format!(
+                "held for approval; nobody approved within {}s",
+                holds_cfg.timeout_secs
+            )),
         }
     }
 
@@ -1632,6 +1739,162 @@ path = { not_starts_with = "/work/" }
         let text = recorder::render_timeline(&recorder::timeline(&session));
         assert!(text.contains("tools/call read_file"), "{}", text);
         assert!(text.contains("DENIED"), "{}", text);
+    }
+
+    fn hold_policy() -> PolicyConfig {
+        toml::from_str(
+            r#"
+pin_tools = false
+[holds]
+timeout_secs = 1
+notify = false
+[[rules]]
+name = "confirm destructive"
+tools = ["delete_*"]
+action = "hold"
+reason = "destructive operation"
+"#,
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_hold_times_out_into_denial() {
+        let dir = tempfile::tempdir().unwrap();
+        let mock = MockTransport::new();
+        let config = McpServerConfig {
+            policy: hold_policy(),
+            holds_dir: Some(dir.path().join("holds")),
+            ..McpServerConfig::default()
+        };
+        let server = McpServer::new(config, Some(Arc::new(mock.clone())), None);
+        let response = only_response(
+            server
+                .handle_message(request(
+                    1,
+                    "tools/call",
+                    Some(json!({"name": "delete_file", "arguments": {"path": "/x"}})),
+                ))
+                .await,
+        );
+        let err = response.error.unwrap();
+        assert_eq!(err["code"], ERR_HOLD_DENIED, "{}", err);
+        assert!(err["message"].as_str().unwrap().contains("nobody approved"));
+        assert_eq!(mock.sent_count(), 0);
+        assert!(
+            crate::holds::list(&dir.path().join("holds"))
+                .unwrap()
+                .is_empty(),
+            "cleaned up"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_hold_approved_proceeds_and_denied_rejects() {
+        let dir = tempfile::tempdir().unwrap();
+        let holds_dir = dir.path().join("holds");
+        let mock = MockTransport::new();
+        mock.push_response(upstream_response(
+            nth_upstream_id(0),
+            json!({"content": []}),
+        ));
+        let mut policy = hold_policy();
+        policy.holds.timeout_secs = 5;
+        let config = McpServerConfig {
+            policy,
+            holds_dir: Some(holds_dir.clone()),
+            ..McpServerConfig::default()
+        };
+        let server = Arc::new(McpServer::new(config, Some(Arc::new(mock.clone())), None));
+
+        // Approver: wait for the request to appear, then approve it.
+        let approver_dir = holds_dir.clone();
+        let approver = tokio::spawn(async move {
+            for _ in 0..50 {
+                let pending = crate::holds::list(&approver_dir).unwrap_or_default();
+                if let Some(req) = pending.first() {
+                    assert_eq!(req.tool, "delete_file");
+                    assert_eq!(req.rule, "confirm destructive");
+                    crate::holds::decide(&approver_dir, &req.id, HoldOutcome::Approved, Some("ok"))
+                        .unwrap();
+                    return;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+            panic!("hold request never appeared");
+        });
+        let response = only_response(
+            server
+                .handle_message(request(
+                    1,
+                    "tools/call",
+                    Some(json!({"name": "delete_file", "arguments": {"path": "/x"}})),
+                ))
+                .await,
+        );
+        approver.await.unwrap();
+        assert!(response.result.is_some(), "{:?}", response.error);
+        assert_eq!(mock.sent_count(), 1, "approved call reached the upstream");
+
+        // Denied by a person.
+        let approver_dir = holds_dir.clone();
+        let denier = tokio::spawn(async move {
+            for _ in 0..50 {
+                if let Some(req) = crate::holds::list(&approver_dir)
+                    .unwrap_or_default()
+                    .first()
+                {
+                    crate::holds::decide(
+                        &approver_dir,
+                        &req.id,
+                        HoldOutcome::Denied,
+                        Some("not today"),
+                    )
+                    .unwrap();
+                    return;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+            panic!("hold request never appeared");
+        });
+        let response = only_response(
+            server
+                .handle_message(request(
+                    2,
+                    "tools/call",
+                    Some(json!({"name": "delete_file", "arguments": {"path": "/y"}})),
+                ))
+                .await,
+        );
+        denier.await.unwrap();
+        let err = response.error.unwrap();
+        assert_eq!(err["code"], ERR_HOLD_DENIED, "{}", err);
+        assert!(err["message"].as_str().unwrap().contains("not today"));
+        assert_eq!(
+            mock.sent_count(),
+            1,
+            "denied call never reached the upstream"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_hold_without_directory_denies() {
+        let mock = MockTransport::new();
+        let config = McpServerConfig {
+            policy: hold_policy(),
+            ..McpServerConfig::default()
+        };
+        let server = McpServer::new(config, Some(Arc::new(mock)), None);
+        let response = only_response(
+            server
+                .handle_message(request(
+                    1,
+                    "tools/call",
+                    Some(json!({"name": "delete_file", "arguments": {}})),
+                ))
+                .await,
+        );
+        assert_eq!(response.error.unwrap()["code"], ERR_POLICY_DENIED);
     }
 
     #[tokio::test]

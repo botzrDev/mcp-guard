@@ -457,6 +457,8 @@ pub struct WrapOptions {
     pub only: Vec<String>,
     pub allowed_tools: Vec<String>,
     pub denied_tools: Vec<String>,
+    /// Tools that need a person's approval before each call.
+    pub held_tools: Vec<String>,
     pub pin_tools: bool,
 }
 
@@ -505,6 +507,7 @@ fn file_safe(name: &str) -> String {
 }
 
 /// Render the per-server guard configuration.
+#[allow(clippy::too_many_arguments)]
 pub fn render_guard_config(
     client: ClientKind,
     server_name: &str,
@@ -512,6 +515,7 @@ pub fn render_guard_config(
     args: &[String],
     audit_log: &Path,
     recordings_dir: &Path,
+    holds_dir: &Path,
     opts: &WrapOptions,
 ) -> String {
     let mut upstream = toml::Table::new();
@@ -555,6 +559,38 @@ pub fn render_guard_config(
     );
     policy.insert("pin_tools".into(), toml::Value::Boolean(opts.pin_tools));
     policy.insert("on_pin_mismatch".into(), toml::Value::String("deny".into()));
+    if !opts.held_tools.is_empty() {
+        let mut holds = toml::Table::new();
+        holds.insert(
+            "dir".into(),
+            toml::Value::String(holds_dir.to_string_lossy().into_owned()),
+        );
+        policy.insert("holds".into(), toml::Value::Table(holds));
+
+        let mut rule = toml::Table::new();
+        rule.insert(
+            "name".into(),
+            toml::Value::String("needs your approval".into()),
+        );
+        rule.insert(
+            "tools".into(),
+            toml::Value::Array(
+                opts.held_tools
+                    .iter()
+                    .map(|t| toml::Value::String(t.clone()))
+                    .collect(),
+            ),
+        );
+        rule.insert("action".into(), toml::Value::String("hold".into()));
+        rule.insert(
+            "reason".into(),
+            toml::Value::String("this tool needs your approval before each call".into()),
+        );
+        policy.insert(
+            "rules".into(),
+            toml::Value::Array(vec![toml::Value::Table(rule)]),
+        );
+    }
 
     let mut recorder = toml::Table::new();
     recorder.insert("enabled".into(), toml::Value::Boolean(true));
@@ -638,6 +674,10 @@ pub fn plan_wrap(loaded: &LoadedClientConfig, opts: &WrapOptions) -> Vec<WrapAct
             loaded.file.kind.slug(),
             safe
         ));
+        let holds_dir =
+            opts.config_dir
+                .join("holds")
+                .join(format!("{}-{}", loaded.file.kind.slug(), safe));
         let toml_text = render_guard_config(
             loaded.file.kind,
             &entry.name,
@@ -645,6 +685,7 @@ pub fn plan_wrap(loaded: &LoadedClientConfig, opts: &WrapOptions) -> Vec<WrapAct
             &args,
             &audit_log_path,
             &recordings_dir,
+            &holds_dir,
             opts,
         );
 
@@ -1243,6 +1284,7 @@ mod tests {
             only: vec![],
             allowed_tools: vec!["*".into()],
             denied_tools: vec!["delete_*".into()],
+            held_tools: vec!["run_*".into()],
             pin_tools: true,
         }
     }
@@ -1278,6 +1320,20 @@ mod tests {
                 assert_eq!(new_entry["args"][0], "--config");
                 assert_eq!(new_entry["args"][2], "serve");
                 assert_eq!(new_entry["env"]["GITHUB_TOKEN"], "ghp_secret");
+                assert!(
+                    guard_config_toml.contains("action = \"hold\""),
+                    "{}",
+                    guard_config_toml
+                );
+                assert!(
+                    guard_config_toml.contains("\"run_*\""),
+                    "{}",
+                    guard_config_toml
+                );
+                let parsed: Config =
+                    toml::from_str(guard_config_toml).expect("generated config parses");
+                assert_eq!(parsed.policy.rules.len(), 1);
+                assert!(parsed.policy.holds.dir.is_some());
                 assert!(
                     guard_config_toml.contains("[recorder]"),
                     "{}",

@@ -28,6 +28,7 @@ pub mod clients;
 pub mod config;
 pub mod db;
 pub mod guard_tools;
+pub mod holds;
 pub mod mcp_server;
 pub mod observability;
 pub mod pin;

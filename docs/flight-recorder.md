@@ -87,7 +87,7 @@ One JSONL file per session, named `<UTC timestamp>-<session id>.jsonl`. Each lin
 | `prev` | `hash` of the previous record; a fixed genesis value for `seq` 0 |
 | `hash` | Hash of this record with `hash` removed, prefixed by `prev` |
 
-Decision types: `policy_deny`, `pin_deny`, `policy_would_deny` (observe mode), `tool_hidden_policy`, `tool_hidden_pin`.
+Decision types: `policy_deny`, `pin_deny`, `policy_would_deny` (observe mode), `tool_hidden_policy`, `tool_hidden_pin`, and for held calls `hold_requested`, `hold_approved`, `hold_denied`, `hold_timed_out`, `hold_would_request`.
 
 The `session_start` payload records the session id, start time, guard version, upstream command, config path, policy mode and whether the recording is signed. `session_end` records why the session ended.
 
@@ -121,14 +121,32 @@ Set `signing_key_env` to the name of an environment variable holding a secret, a
 
 Signed recordings mark `signed: true` in their `session_start` record.
 
+## HTML report
+
+```bash
+mcp-guard replay --config X --html session.html
+```
+
+Writes a single self-contained HTML file: session metadata, the integrity verdict, the timeline with denials highlighted, and the raw records in a collapsible block. No external assets, works offline, renders in light and dark mode. Hand it to whoever asked "what did the agent do".
+
+## Retention
+
+```toml
+[recorder]
+retention_days = 30     # delete sessions older than 30 days
+max_sessions = 500      # and keep at most 500 files
+```
+
+Pruning runs when a new session starts and judges age by the timestamp in the file name, so copied files keep their original age. Files that do not follow the `YYYYMMDD-HHMMSS-<id>.jsonl` naming are never touched. Without these settings nothing is deleted.
+
 ## Operational notes
 
 - Recording is append-only and flushed per record. A crash loses at most the record being written; the session simply has no `session_end`, which `verify` points out.
 - Large tool results are truncated to `max_payload_bytes` with a preview and the hash of the full result. Set `include_results = false` to keep only requests, decisions and errors.
-- Recordings are not rotated or deleted automatically. Prune the directory on your own schedule; each session is one file.
+- Recordings are deleted only by the `retention_days` and `max_sessions` settings. Each session is one file, so any external rotation also works.
 - The recorder never writes to stdout, which carries the protocol, and a recorder failure never blocks the agent. A failed write is logged to stderr and the session continues unrecorded from that point.
 - Gateway mode (`mcp-guard run`) does not record yet. It writes the audit log.
 
 ## What is on the roadmap
 
-Recording in gateway mode keyed by identity, retention policies, and exporting a session as a self-contained HTML report.
+Recording in gateway mode keyed by identity.

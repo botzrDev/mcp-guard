@@ -100,6 +100,7 @@ For the servers your own agent launches on your machine. The MCP client runs `mc
 | Detect tool poisoning and rug pulls | Tool definitions are hashed into a lockfile on first use. Changed or new tools are hidden and rejected until you review them with `mcp-guard pin` |
 | Record what happened | Every tool call and every denial is written to an audit log |
 | Prove what happened | The flight recorder keeps every request, response and decision in a hash-chained, redacted session file. `replay` renders it, `verify` checks it |
+| Ask before acting | A `hold` rule pauses a call until you approve it from another terminal, with a desktop notification and a timeout |
 | Keep secrets out of guard configs | Environment variables stay on the client's entry and are inherited by the upstream |
 | Get in and out safely | `mcp-guard wrap` backs up the client config; `mcp-guard unwrap` restores it |
 
@@ -125,7 +126,8 @@ curl -H "Authorization: Bearer mcp_YOUR_KEY" http://localhost:3000/health
 - Argument-level rules (`write_file` only under the workspace, `http_request` only `GET`), tested with `mcp-guard policy test`
 - Shadow mode: observe first, then `mcp-guard policy suggest --apply` writes a least-privilege policy from what the agent actually used
 - Tool pinning with a reviewable JSON lockfile (`mcp-guard pin`)
-- Flight recorder: tamper-evident, redacted per-session recording; `mcp-guard replay` shows what the agent did, `mcp-guard verify` proves nobody edited it
+- Flight recorder: tamper-evident, redacted per-session recording; `mcp-guard replay` shows what the agent did (or writes an HTML report), `mcp-guard verify` proves nobody edited it
+- Holds: `action = "hold"` pauses a risky call until you run `mcp-guard approve`, sudo for agents
 - Per-server audit log
 - `doctor`, `wrap`, `unwrap` for Claude Desktop, Claude Code, Cursor, Windsurf, VS Code
 - `guard/health`, `guard/metrics`, `guard/version` tools exposed to the agent
@@ -291,8 +293,10 @@ Local mode
   pin              Pin, review or accept the upstream's tool definitions
   policy test      Evaluate the policy against one tool call
   policy suggest   Propose a least-privilege policy from the audit log
-  replay           Show a recorded session as a timeline
+  replay           Show a recorded session as a timeline, or write an HTML report
   verify           Check a recording's hash chain
+  holds            List calls waiting for approval
+  approve / deny   Decide a held call
   serve            Run as a stdio proxy (what wrapped clients launch)
 
 Gateway mode
@@ -318,11 +322,10 @@ Options:
 The direction: stop competing on authentication, which the MCP spec and every API gateway now cover, and own the layer above it, **what an agent may do and proof of what it did**. In rough order:
 
 1. **Result inspection.** Rules on what comes back from a server (secret and PII redaction, size limits), extending today's argument rules.
-2. **Recorder in gateway mode.** Per-identity recording for `mcp-guard run`, retention, and a self-contained HTML session report.
+2. **Recorder in gateway mode.** Per-identity recording for `mcp-guard run`.
 3. **Protocol shim.** Full support for the 2026-07-28 stateless revision, relaying server-initiated requests, and exposing old stdio servers as compliant remote servers.
-4. **Human-in-the-loop holds** for high-risk tools.
-5. **Prebuilt binaries and a Homebrew tap.**
-6. **Re-tiering.** Make the open core complete (all auth, all transports) and charge for policy packs, the recorder, fleet management and support.
+4. **Prebuilt binaries and a Homebrew tap.**
+5. **Re-tiering.** Make the open core complete (all auth, all transports) and charge for policy packs, the recorder, fleet management and support.
 
 Issues and pull requests on any of these are welcome.
 

@@ -1,7 +1,7 @@
 # CLAUDE.md - MCP Guard Project Context
 
 > **Last Updated:** 2026-10-22
-> **Project Status:** v1.0.0 shipped (gateway). Local mode, argument-level policy with shadow mode, and the flight recorder landed; roadmap below is the plan from here.
+> **Project Status:** v1.0.0 shipped (gateway). Local mode, argument-level policy with shadow mode, the flight recorder, and human-in-the-loop holds landed; roadmap below is the plan from here.
 
 ---
 
@@ -34,7 +34,8 @@ mcp-guard/                       Cargo workspace, version 1.0.0, AGPL-3.0
 │   │   ├── src/clients.rs       MCP client config discovery, wrap/unwrap/doctor logic
 │   │   ├── src/pin.rs           Tool lockfile: canonical JSON hashing, diff, load/save
 │   │   ├── src/policy.rs        Policy evaluation: tool globs + argument rules -> Decision
-│   │   ├── src/recorder.rs      Flight recorder: hash-chained JSONL sessions, redaction, verify, timeline
+│   │   ├── src/recorder.rs      Flight recorder: hash-chained JSONL sessions, redaction, verify, timeline, HTML, retention
+│   │   ├── src/holds.rs         Human-in-the-loop holds: file-based request/approve/deny, notifications
 │   │   ├── src/mcp_server/      Stdio proxy (`serve`): handshake forwarding, policy, pinning, audit
 │   │   ├── src/guard_tools/     guard/health, guard/metrics, guard/version tools
 │   │   ├── src/server/          Axum HTTP gateway, middleware, OAuth endpoints, health, dashboard/billing routes
@@ -83,6 +84,8 @@ mcp-guard policy test --config X.toml --tool write_file --args '{"path": "/etc/p
 mcp-guard policy suggest --config X.toml [--apply]      # from audit log, after mode = "observe"
 mcp-guard replay --config X.toml [--list|--denied|--tool T|--json]
 mcp-guard verify --config X.toml [--session all]       # exit 1 on a broken chain
+mcp-guard replay --config X.toml --html out.html
+mcp-guard holds --config X.toml; mcp-guard approve <id|latest|all> --config X.toml; mcp-guard deny ...
 mcp-guard serve --config X.toml           # what wrapped clients launch
 
 # Gateway mode
@@ -104,6 +107,7 @@ CI runs clippy with `-D warnings` on current stable. New clippy lints on toolcha
 - **Policy evaluation order** (`policy::evaluate`): denied_tools, then allowed_tools, then `[[policy.rules]]` in order, first match wins, no match allows. Rules only run on `tools/call` (they need arguments); `tools/list` visibility uses the globs only. An absent argument fails every operator except `exists = false`.
 - **Observe mode** (`policy.mode = "observe"`): nothing blocked, `PolicyWouldDeny` audit events written, denied tools stay visible in `tools/list`. Pinning is independent of mode. `policy suggest` parses the audit JSONL (`event_type` = `tool_call` / `policy_would_deny`) and `--apply` edits the config with `toml_edit` so comments survive.
 - **Recorder** (`recorder.rs`): one JSONL file per serve session under `recorder.dir_for(config)`. `hash = H(prev + "\n" + canonical_json(record minus hash))`, H = SHA-256 or HMAC-SHA256 when `signing_key_env` is set. Redaction (built-in patterns + audit rules) and truncation happen before hashing; `payload_sha256` is over the original. `McpServer::handle_message` records the incoming message and every outgoing one; `deny()`, observe mode and hidden tools write `decision` records. Recorder failures are logged, never fatal.
+- **Holds** (`holds.rs`): `action = "hold"` → `Decision::Hold`. In enforce mode the proxy writes `<holds dir>/<id>.json`, runs the notification (default desktop notifier per OS, or `notify_command`), and polls for `<id>.approved` / `<id>.denied` every 200ms until `timeout_secs`, then cleans up. The CLI (`approve`/`deny`) only writes markers. Serve passes `holds_dir` to `McpServerConfig` only when the policy has hold rules; without a dir, hold rules deny. Error code `-32012`. The proxy is single-threaded per client, so a hold blocks subsequent requests from that client.
 - **Config struct literals in tests** must include `policy: Default::default()` and `recorder: Default::default()`.
 - **`upstream.transport` defaults to stdio**; multi-server configs may omit `[upstream]` entirely.
 - **E2E tests set `MCP_GUARD_SKIP_LICENSE_CHECK`** (in `tests/common/mod.rs`) so pro/enterprise builds start without a key.
@@ -114,13 +118,12 @@ CI runs clippy with `-D warnings` on current stable. New clippy lints on toolcha
 ## Roadmap (agreed direction, 2026-10-22)
 
 1. Result inspection: rules on tool results (secret/PII redaction, size limits), extending the argument rules. Cedar was considered for the policy engine and deferred: the TOML rule format covers the known cases and stays readable in one config file.
-2. Recorder in gateway mode (per identity), retention, HTML session report.
+2. Recorder in gateway mode (per identity).
 3. Protocol shim: 2026-07-28 stateless revision, relay server-initiated requests (sampling/elicitation/roots), expose stdio servers as compliant remote servers.
-4. Human-in-the-loop holds for high-risk tools (approve in terminal/Slack before a `delete_*` call proceeds).
-5. Prebuilt binaries + Homebrew tap (release-tiers.yml exists; no published artifacts yet).
-6. Re-tier: open core complete (all auth, all transports); charge for policy packs, recorder, fleet control plane, support. `tier.rs` gating of HTTP/SSE/JWKS is the thing to remove when this happens.
+4. Prebuilt binaries + Homebrew tap (release-tiers.yml exists; no published artifacts yet).
+5. Re-tier: open core complete (all auth, all transports); charge for policy packs, recorder, fleet control plane, support. `tier.rs` gating of HTTP/SSE/JWKS is the thing to remove when this happens.
 
-Done: local mode (wrap/doctor/pin/serve), argument-level policy rules, shadow mode + `policy suggest`, flight recorder (`replay`/`verify`).
+Done: local mode (wrap/doctor/pin/serve), argument-level policy rules, shadow mode + `policy suggest`, flight recorder (`replay`/`verify`/HTML/retention), holds (`holds`/`approve`/`deny`).
 
 ---
 
@@ -141,7 +144,8 @@ Done: local mode (wrap/doctor/pin/serve), argument-level policy rules, shadow mo
 - 2026 (to Oct): CI hardening (Windows build, cargo-deny, security audit), link cleanup, docs pointed at in-repo files.
 - 2026-10-22: Strategic review. Local mode shipped: `doctor`, `wrap`, `unwrap`, `pin`, `[policy]`, tool pinning, serve-mode handshake forwarding and audit. README rewritten to match the real workspace. (PR #5)
 - 2026-10-22: Argument-level `[[policy.rules]]`, `mode = "observe"`, `policy test`, `policy suggest --apply`. Fixed pre-existing OAuth callback and routing test failures. (PR #6)
-- 2026-10-22: Flight recorder: `[recorder]`, hash-chained session files, redaction, `replay`, `verify`, HMAC signing.
+- 2026-10-22: Flight recorder: `[recorder]`, hash-chained session files, redaction, `replay`, `verify`, HMAC signing. (PR #7)
+- 2026-10-22: Holds (`action = "hold"`, `holds`/`approve`/`deny`, notifications, `wrap --hold`), `replay --html`, recorder retention.
 
 ---
 
