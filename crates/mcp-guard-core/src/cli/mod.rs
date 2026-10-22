@@ -208,6 +208,50 @@ pub enum Commands {
         strict: bool,
     },
 
+    /// Show a recorded session as a timeline (flight recorder)
+    ///
+    /// Sessions are written by `mcp-guard serve` when `[recorder]` is enabled.
+    Replay {
+        /// Session to show: "latest" (default), a session id, a file name, or a path
+        #[arg(long, default_value = "latest")]
+        session: String,
+
+        /// Recordings directory (default: `[recorder]` dir from the config)
+        #[arg(long)]
+        dir: Option<PathBuf>,
+
+        /// List sessions instead of showing one
+        #[arg(long)]
+        list: bool,
+
+        /// Only show denied calls and guard decisions
+        #[arg(long)]
+        denied: bool,
+
+        /// Only show calls to this tool
+        #[arg(long)]
+        tool: Option<String>,
+
+        /// Print the raw records as JSON lines instead of a timeline
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Check a recorded session's hash chain for edits, gaps or reordering
+    Verify {
+        /// Session to check: "latest" (default), "all", a session id, a file name, or a path
+        #[arg(long, default_value = "latest")]
+        session: String,
+
+        /// Recordings directory (default: `[recorder]` dir from the config)
+        #[arg(long)]
+        dir: Option<PathBuf>,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Test a policy against a call, or generate one from what the agent actually used
     Policy {
         #[command(subcommand)]

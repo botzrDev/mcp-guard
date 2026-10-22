@@ -82,6 +82,10 @@ pub struct Config {
     #[serde(default)]
     pub policy: PolicyConfig,
 
+    /// Flight recorder: tamper-evident per-session recording (serve mode)
+    #[serde(default)]
+    pub recorder: RecorderConfig,
+
     /// Database URL for persistent storage
     pub database_url: Option<String>,
 
@@ -941,6 +945,102 @@ pub fn glob_match(pattern: &str, name: &str) -> bool {
 }
 
 // ============================================================================
+// Flight Recorder Configuration (stdio proxy mode)
+// ============================================================================
+
+/// Flight recorder settings. See `docs/flight-recorder.md`.
+///
+/// Every message the agent sends through the proxy, every response it gets
+/// back, and every guard decision is appended to a per-session JSONL file.
+/// Each record carries the hash of the previous one, so edits and deletions
+/// are detectable with `mcp-guard verify`, and `mcp-guard replay` renders a
+/// session as a timeline.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecorderConfig {
+    /// Record sessions. Off by default; `mcp-guard wrap` turns it on.
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Directory for session files. Default: `<config stem>.recordings/`
+    /// next to the config file.
+    #[serde(default)]
+    pub dir: Option<PathBuf>,
+
+    /// Payloads larger than this (serialized JSON bytes) are stored as a
+    /// preview plus the hash of the full payload.
+    #[serde(default = "default_max_payload_bytes")]
+    pub max_payload_bytes: usize,
+
+    /// Record tool results and other responses, not only requests and decisions.
+    #[serde(default = "default_true")]
+    pub include_results: bool,
+
+    /// Apply the built-in secret patterns and `[audit] redaction_rules` to
+    /// payloads before they are written.
+    #[serde(default = "default_true")]
+    pub redact: bool,
+
+    /// Environment variable holding an HMAC key. When set, record hashes are
+    /// HMAC-SHA256 under that key instead of plain SHA-256, so a recording
+    /// cannot be forged without the key. Keep the key away from the machine
+    /// that writes the recordings if you need that guarantee.
+    #[serde(default)]
+    pub signing_key_env: Option<String>,
+}
+
+fn default_max_payload_bytes() -> usize {
+    64 * 1024
+}
+
+impl Default for RecorderConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            dir: None,
+            max_payload_bytes: default_max_payload_bytes(),
+            include_results: true,
+            redact: true,
+            signing_key_env: None,
+        }
+    }
+}
+
+impl RecorderConfig {
+    /// Resolve the recordings directory for a given config file path.
+    pub fn dir_for(&self, config_path: &std::path::Path) -> PathBuf {
+        if let Some(explicit) = &self.dir {
+            if explicit.is_absolute() {
+                return explicit.clone();
+            }
+            return match config_path.parent() {
+                Some(parent) if !parent.as_os_str().is_empty() => parent.join(explicit),
+                _ => explicit.clone(),
+            };
+        }
+        let stem = config_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("mcp-guard");
+        let dir = format!("{}.recordings", stem);
+        match config_path.parent() {
+            Some(parent) if !parent.as_os_str().is_empty() => parent.join(dir),
+            _ => PathBuf::from(dir),
+        }
+    }
+
+    /// The signing key from the environment, if configured and present.
+    pub fn signing_key(&self) -> Option<Vec<u8>> {
+        let var = self.signing_key_env.as_ref()?;
+        let value = std::env::var(var).ok()?;
+        if value.is_empty() {
+            None
+        } else {
+            Some(value.into_bytes())
+        }
+    }
+}
+
+// ============================================================================
 // Upstream Configuration
 // ============================================================================
 
@@ -1442,6 +1542,7 @@ mod tests {
                 servers: vec![],
             },
             policy: Default::default(),
+            recorder: Default::default(),
             database_url: None,
             stripe_secret_key: None,
         }
@@ -1464,6 +1565,7 @@ mod tests {
                 servers: vec![],
             },
             policy: Default::default(),
+            recorder: Default::default(),
             database_url: None,
             stripe_secret_key: None,
         }

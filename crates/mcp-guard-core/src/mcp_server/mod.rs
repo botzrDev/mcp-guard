@@ -40,6 +40,7 @@ use crate::guard_tools::{
 };
 use crate::pin::{PinDiff, PinStatus, ToolLockfile};
 use crate::policy::{self, Decision};
+use crate::recorder::Recorder;
 use crate::transport::{Message, Transport, MAX_MESSAGE_SIZE};
 use metrics_exporter_prometheus::PrometheusHandle;
 use serde::{Deserialize, Serialize};
@@ -106,6 +107,7 @@ pub struct McpServer {
     guard_tools: Arc<dyn GuardToolsProvider>,
     upstream: Option<Arc<dyn Transport>>,
     audit: Option<Arc<AuditLogger>>,
+    recorder: Option<Arc<Recorder>>,
     /// Result of the most recent pin evaluation (None until the first tools/list).
     pin_state: tokio::sync::Mutex<Option<PinDiff>>,
     next_upstream_id: AtomicI64,
@@ -170,6 +172,7 @@ impl McpServer {
             guard_tools,
             upstream,
             audit: None,
+            recorder: None,
             pin_state: tokio::sync::Mutex::new(None),
             next_upstream_id: AtomicI64::new(1_000_000),
         }
@@ -179,6 +182,25 @@ impl McpServer {
     pub fn with_audit(mut self, audit: Arc<AuditLogger>) -> Self {
         self.audit = Some(audit);
         self
+    }
+
+    /// Attach a flight recorder. Every client exchange and guard decision is recorded.
+    pub fn with_recorder(mut self, recorder: Arc<Recorder>) -> Self {
+        self.recorder = Some(recorder);
+        self
+    }
+
+    /// The attached recorder, if any.
+    pub fn recorder(&self) -> Option<&Arc<Recorder>> {
+        self.recorder.as_ref()
+    }
+
+    fn record_decision(&self, decision: &str, tool: Option<&str>, detail: Value) {
+        if let Some(rec) = &self.recorder {
+            if let Err(e) = rec.record_decision(decision, tool, detail) {
+                warn!(error = %e, "Flight recorder write failed");
+            }
+        }
     }
 
     /// Whether pinning is active.
@@ -237,6 +259,11 @@ impl McpServer {
         if let Some(upstream) = &self.upstream {
             let _ = upstream.close().await;
         }
+        if let Some(rec) = &self.recorder {
+            if let Err(e) = rec.finish("stdin closed") {
+                warn!(error = %e, "Flight recorder could not write session end");
+            }
+        }
         Ok(())
     }
 
@@ -251,6 +278,35 @@ impl McpServer {
     /// Handle one incoming message. Returns everything to write back to the
     /// client: forwarded upstream notifications first, then the response, if any.
     pub async fn handle_message(&self, message: Message) -> Vec<Message> {
+        if let Some(rec) = &self.recorder {
+            if let Err(e) = rec.record_client_message(&message) {
+                warn!(error = %e, "Flight recorder write failed");
+            }
+        }
+        let method = message.method.clone();
+        let tool = if method.as_deref() == Some("tools/call") {
+            message
+                .params
+                .as_ref()
+                .and_then(|p| p.get("name"))
+                .and_then(|n| n.as_str())
+                .map(String::from)
+        } else {
+            None
+        };
+        let outgoing = self.handle_message_inner(message).await;
+        if let Some(rec) = &self.recorder {
+            for msg in &outgoing {
+                if let Err(e) = rec.record_outgoing_message(msg, method.as_deref(), tool.as_deref())
+                {
+                    warn!(error = %e, "Flight recorder write failed");
+                }
+            }
+        }
+        outgoing
+    }
+
+    async fn handle_message_inner(&self, message: Message) -> Vec<Message> {
         // Responses from the client (to a server-initiated request) go upstream.
         if message.is_response() {
             if let Some(upstream) = &self.upstream {
@@ -693,6 +749,17 @@ impl McpServer {
                 hidden = ?hidden.iter().map(|(n, d)| format!("{} ({})", n, Self::denial_reason(d))).collect::<Vec<_>>(),
                 "Hiding tools from tools/list"
             );
+            for (name, d) in &hidden {
+                let kind = match d {
+                    Denial::Policy(_) => "tool_hidden_policy",
+                    _ => "tool_hidden_pin",
+                };
+                self.record_decision(
+                    kind,
+                    Some(name),
+                    json!({ "reason": Self::denial_reason(d) }),
+                );
+            }
         }
 
         result.insert("tools".to_string(), Value::Array(tools));
@@ -733,6 +800,11 @@ impl McpServer {
                     if let Some(audit) = &self.audit {
                         audit.log_policy_would_deny(LOCAL_IDENTITY, &tool_name, &reason);
                     }
+                    self.record_decision(
+                        "policy_would_deny",
+                        Some(&tool_name),
+                        json!({ "reason": reason, "rule": rule }),
+                    );
                 }
             }
         }
@@ -786,6 +858,15 @@ impl McpServer {
         if let Some(audit) = &self.audit {
             audit.log_authz_denied(LOCAL_IDENTITY, tool, Self::denial_reason(&denial));
         }
+        let kind = match &denial {
+            Denial::Policy(_) => "policy_deny",
+            Denial::PinMismatch(_) | Denial::NotAdvertised => "pin_deny",
+        };
+        self.record_decision(
+            kind,
+            Some(tool),
+            json!({ "reason": Self::denial_reason(&denial) }),
+        );
         Err(self.denial_error(tool, &denial))
     }
 
@@ -1486,6 +1567,71 @@ path = { not_starts_with = "/work/" }
             "the call itself is also recorded: {}",
             log
         );
+    }
+
+    #[tokio::test]
+    async fn test_recorder_captures_calls_and_decisions() {
+        use crate::recorder::{self, RecordKind, Session, SessionInfo};
+        let dir = tempfile::tempdir().unwrap();
+        let rec_cfg = crate::config::RecorderConfig {
+            enabled: true,
+            ..Default::default()
+        };
+        let recorder = Arc::new(
+            recorder::Recorder::start(&rec_cfg, dir.path(), SessionInfo::default(), &[]).unwrap(),
+        );
+
+        let mock = MockTransport::new();
+        mock.push_response(upstream_response(
+            nth_upstream_id(0),
+            json!({"content": [{"type": "text", "text": "hi"}]}),
+        ));
+        let config = McpServerConfig {
+            policy: PolicyConfig {
+                denied_tools: vec!["delete_*".into()],
+                pin_tools: false,
+                ..PolicyConfig::default()
+            },
+            ..McpServerConfig::default()
+        };
+        let server =
+            McpServer::new(config, Some(Arc::new(mock)), None).with_recorder(recorder.clone());
+
+        server
+            .handle_message(request(
+                1,
+                "tools/call",
+                Some(json!({"name": "read_file", "arguments": {"path": "/a"}})),
+            ))
+            .await;
+        server
+            .handle_message(request(
+                2,
+                "tools/call",
+                Some(json!({"name": "delete_file", "arguments": {"path": "/b"}})),
+            ))
+            .await;
+        recorder.finish("test").unwrap();
+
+        let session = Session::load(recorder.path()).unwrap();
+        let v = recorder::verify(&session, None);
+        assert!(v.ok, "{:?}", v.problems);
+        let kinds: Vec<(RecordKind, Option<String>)> = session
+            .records
+            .iter()
+            .map(|r| (r.kind, r.tool.clone()))
+            .collect();
+        assert_eq!(kinds[0].0, RecordKind::SessionStart);
+        assert_eq!(kinds[1], (RecordKind::Request, Some("read_file".into())));
+        assert_eq!(kinds[2], (RecordKind::Response, Some("read_file".into())));
+        assert_eq!(kinds[3], (RecordKind::Request, Some("delete_file".into())));
+        assert_eq!(kinds[4], (RecordKind::Decision, Some("delete_file".into())));
+        assert_eq!(kinds[5], (RecordKind::Response, Some("delete_file".into())));
+        assert_eq!(kinds[6].0, RecordKind::SessionEnd);
+
+        let text = recorder::render_timeline(&recorder::timeline(&session));
+        assert!(text.contains("tools/call read_file"), "{}", text);
+        assert!(text.contains("DENIED"), "{}", text);
     }
 
     #[tokio::test]

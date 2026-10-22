@@ -460,3 +460,19 @@ mode = "enforce"
 # action = "deny"
 # [policy.rules.when]
 # path = { contains = [".ssh", ".aws", ".env"] }
+
+# =============================================================================
+# Flight Recorder (used by `mcp-guard serve`, the stdio proxy mode)
+# =============================================================================
+# Tamper-evident, redacted, per-session record of every request, response and
+# guard decision. `mcp-guard replay` shows a session; `mcp-guard verify` checks
+# the hash chain. `mcp-guard wrap` enables this for every wrapped server.
+# See docs/flight-recorder.md.
+
+[recorder]
+enabled = false
+# dir = "recordings"                   # default: <config stem>.recordings/ next to this file
+# max_payload_bytes = 65536            # larger payloads: preview + hash of the full payload
+# include_results = true               # false: requests, decisions and errors only
+# redact = true                        # built-in secret patterns + [audit] redaction_rules
+# signing_key_env = "MCP_GUARD_RECORDER_KEY"   # HMAC-SHA256 chain; keep the key off this machine

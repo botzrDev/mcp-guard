@@ -90,6 +90,11 @@ fn mock_server_command() -> (String, Vec<String>) {
 }
 
 fn write_guard_config(dir: &Path, policy: &str) -> PathBuf {
+    write_guard_config_with(dir, policy, "")
+}
+
+/// Like `write_guard_config`, with extra TOML appended after the [policy] section.
+fn write_guard_config_with(dir: &Path, policy: &str, extra: &str) -> PathBuf {
     let (cmd, args) = mock_server_command();
     let args_toml = args
         .iter()
@@ -110,11 +115,14 @@ file = "{}"
 
 [policy]
 {}
+
+{}
 "#,
         cmd.replace('\\', "\\\\"),
         args_toml,
         audit.to_string_lossy().replace('\\', "\\\\"),
-        policy
+        policy,
+        extra
     );
     let path = dir.join("guard.toml");
     std::fs::write(&path, config).unwrap();
@@ -398,7 +406,7 @@ fn pin_writes_lockfile_then_detects_changes_then_accepts() {
 
 struct ServeSession {
     child: std::process::Child,
-    stdin: std::process::ChildStdin,
+    stdin: Option<std::process::ChildStdin>,
     stdout: BufReader<std::process::ChildStdout>,
 }
 
@@ -418,14 +426,27 @@ impl ServeSession {
         let stdout = BufReader::new(child.stdout.take().unwrap());
         Self {
             child,
-            stdin,
+            stdin: Some(stdin),
             stdout,
         }
     }
 
     fn send(&mut self, msg: Value) {
-        writeln!(self.stdin, "{}", msg).unwrap();
-        self.stdin.flush().unwrap();
+        let stdin = self.stdin.as_mut().expect("session closed");
+        writeln!(stdin, "{}", msg).unwrap();
+        stdin.flush().unwrap();
+    }
+
+    /// Close stdin the way a client does on exit and wait for the guard to finish.
+    fn close(mut self) {
+        drop(self.stdin.take());
+        for _ in 0..100 {
+            if let Ok(Some(_)) = self.child.try_wait() {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        panic!("guard did not exit after stdin closed");
     }
 
     /// Read until the response with this id arrives (notifications are skipped).
@@ -770,4 +791,234 @@ fn observe_mode_then_policy_suggest_then_apply() {
         json!({"name": "delete_file", "arguments": {}}),
     );
     assert_eq!(r["error"]["code"], -32010, "{}", r);
+}
+
+// ----------------------------------------------------------------------------
+// flight recorder: replay / verify
+// ----------------------------------------------------------------------------
+
+fn recorder_section(dir: &Path) -> String {
+    format!(
+        "[recorder]\nenabled = true\ndir = \"{}\"\n",
+        dir.join("recordings")
+            .to_string_lossy()
+            .replace('\\', "\\\\")
+    )
+}
+
+#[test]
+fn serve_records_session_and_replay_verify_work() {
+    let temp = tempfile::tempdir().unwrap();
+    let config = write_guard_config_with(
+        temp.path(),
+        "pin_tools = false\ndenied_tools = [\"delete_*\"]",
+        &recorder_section(temp.path()),
+    );
+
+    {
+        let mut s = ServeSession::start(&config, &[]);
+        s.handshake();
+        s.tool_names(2);
+        let r = s.request(
+            3,
+            "tools/call",
+            json!({"name": "read_file", "arguments": {"path": "/work/a.md", "token": "ghp_abcdefghijklmnopqrstuvwxyz0123456789ABCD"}}),
+        );
+        assert!(r["result"].is_object(), "{}", r);
+        let r = s.request(
+            4,
+            "tools/call",
+            json!({"name": "delete_file", "arguments": {"path": "/x"}}),
+        );
+        assert_eq!(r["error"]["code"], -32010, "{}", r);
+        s.close();
+    }
+
+    let recordings = temp.path().join("recordings");
+    let files: Vec<_> = std::fs::read_dir(&recordings)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .collect();
+    assert_eq!(files.len(), 1, "one session file");
+    let raw = std::fs::read_to_string(files[0].path()).unwrap();
+    assert!(
+        raw.contains("session_start") && raw.contains("session_end"),
+        "{}",
+        raw
+    );
+    assert!(
+        !raw.contains("ghp_abcdefghijklmnopqrstuvwxyz0123456789ABCD"),
+        "secret redacted"
+    );
+    assert!(raw.contains("[REDACTED:github_token]"));
+
+    // replay --list
+    let out = common::cargo_bin("mcp-guard")
+        .args(["replay", "--config", config.to_str().unwrap(), "--list"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("records"), "{}", text);
+    assert!(text.contains("decisions"), "{}", text);
+
+    // replay latest
+    let out = common::cargo_bin("mcp-guard")
+        .args(["replay", "--config", config.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("initialize"), "{}", text);
+    assert!(text.contains("tools/list"), "{}", text);
+    assert!(text.contains("tools/call read_file"), "{}", text);
+    assert!(text.contains("DENIED"), "{}", text);
+    assert!(
+        text.contains("decision policy_deny delete_file"),
+        "{}",
+        text
+    );
+    assert!(text.contains("Chain OK"), "{}", text);
+
+    // replay --denied shows only the denial and decisions
+    let out = common::cargo_bin("mcp-guard")
+        .args(["replay", "--config", config.to_str().unwrap(), "--denied"])
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("delete_file"), "{}", text);
+    assert!(!text.contains("tools/call read_file"), "{}", text);
+
+    // verify passes
+    let out = common::cargo_bin("mcp-guard")
+        .args([
+            "verify",
+            "--config",
+            config.to_str().unwrap(),
+            "--session",
+            "all",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(String::from_utf8_lossy(&out.stdout).contains("OK"));
+
+    // Tamper: change what the agent asked for. verify must fail and name the record.
+    let tampered = raw.replace("/work/a.md", "/work/b.md");
+    assert_ne!(tampered, raw);
+    std::fs::write(files[0].path(), tampered).unwrap();
+    let out = common::cargo_bin("mcp-guard")
+        .args(["verify", "--config", config.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+    assert!(
+        !out.status.success(),
+        "tampered recording must fail verification"
+    );
+    let report: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(report[0]["result"]["ok"], false, "{}", report);
+    assert!(
+        report[0]["result"]["first_bad_seq"].is_number(),
+        "{}",
+        report
+    );
+
+    // replay also flags it
+    let out = common::cargo_bin("mcp-guard")
+        .args(["replay", "--config", config.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&out.stdout).contains("CHAIN BROKEN"));
+}
+
+#[test]
+fn signed_recording_verifies_only_with_key() {
+    let temp = tempfile::tempdir().unwrap();
+    let extra = format!(
+        "{}signing_key_env = \"MCP_GUARD_TEST_SIGNING_KEY\"\n",
+        recorder_section(temp.path())
+    );
+    let config = write_guard_config_with(temp.path(), "pin_tools = false", &extra);
+
+    {
+        let mut s = ServeSession::start(
+            &config,
+            &[("MCP_GUARD_TEST_SIGNING_KEY", "k3y".to_string())],
+        );
+        s.handshake();
+        s.request(
+            2,
+            "tools/call",
+            json!({"name": "read_file", "arguments": {}}),
+        );
+        s.close();
+    }
+
+    // With the key: signatures verified.
+    let out = common::cargo_bin("mcp-guard")
+        .env("MCP_GUARD_TEST_SIGNING_KEY", "k3y")
+        .args(["verify", "--config", config.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let report: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(report[0]["result"]["signed"], true);
+    assert_eq!(report[0]["result"]["key_checked"], true);
+
+    // Wrong key: fails.
+    let out = common::cargo_bin("mcp-guard")
+        .env("MCP_GUARD_TEST_SIGNING_KEY", "wrong")
+        .args(["verify", "--config", config.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+
+    // No key: continuity only, reported as such.
+    let out = common::cargo_bin("mcp-guard")
+        .env_remove("MCP_GUARD_TEST_SIGNING_KEY")
+        .args(["verify", "--config", config.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("OK*"), "{}", text);
+    assert!(text.contains("continuity only"), "{}", text);
+}
+
+#[test]
+fn replay_without_recordings_is_clear() {
+    let temp = tempfile::tempdir().unwrap();
+    let config = write_guard_config(temp.path(), "pin_tools = false");
+    let out = common::cargo_bin("mcp-guard")
+        .args(["replay", "--config", config.to_str().unwrap(), "--list"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert!(String::from_utf8_lossy(&out.stdout).contains("No recordings"));
+    let out = common::cargo_bin("mcp-guard")
+        .args(["replay", "--config", config.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("no session matching"));
 }

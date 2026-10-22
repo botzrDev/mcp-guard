@@ -582,6 +582,31 @@ While the lockfile is out of date, `serve` hides the changed and new tools and r
 
 ---
 
+### replay
+
+Show a recorded session as a timeline.
+
+```bash
+mcp-guard replay --config <guard config> [--session latest|<id>|<file>] [--list] [--denied] [--tool <name>] [--json]
+mcp-guard replay --dir <recordings dir> ...
+```
+
+Each client request is one line with its arguments and outcome; denials and guard decisions are marked. The last line reports whether the hash chain is intact. `--list` shows every session with record and decision counts.
+
+---
+
+### verify
+
+Check a recording's hash chain.
+
+```bash
+mcp-guard verify --config <guard config> [--session latest|all|<id>|<file>] [--dir <recordings dir>] [--json]
+```
+
+Exit 1 if any checked session has been edited, truncated, reordered or has a corrupt line. For signed recordings the signing key is read from the variable named by `[recorder] signing_key_env`; without it, continuity is checked and the result is marked `OK*`.
+
+---
+
 ### policy test
 
 Evaluate the config's `[policy]` against one tool call and print the decision.

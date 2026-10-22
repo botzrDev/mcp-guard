@@ -58,6 +58,7 @@ fn test_config_validation_stdio() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -82,6 +83,7 @@ fn test_config_validation_stdio_missing_command() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -110,6 +112,7 @@ fn test_config_validation_http_missing_url() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -326,6 +329,7 @@ fn test_config_validation_http_valid() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -351,6 +355,7 @@ fn test_config_validation_sse_valid() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -376,6 +381,7 @@ fn test_config_validation_http_requires_pro() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -402,6 +408,7 @@ fn test_config_validation_sse_requires_pro() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -430,6 +437,7 @@ fn test_config_validation_sse_missing_url() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -461,6 +469,7 @@ fn test_config_validation_port_zero() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -491,6 +500,7 @@ fn test_config_validation_rate_limit_zero_rps() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -524,6 +534,7 @@ fn test_config_validation_rate_limit_zero_burst() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -562,6 +573,7 @@ fn test_config_validation_audit_invalid_export_url() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -600,6 +612,7 @@ fn test_config_validation_audit_zero_batch_size() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -634,6 +647,7 @@ fn test_config_validation_tracing_invalid_sample_rate() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -818,6 +832,7 @@ async fn test_health_endpoint_response_structure() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -927,6 +942,7 @@ async fn test_live_endpoint() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -995,6 +1011,7 @@ async fn test_ready_endpoint_when_ready() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -1068,6 +1085,7 @@ async fn test_ready_endpoint_when_not_ready() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -1215,6 +1233,7 @@ async fn test_oauth_authorize_not_configured() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -1288,6 +1307,7 @@ async fn test_oauth_authorize_generates_redirect() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -1392,6 +1412,7 @@ async fn test_oauth_callback_rejects_missing_state() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -1481,6 +1502,7 @@ async fn test_oauth_callback_rejects_invalid_state() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -1570,6 +1592,7 @@ async fn test_oauth_callback_handles_provider_error() {
             servers: vec![],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -1750,6 +1773,7 @@ async fn test_routes_endpoint_lists_servers() {
             ],
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };
@@ -1834,6 +1858,7 @@ async fn test_routes_endpoint_unavailable_when_single_server() {
             servers: vec![], // No multi-server routing
         },
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     };

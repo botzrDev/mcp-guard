@@ -51,6 +51,7 @@ fn create_test_config(port: u16) -> Config {
         audit: AuditConfig::default(),
         tracing: TracingConfig::default(),
         policy: Default::default(),
+        recorder: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     }

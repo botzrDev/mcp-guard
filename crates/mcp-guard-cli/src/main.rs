@@ -42,6 +42,7 @@ use mcp_guard_core::{
     pin::ToolLockfile,
     policy::{self, Decision},
     rate_limit::RateLimitService,
+    recorder::{self, Recorder, Session, SessionInfo},
     router::ServerRouter,
     server::{self, new_oauth_state_store, AppState},
     transport::{HttpTransport, SseTransport, StdioTransport, Transport},
@@ -326,6 +327,15 @@ async fn run_cli(cli: Cli) -> anyhow::Result<()> {
             show,
             timeout,
         } => handle_pin(&cli.config, accept, show, timeout, cli.verbose).await,
+        Commands::Replay {
+            session,
+            dir,
+            list,
+            denied,
+            tool,
+            json,
+        } => handle_replay(&cli.config, &session, dir, list, denied, tool, json),
+        Commands::Verify { session, dir, json } => handle_verify(&cli.config, &session, dir, json),
         Commands::Policy { action } => match action {
             PolicyAction::Test { tool, args } => handle_policy_test(&cli.config, &tool, &args),
             PolicyAction::Suggest { apply, audit_log } => {
@@ -917,14 +927,40 @@ async fn handle_serve(config_path: &std::path::PathBuf, verbose: bool) -> anyhow
 
     let (audit_logger, audit_handle) = AuditLogger::with_tasks(&config.audit)?;
 
+    let recorder = if config.recorder.enabled {
+        let dir = config.recorder.dir_for(config_path);
+        let info = SessionInfo {
+            guard_version: env!("CARGO_PKG_VERSION").to_string(),
+            upstream: upstream_label(&config),
+            config_path: Some(config_path.display().to_string()),
+            policy_mode: Some(format!("{:?}", config.policy.mode).to_lowercase()),
+            ..SessionInfo::default()
+        };
+        match Recorder::start(&config.recorder, &dir, info, &config.audit.redaction_rules) {
+            Ok(rec) => {
+                tracing::info!(file = %rec.path().display(), signed = config.recorder.signing_key().is_some(), "Flight recorder on");
+                Some(Arc::new(rec))
+            }
+            Err(e) => {
+                tracing::error!(error = %e, dir = %dir.display(), "Flight recorder could not start; continuing without it");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     let server_config = McpServerConfig {
         policy: config.policy.clone(),
         lock_path,
         upstream_label: upstream_label(&config),
         ..McpServerConfig::default()
     };
-    let server = McpServer::new(server_config, upstream, metrics_handle)
+    let mut server = McpServer::new(server_config, upstream, metrics_handle)
         .with_audit(std::sync::Arc::new(audit_logger));
+    if let Some(rec) = recorder {
+        server = server.with_recorder(rec);
+    }
 
     tracing::info!("Starting MCP server in stdio mode");
     let result = server.run().await;
@@ -1250,6 +1286,217 @@ fn handle_doctor(client_specs: &[String], json: bool, strict: bool) -> anyhow::R
     }
 
     if strict && (report.count(Severity::High) > 0 || report.count(Severity::Warn) > 0) {
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+// ============================================================================
+// Flight recorder: replay / verify
+// ============================================================================
+
+fn recordings_dir(
+    config_path: &std::path::PathBuf,
+    dir: Option<std::path::PathBuf>,
+) -> anyhow::Result<(std::path::PathBuf, Option<Config>)> {
+    if let Some(d) = dir {
+        return Ok((d, None));
+    }
+    let config = Config::from_file(config_path).map_err(|e| {
+        anyhow::anyhow!(
+            "cannot load {} ({}); pass --dir to point at a recordings directory",
+            config_path.display(),
+            e
+        )
+    })?;
+    Ok((config.recorder.dir_for(config_path), Some(config)))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn handle_replay(
+    config_path: &std::path::PathBuf,
+    session: &str,
+    dir: Option<std::path::PathBuf>,
+    list: bool,
+    denied_only: bool,
+    tool: Option<String>,
+    json: bool,
+) -> anyhow::Result<()> {
+    let (dir, _) = recordings_dir(config_path, dir)?;
+
+    if list {
+        let sessions = recorder::list_sessions(&dir)?;
+        if sessions.is_empty() {
+            println!("No recordings in {}", dir.display());
+            return Ok(());
+        }
+        if json {
+            let rows: Vec<serde_json::Value> = sessions
+                .iter()
+                .filter_map(|p| Session::load(p).ok())
+                .map(|s| {
+                    let info = s.info().unwrap_or_default();
+                    serde_json::json!({
+                        "file": s.path,
+                        "session_id": info.session_id,
+                        "started_at": info.started_at,
+                        "upstream": info.upstream,
+                        "records": s.records.len(),
+                        "ended": s.ended(),
+                    })
+                })
+                .collect();
+            println!("{}", serde_json::to_string_pretty(&rows)?);
+            return Ok(());
+        }
+        println!("Recordings in {}:", dir.display());
+        for path in sessions {
+            match Session::load(&path) {
+                Ok(s) => {
+                    let info = s.info().unwrap_or_default();
+                    let decisions = s
+                        .records
+                        .iter()
+                        .filter(|r| r.kind == recorder::RecordKind::Decision)
+                        .count();
+                    println!(
+                        "  {:<14} {}  {:>5} records  {:>3} decisions  {}{}",
+                        info.session_id,
+                        info.started_at,
+                        s.records.len(),
+                        decisions,
+                        info.upstream.unwrap_or_default(),
+                        if s.ended() { "" } else { "  (open)" }
+                    );
+                }
+                Err(e) => println!("  {}  (unreadable: {})", path.display(), e),
+            }
+        }
+        return Ok(());
+    }
+
+    let Some(path) = recorder::find_session(&dir, session)? else {
+        anyhow::bail!(
+            "no session matching '{}' in {} (use --list to see sessions)",
+            session,
+            dir.display()
+        );
+    };
+    let loaded = Session::load(&path)?;
+
+    if json {
+        for r in &loaded.records {
+            println!("{}", serde_json::to_string(r)?);
+        }
+        return Ok(());
+    }
+
+    let info = loaded.info().unwrap_or_default();
+    println!("Session {}  {}", info.session_id, path.display());
+    if let Some(up) = &info.upstream {
+        println!("Upstream {}", up);
+    }
+    println!(
+        "Records  {}{}   Policy mode: {}",
+        loaded.records.len(),
+        if loaded.ended() {
+            ""
+        } else {
+            "  (session still open or cut off)"
+        },
+        info.policy_mode.unwrap_or_else(|| "?".into())
+    );
+    println!();
+
+    let entries: Vec<recorder::TimelineEntry> = recorder::timeline(&loaded)
+        .into_iter()
+        .filter(|e| !denied_only || e.denied || e.label.starts_with("session"))
+        .filter(|e| match &tool {
+            Some(t) => e.label.ends_with(&format!(" {}", t)) || e.label.starts_with("session"),
+            None => true,
+        })
+        .collect();
+    println!("{}", recorder::render_timeline(&entries));
+    println!();
+
+    let v = recorder::verify(&loaded, None);
+    let chain = if v.ok {
+        if v.key_checked {
+            "Chain OK".to_string()
+        } else {
+            "Chain continuity OK (signed recording; run `mcp-guard verify` with the signing key in the environment to check signatures)".to_string()
+        }
+    } else {
+        format!(
+            "CHAIN BROKEN at record {} ({})",
+            v.first_bad_seq
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "?".into()),
+            v.problems.first().cloned().unwrap_or_default()
+        )
+    };
+    println!("{}", chain);
+    Ok(())
+}
+
+fn handle_verify(
+    config_path: &std::path::PathBuf,
+    session: &str,
+    dir: Option<std::path::PathBuf>,
+    json: bool,
+) -> anyhow::Result<()> {
+    let (dir, config) = recordings_dir(config_path, dir)?;
+    let key = config.as_ref().and_then(|c| c.recorder.signing_key());
+
+    let paths: Vec<std::path::PathBuf> = if session == "all" {
+        recorder::list_sessions(&dir)?
+    } else {
+        match recorder::find_session(&dir, session)? {
+            Some(p) => vec![p],
+            None => anyhow::bail!(
+                "no session matching '{}' in {} (use `mcp-guard replay --list`)",
+                session,
+                dir.display()
+            ),
+        }
+    };
+    if paths.is_empty() {
+        anyhow::bail!("no recordings in {}", dir.display());
+    }
+
+    let mut all_ok = true;
+    let mut continuity_only = false;
+    let mut results = Vec::new();
+    for path in &paths {
+        let loaded = Session::load(path)?;
+        let v = recorder::verify(&loaded, key.as_deref());
+        all_ok &= v.ok;
+        continuity_only |= v.signed && !v.key_checked;
+        if json {
+            results.push(serde_json::json!({ "file": path, "result": v }));
+        } else {
+            let status = if v.ok {
+                if v.key_checked {
+                    "OK      "
+                } else {
+                    "OK*     "
+                }
+            } else {
+                "BROKEN  "
+            };
+            println!("{} {}  ({} records)", status, path.display(), v.records);
+            for p in &v.problems {
+                println!("           {}", p);
+            }
+        }
+    }
+    if json {
+        println!("{}", serde_json::to_string_pretty(&results)?);
+    } else if continuity_only {
+        println!();
+        println!("* signed recording checked for continuity only; set the [recorder] signing_key_env variable to verify signatures");
+    }
+    if !all_ok {
         std::process::exit(1);
     }
     Ok(())
