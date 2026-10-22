@@ -1,5 +1,7 @@
+#![allow(dead_code)]
+
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::time::Duration;
 use tokio::net::TcpListener;
 
@@ -34,7 +36,7 @@ pub async fn wait_for_server(port: u16) -> bool {
     false
 }
 
-pub fn cargo_bin(name: &str) -> Command {
+pub fn cargo_bin(_name: &str) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_mcp-guard"));
     cmd.env("RUST_LOG", "debug");
     cmd

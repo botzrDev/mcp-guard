@@ -32,9 +32,14 @@ use mcp_guard_core::{
         apply_key_to_config, generate_api_key, generate_config_with_demo_key, hash_api_key, Cli,
         Commands,
     },
+    clients::{
+        self, ClientKind, DiscoveryEnv, LoadedClientConfig, Severity, UnwrapAction, WrapAction,
+        WrapOptions,
+    },
     config::{Config, TransportType},
-    mcp_server::{McpServer, McpServerConfig},
+    mcp_server::{fetch_upstream_tools, McpServer, McpServerConfig},
     observability::{init_metrics, init_tracing},
+    pin::ToolLockfile,
     rate_limit::RateLimitService,
     router::ServerRouter,
     server::{self, new_oauth_state_store, AppState},
@@ -293,6 +298,33 @@ async fn run_cli(cli: Cli) -> anyhow::Result<()> {
         }
         Commands::Run { host, port } => handle_run(&cli.config, host, port, cli.verbose).await,
         Commands::Serve => handle_serve(&cli.config, cli.verbose).await,
+        Commands::Wrap {
+            client,
+            servers,
+            allow,
+            deny,
+            no_pin,
+            dry_run,
+            config_dir,
+            guard_bin,
+        } => handle_wrap(
+            &client, &servers, allow, deny, !no_pin, dry_run, config_dir, guard_bin,
+        ),
+        Commands::Unwrap {
+            client,
+            servers,
+            dry_run,
+        } => handle_unwrap(&client, &servers, dry_run),
+        Commands::Doctor {
+            clients,
+            json,
+            strict,
+        } => handle_doctor(&clients, json, strict),
+        Commands::Pin {
+            accept,
+            show,
+            timeout,
+        } => handle_pin(&cli.config, accept, show, timeout, cli.verbose).await,
     }
 }
 
@@ -844,7 +876,7 @@ async fn handle_run(
 /// This mode is designed for use with Claude Desktop or other MCP clients
 /// that spawn mcp-guard as a subprocess and communicate via stdin/stdout.
 async fn handle_serve(config_path: &std::path::PathBuf, verbose: bool) -> anyhow::Result<()> {
-    let config = Config::from_file(config_path)?;
+    let mut config = Config::from_file(config_path)?;
 
     // CRITICAL: Validate licenses BEFORE starting server
     // This prevents users from bypassing licensing by compiling with --features
@@ -853,11 +885,51 @@ async fn handle_serve(config_path: &std::path::PathBuf, verbose: bool) -> anyhow
     // Initialize minimal tracing for stdio mode (logs go to stderr to not interfere with MCP)
     let _tracing_guard = init_tracing(verbose, Some(&config.tracing));
 
+    // stdout is the MCP channel. Audit output there would corrupt the protocol stream.
+    if config.audit.stdout {
+        tracing::warn!("audit.stdout is ignored in serve mode: stdout carries MCP messages");
+        config.audit.stdout = false;
+    }
+    if config.audit.enabled && config.audit.file.is_none() && config.audit.export_url.is_none() {
+        tracing::info!("Audit logging is enabled but has no file or export target; set [audit] file to keep a record");
+    }
+
     // Initialize metrics (always available in serve mode)
     let metrics_handle = Some(std::sync::Arc::new(init_metrics()));
 
-    // Set up upstream transport if configured
-    let upstream: Option<std::sync::Arc<dyn Transport>> = match config.upstream.transport {
+    let upstream = connect_upstream(&config).await?;
+
+    let lock_path = if config.policy.pin_tools && upstream.is_some() {
+        Some(config.policy.lock_path_for(config_path))
+    } else {
+        None
+    };
+    if let Some(path) = &lock_path {
+        tracing::info!(lockfile = %path.display(), "Tool pinning enabled");
+    }
+
+    let (audit_logger, audit_handle) = AuditLogger::with_tasks(&config.audit)?;
+
+    let server_config = McpServerConfig {
+        policy: config.policy.clone(),
+        lock_path,
+        upstream_label: upstream_label(&config),
+        ..McpServerConfig::default()
+    };
+    let server = McpServer::new(server_config, upstream, metrics_handle)
+        .with_audit(std::sync::Arc::new(audit_logger));
+
+    tracing::info!("Starting MCP server in stdio mode");
+    let result = server.run().await;
+    audit_handle.shutdown().await;
+    result?;
+
+    Ok(())
+}
+
+/// Connect to the upstream described by the config, if any.
+async fn connect_upstream(config: &Config) -> anyhow::Result<Option<Arc<dyn Transport>>> {
+    Ok(match config.upstream.transport {
         TransportType::Stdio => {
             if let Some(command) = &config.upstream.command {
                 tracing::info!(
@@ -866,7 +938,7 @@ async fn handle_serve(config_path: &std::path::PathBuf, verbose: bool) -> anyhow
                     "Connecting to upstream MCP server via stdio"
                 );
                 let transport = StdioTransport::spawn(command, &config.upstream.args).await?;
-                Some(std::sync::Arc::new(transport))
+                Some(Arc::new(transport))
             } else {
                 tracing::warn!("Stdio transport configured but no command specified");
                 None
@@ -876,7 +948,7 @@ async fn handle_serve(config_path: &std::path::PathBuf, verbose: bool) -> anyhow
             if let Some(url) = &config.upstream.url {
                 tracing::info!(url = %url, "Connecting to upstream MCP server via HTTP");
                 let transport = HttpTransport::new(url.clone()).await?;
-                Some(std::sync::Arc::new(transport))
+                Some(Arc::new(transport))
             } else {
                 tracing::warn!("HTTP transport configured but no URL specified");
                 None
@@ -886,21 +958,420 @@ async fn handle_serve(config_path: &std::path::PathBuf, verbose: bool) -> anyhow
             if let Some(url) = &config.upstream.url {
                 tracing::info!(url = %url, "Connecting to upstream MCP server via SSE");
                 let transport = SseTransport::connect(url.clone()).await?;
-                Some(std::sync::Arc::new(transport))
+                Some(Arc::new(transport))
             } else {
                 tracing::warn!("SSE transport configured but no URL specified");
                 None
             }
         }
+    })
+}
+
+/// Human-readable description of the upstream for lockfiles and reports.
+fn upstream_label(config: &Config) -> Option<String> {
+    match config.upstream.transport {
+        TransportType::Stdio => config.upstream.command.as_ref().map(|c| {
+            let mut parts = vec![c.clone()];
+            parts.extend(config.upstream.args.iter().cloned());
+            parts.join(" ")
+        }),
+        TransportType::Http | TransportType::Sse => config.upstream.url.clone(),
+    }
+}
+
+// ============================================================================
+// Local mode: wrap / unwrap / doctor / pin
+// ============================================================================
+
+/// Directory for generated guard configs: $MCP_GUARD_HOME, else a per-user config dir.
+fn default_config_dir() -> std::path::PathBuf {
+    if let Some(home) = std::env::var_os("MCP_GUARD_HOME") {
+        return std::path::PathBuf::from(home);
+    }
+    if cfg!(windows) {
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            return std::path::PathBuf::from(appdata).join("mcp-guard");
+        }
+    }
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
+        return std::path::PathBuf::from(xdg).join("mcp-guard");
+    }
+    home.join(".config").join("mcp-guard")
+}
+
+fn split_list(value: Option<String>) -> Vec<String> {
+    value
+        .map(|v| {
+            v.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn client_label(file: &clients::ClientConfigFile) -> String {
+    match file.kind {
+        ClientKind::Custom => file.path.display().to_string(),
+        k => k.display_name().to_string(),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn handle_wrap(
+    client: &str,
+    servers: &[String],
+    allow: Option<String>,
+    deny: Option<String>,
+    pin_tools: bool,
+    dry_run: bool,
+    config_dir: Option<std::path::PathBuf>,
+    guard_bin: Option<std::path::PathBuf>,
+) -> anyhow::Result<()> {
+    let env = DiscoveryEnv::from_system();
+    let files = env.resolve(client)?;
+
+    let guard_bin = match guard_bin {
+        Some(p) => p,
+        None => std::env::current_exe()
+            .map_err(|e| anyhow::anyhow!("cannot determine mcp-guard binary path: {}", e))?,
+    };
+    let mut allowed = split_list(allow);
+    if allowed.is_empty() {
+        allowed.push("*".to_string());
+    }
+    let opts = WrapOptions {
+        guard_bin,
+        config_dir: config_dir.unwrap_or_else(default_config_dir),
+        only: servers.to_vec(),
+        allowed_tools: allowed,
+        denied_tools: split_list(deny),
+        pin_tools,
     };
 
-    // Create and run MCP server
-    let server_config = McpServerConfig::default();
-    let server = McpServer::new(server_config, upstream, metrics_handle);
+    let mut wrapped_total = 0;
+    for file in &files {
+        let mut loaded = LoadedClientConfig::load(file)?;
+        let actions = clients::plan_wrap(&loaded, &opts);
+        println!("{} ({})", client_label(file), file.path.display());
+        if actions.is_empty() {
+            println!("  no matching servers");
+            println!();
+            continue;
+        }
+        for action in &actions {
+            match action {
+                WrapAction::Wrap {
+                    name,
+                    guard_config_path,
+                    ..
+                } => println!(
+                    "  {} {:<24} -> mcp-guard serve  ({})",
+                    if dry_run { "would wrap" } else { "wrap" },
+                    name,
+                    guard_config_path.display()
+                ),
+                WrapAction::Skip { name, reason } => {
+                    println!("  skip       {:<24}    {}", name, reason)
+                }
+            }
+        }
+        let to_wrap = actions
+            .iter()
+            .filter(|a| matches!(a, WrapAction::Wrap { .. }))
+            .count();
+        if to_wrap > 0 && !dry_run {
+            let outcome = clients::apply_wrap(&mut loaded, &actions)?;
+            println!("  backup: {}", outcome.backup_path.display());
+            wrapped_total += outcome.wrapped.len();
+        } else if to_wrap > 0 {
+            wrapped_total += to_wrap;
+        }
+        println!();
+    }
 
-    tracing::info!("Starting MCP server in stdio mode");
-    server.run().await?;
+    if dry_run {
+        println!(
+            "Dry run: {} server(s) would be wrapped. Re-run without --dry-run to apply.",
+            wrapped_total
+        );
+    } else if wrapped_total > 0 {
+        println!(
+            "Wrapped {} server(s). Restart the client to pick up the change.",
+            wrapped_total
+        );
+        println!("Tool definitions are pinned on first use; review them with `mcp-guard pin --config <guard config>`.");
+        println!("Tighten access by editing [policy] in the generated config, then run `mcp-guard doctor`.");
+    } else {
+        println!("Nothing wrapped.");
+    }
+    Ok(())
+}
 
+fn handle_unwrap(client: &str, servers: &[String], dry_run: bool) -> anyhow::Result<()> {
+    let env = DiscoveryEnv::from_system();
+    let files = env.resolve(client)?;
+    let mut restored_total = 0;
+    for file in &files {
+        let mut loaded = LoadedClientConfig::load(file)?;
+        let actions = clients::plan_unwrap(&loaded, servers);
+        println!("{} ({})", client_label(file), file.path.display());
+        for action in &actions {
+            match action {
+                UnwrapAction::Unwrap {
+                    name,
+                    guard_config_path,
+                    ..
+                } => println!(
+                    "  {} {:<24}    (guard config kept at {})",
+                    if dry_run { "would restore" } else { "restore" },
+                    name,
+                    guard_config_path.display()
+                ),
+                UnwrapAction::Skip { name, reason } => {
+                    println!("  skip          {:<24} {}", name, reason)
+                }
+            }
+        }
+        let to_restore = actions
+            .iter()
+            .filter(|a| matches!(a, UnwrapAction::Unwrap { .. }))
+            .count();
+        if to_restore > 0 && !dry_run {
+            let outcome = clients::apply_unwrap(&mut loaded, &actions)?;
+            println!("  backup: {}", outcome.backup_path.display());
+            restored_total += outcome.wrapped.len();
+        } else {
+            restored_total += to_restore;
+        }
+        println!();
+    }
+    if dry_run {
+        println!("Dry run: {} server(s) would be restored.", restored_total);
+    } else {
+        println!(
+            "Restored {} server(s). Restart the client to pick up the change.",
+            restored_total
+        );
+    }
+    Ok(())
+}
+
+fn handle_doctor(client_specs: &[String], json: bool, strict: bool) -> anyhow::Result<()> {
+    let env = DiscoveryEnv::from_system();
+    let files = if client_specs.is_empty() {
+        env.discover(ClientKind::all())
+    } else {
+        let mut files = Vec::new();
+        for spec in client_specs {
+            files.extend(env.resolve(spec)?);
+        }
+        files
+    };
+
+    let report = clients::doctor(&files);
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        println!("mcp-guard doctor");
+        println!();
+        if report.files_scanned.is_empty() {
+            println!("No MCP client configuration files found.");
+            println!(
+                "Looked for Claude Desktop, Claude Code, Cursor, Windsurf and VS Code configs."
+            );
+            println!("Point at a file directly with --client <path>.");
+            return Ok(());
+        }
+        println!(
+            "Scanned {} client config file(s):",
+            report.files_scanned.len()
+        );
+        for file in &report.files_scanned {
+            println!("  {:<16} {}", file.kind.display_name(), file.path.display());
+        }
+        println!();
+        println!(
+            "Servers: {} found, {} guarded by mcp-guard",
+            report.servers_seen, report.guarded
+        );
+        println!();
+
+        if report.findings.is_empty() {
+            println!("No findings. Every server is guarded.");
+        } else {
+            for f in &report.findings {
+                let where_ = match &f.server {
+                    Some(s) => format!("{} / {}", f.client.display_name(), s),
+                    None => f.client.display_name().to_string(),
+                };
+                println!("{:<5} {}", f.severity.label(), where_);
+                println!("      {}", f.message);
+                if let Some(fix) = &f.fix {
+                    println!("      fix: {}", fix);
+                }
+                println!();
+            }
+            println!(
+                "Summary: {} high, {} warn, {} info",
+                report.count(Severity::High),
+                report.count(Severity::Warn),
+                report.count(Severity::Info)
+            );
+            let unguarded: Vec<&clients::Finding> = report
+                .findings
+                .iter()
+                .filter(|f| f.code == "UNGUARDED_STDIO")
+                .collect();
+            if let Some(first) = unguarded.first() {
+                let client_arg = match first.client {
+                    ClientKind::Custom => first.file.display().to_string(),
+                    k => k.slug().to_string(),
+                };
+                println!();
+                println!(
+                    "Next step: mcp-guard wrap --client {}   (wraps every stdio server in that client)",
+                    client_arg
+                );
+            }
+        }
+    }
+
+    if strict && (report.count(Severity::High) > 0 || report.count(Severity::Warn) > 0) {
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+async fn handle_pin(
+    config_path: &std::path::PathBuf,
+    accept: bool,
+    show: bool,
+    timeout: u64,
+    verbose: bool,
+) -> anyhow::Result<()> {
+    let _guard = init_tracing(verbose, None);
+    let config = Config::from_file(config_path)?;
+    let lock_path = config.policy.lock_path_for(config_path);
+
+    let upstream = connect_upstream(&config)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("config has no upstream to pin"))?;
+    let tools = tokio::time::timeout(
+        std::time::Duration::from_secs(timeout),
+        fetch_upstream_tools(upstream.as_ref()),
+    )
+    .await
+    .map_err(|_| anyhow::anyhow!("upstream did not answer tools/list within {}s", timeout))?
+    .map_err(|e| anyhow::anyhow!("failed to fetch tools from upstream: {}", e))?;
+    let _ = upstream.close().await;
+
+    let current = ToolLockfile::from_tools(&tools, upstream_label(&config));
+    println!("Upstream: {}", current.upstream.clone().unwrap_or_default());
+    println!("Lockfile: {}", lock_path.display());
+    println!();
+
+    if show {
+        for (name, pinned) in &current.tools {
+            println!("  {:<32} {}", name, pinned.hash);
+        }
+        println!();
+    }
+
+    let existing = ToolLockfile::load(&lock_path)?;
+    let (clean, summary) = match &existing {
+        None => (
+            false,
+            format!("No lockfile yet; {} tool(s) advertised.", tools.len()),
+        ),
+        Some(lock) => {
+            let diff = lock.diff(&tools);
+            let mut lines = Vec::new();
+            for name in &diff.changed {
+                let before = lock
+                    .tools
+                    .get(name)
+                    .and_then(|t| t.description.clone())
+                    .unwrap_or_default();
+                let after = current
+                    .tools
+                    .get(name)
+                    .and_then(|t| t.description.clone())
+                    .unwrap_or_default();
+                lines.push(format!("  changed  {}", name));
+                if before != after {
+                    lines.push(format!("           was: {}", before));
+                    lines.push(format!("           now: {}", after));
+                } else {
+                    lines.push("           (input schema or annotations changed)".to_string());
+                }
+            }
+            for name in &diff.new {
+                let desc = current
+                    .tools
+                    .get(name)
+                    .and_then(|t| t.description.clone())
+                    .unwrap_or_default();
+                lines.push(format!("  new      {}", name));
+                if !desc.is_empty() {
+                    lines.push(format!("           {}", desc));
+                }
+            }
+            for name in &diff.removed {
+                lines.push(format!("  removed  {}", name));
+            }
+            if diff.is_clean() {
+                (
+                    true,
+                    format!(
+                        "Lockfile is up to date: {} pinned tool(s){}.",
+                        diff.pinned.len(),
+                        if diff.removed.is_empty() {
+                            String::new()
+                        } else {
+                            format!(", {} no longer advertised", diff.removed.len())
+                        }
+                    ),
+                )
+            } else {
+                (
+                    false,
+                    format!(
+                        "{} changed, {} new, {} removed since pinning:\n{}",
+                        diff.changed.len(),
+                        diff.new.len(),
+                        diff.removed.len(),
+                        lines.join("\n")
+                    ),
+                )
+            }
+        }
+    };
+    println!("{}", summary);
+
+    if accept || existing.is_none() {
+        current.save(&lock_path)?;
+        println!();
+        println!(
+            "Pinned {} tool(s) to {}",
+            current.tools.len(),
+            lock_path.display()
+        );
+        return Ok(());
+    }
+    if !clean {
+        println!();
+        println!(
+            "Review the changes above. Run `mcp-guard pin --accept --config {}` to accept them.",
+            config_path.display()
+        );
+        std::process::exit(1);
+    }
     Ok(())
 }
 
@@ -1034,6 +1505,7 @@ mod tests {
     use tempfile::NamedTempFile;
 
     // Helper to create a minimal valid config for testing
+    #[allow(dead_code)] // used only by feature-gated tests
     fn create_test_config_http(url: &str) -> Config {
         let config_str = format!(
             r#"

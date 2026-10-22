@@ -405,3 +405,32 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 # path_prefix = "/inventory"
 # transport = "sse"
 # url = "http://inventory-service:8080/mcp/stream"
+
+# =============================================================================
+# Local Policy (used by `mcp-guard serve`, the stdio proxy mode)
+# =============================================================================
+# `mcp-guard wrap` generates one config per server with this section. In serve
+# mode there is no caller to authenticate; this section decides which upstream
+# tools the agent may use and whether tool definitions are pinned.
+# See docs/local-mode.md.
+
+[policy]
+# Tools the agent may call. Globs supported. "*" allows everything.
+allowed_tools = ["*"]
+
+# Tools the agent may never call. Checked before allowed_tools.
+denied_tools = []
+# denied_tools = ["delete_*", "execute_*", "run_shell"]
+
+# Hash each tool definition (name, description, input schema) into a lockfile
+# on first use and compare every later tools/list against it. Defeats servers
+# that rewrite their tool descriptions after you approved them.
+pin_tools = true
+
+# Lockfile path. Default: <config file name>.tools.lock.json next to the config.
+# tools_lock = "filesystem.tools.lock.json"
+
+# What to do with tools that are new or changed since pinning:
+#   "deny"  hide them from tools/list and reject calls until `mcp-guard pin --accept`
+#   "warn"  allow them but log a warning and an audit event
+on_pin_mismatch = "deny"

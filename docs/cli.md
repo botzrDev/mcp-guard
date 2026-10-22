@@ -478,6 +478,122 @@ Command:   /nonexistent/command
 
 ---
 
+## Local mode commands
+
+These commands put mcp-guard between an agent on your machine and the stdio MCP servers it launches. Full guide: [local-mode.md](local-mode.md).
+
+### doctor
+
+Scan MCP client configuration files and report unprotected servers.
+
+**Usage:**
+
+```bash
+mcp-guard doctor [--client <name-or-path>]... [--json] [--strict]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--client` | Restrict to a client (`claude-desktop`, `claude-code`, `cursor`, `windsurf`, `vscode`) or a JSON file. Repeatable. Default: every known client |
+| `--json` | Machine-readable report |
+| `--strict` | Exit 1 when any WARN or HIGH finding exists (for CI) |
+
+**Example:**
+
+```bash
+$ mcp-guard doctor
+mcp-guard doctor
+
+Scanned 1 client config file(s):
+  Claude Desktop   /Users/you/Library/Application Support/Claude/claude_desktop_config.json
+
+Servers: 2 found, 0 guarded by mcp-guard
+
+WARN  Claude Desktop / filesystem
+      `npx -y @modelcontextprotocol/server-filesystem /Users/you` runs with full access to every tool it offers, no audit log, and no pinning of its tool definitions
+      fix: mcp-guard wrap --client claude-desktop --server "filesystem"
+
+Summary: 0 high, 1 warn, 0 info
+
+Next step: mcp-guard wrap --client claude-desktop   (wraps every stdio server in that client)
+```
+
+---
+
+### wrap
+
+Rewrite a client's configuration so its stdio servers launch through `mcp-guard serve`.
+
+**Usage:**
+
+```bash
+mcp-guard wrap --client <name-or-path> [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--client` | Client to modify (required) |
+| `--server <name>` | Only wrap this server. Repeatable. Default: every stdio server |
+| `--allow <globs>` | Comma-separated tools the agent may call. Default: `*` |
+| `--deny <globs>` | Comma-separated tools the agent may never call, e.g. `delete_*,execute_*` |
+| `--no-pin` | Do not pin tool definitions |
+| `--dry-run` | Print the plan, write nothing |
+| `--config-dir <dir>` | Where to put generated configs and logs. Default: `$MCP_GUARD_HOME` or `~/.config/mcp-guard` |
+| `--guard-bin <path>` | Binary the client should launch. Default: the running executable |
+
+The client file is backed up to `<file>.bak-<timestamp>` before it is written. Restart the client afterwards.
+
+---
+
+### unwrap
+
+Restore servers previously wrapped.
+
+```bash
+mcp-guard unwrap --client <name-or-path> [--server <name>]... [--dry-run]
+```
+
+Reads each wrapped entry's guard config and restores the original `command` and `args`. Guard configs and lockfiles are kept.
+
+---
+
+### pin
+
+Pin, review or accept the upstream's tool definitions for one guard config.
+
+**Usage:**
+
+```bash
+mcp-guard pin --config <guard config> [--accept] [--show] [--timeout <secs>]
+```
+
+**Behaviour:**
+
+- No lockfile yet: fetch `tools/list` from the upstream and write the lockfile. Exit 0.
+- Lockfile matches: report "up to date". Exit 0.
+- Lockfile differs: print changed, new and removed tools with old and new descriptions. Exit 1.
+- `--accept`: write the lockfile with the current definitions. Exit 0.
+
+While the lockfile is out of date, `serve` hides the changed and new tools and rejects calls to them with JSON-RPC error `-32011`.
+
+---
+
+### serve
+
+Run as a stdio proxy in front of the configured upstream. This is what wrapped client entries launch; you rarely run it by hand.
+
+```bash
+mcp-guard serve --config <guard config>
+```
+
+Reads JSON-RPC from stdin, writes to stdout, logs to stderr. Applies `[policy]`, pinning and audit logging. `audit.stdout` is ignored in this mode.
+
+---
+
 ## Common Workflows
 
 ### Initial Setup

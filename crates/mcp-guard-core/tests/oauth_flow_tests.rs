@@ -46,6 +46,7 @@ fn create_test_config() -> Config {
             url: None,
             servers: vec![],
         },
+        policy: Default::default(),
         database_url: None,
         stripe_secret_key: None,
     }

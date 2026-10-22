@@ -589,6 +589,29 @@ curl http://localhost:3000/routes
 
 ---
 
+## [policy] Section
+
+Local tool policy, applied by `mcp-guard serve` (the stdio proxy that `mcp-guard wrap` installs in front of a client's servers). Ignored by `mcp-guard run`, where per-identity `allowed_tools` on API keys and token scopes apply instead. Full guide: [local-mode.md](local-mode.md).
+
+```toml
+[policy]
+allowed_tools = ["*"]
+denied_tools = ["delete_*", "execute_*"]
+pin_tools = true
+# tools_lock = "filesystem.tools.lock.json"
+on_pin_mismatch = "deny"
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `allowed_tools` | array | `["*"]` | Globs of tools the agent may call. Checked after `denied_tools` |
+| `denied_tools` | array | `[]` | Globs of tools the agent may never call. A match here always wins |
+| `pin_tools` | bool | `true` | Hash tool definitions into a lockfile on first use and compare on every `tools/list` |
+| `tools_lock` | path | `<config>.tools.lock.json` | Lockfile location, relative to the config file's directory unless absolute |
+| `on_pin_mismatch` | `"deny"` or `"warn"` | `"deny"` | `deny` hides new or changed tools and rejects calls (error -32011); `warn` allows them and logs |
+
+Denied tools are removed from `tools/list` so the model never sees them; calls return JSON-RPC error -32010. The built-in `guard/*` tools follow the same rules.
+
 ## Complete Examples
 
 ### Minimal Development Configuration

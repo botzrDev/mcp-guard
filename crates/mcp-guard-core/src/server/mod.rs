@@ -1567,8 +1567,9 @@ mod tests {
     #[test]
     fn test_oauth_state_store_limit_constant() {
         // Verify the constant is set to a reasonable value
-        assert!(MAX_PENDING_OAUTH_STATES >= 1000); // At least 1000 for legitimate use
-        assert!(MAX_PENDING_OAUTH_STATES <= 100_000); // Not too high to be useless
+        // At least 1000 for legitimate use, not so high as to be useless
+        const _: () =
+            assert!(MAX_PENDING_OAUTH_STATES >= 1000 && MAX_PENDING_OAUTH_STATES <= 100_000);
     }
 
     #[test]
@@ -1989,8 +1990,10 @@ mod tests {
         };
         use crate::rate_limit::RateLimitService;
 
-        let mut rate_limit_config = RateLimitConfig::default();
-        rate_limit_config.enabled = false;
+        let rate_limit_config = RateLimitConfig {
+            enabled: false,
+            ..Default::default()
+        };
 
         let config = Config {
             server: ServerConfig::default(),
@@ -2005,6 +2008,7 @@ mod tests {
                 url: Some("http://localhost".into()),
                 servers: vec![],
             },
+            policy: Default::default(),
             database_url: None,
             stripe_secret_key: None,
         };
@@ -2126,6 +2130,7 @@ mod tests {
                 url: Some("http://localhost".into()),
                 servers: vec![],
             },
+            policy: Default::default(),
             database_url: None,
             stripe_secret_key: None,
         };
@@ -2146,9 +2151,6 @@ mod tests {
             scope_tool_mapping: std::collections::HashMap::new(),
             token_cache_ttl_secs: 300,
         });
-
-        let mut rate_limit_config = crate::config::RateLimitConfig::default();
-        rate_limit_config.enabled = false;
 
         // We need an actual OAuthProvider constructed.
         // OAuthAuthProvider::new requires discovery which makes network calls.

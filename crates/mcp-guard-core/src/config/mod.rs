@@ -78,6 +78,10 @@ pub struct Config {
     /// Upstream MCP server configuration
     pub upstream: UpstreamConfig,
 
+    /// Local tool policy (used by `mcp-guard serve`, the stdio proxy mode)
+    #[serde(default)]
+    pub policy: PolicyConfig,
+
     /// Database URL for persistent storage
     pub database_url: Option<String>,
 
@@ -678,6 +682,127 @@ fn default_sample_rate() -> f64 {
 }
 
 // ============================================================================
+// Local Policy Configuration (stdio proxy mode)
+// ============================================================================
+
+/// What to do when a pinned tool definition changes or a new tool appears.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PinMismatchAction {
+    /// Hide the tool from `tools/list` and reject calls to it until re-pinned.
+    Deny,
+    /// Allow the tool but log a warning and an audit event.
+    Warn,
+}
+
+/// Local tool policy applied by `mcp-guard serve` (the stdio proxy mode).
+///
+/// In serve mode there is no network caller to authenticate: the MCP client
+/// launching mcp-guard *is* the user. What matters is which upstream tools the
+/// agent may use and whether the upstream's tool definitions are still the
+/// ones that were reviewed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PolicyConfig {
+    /// Tools the agent may call. Glob patterns are supported (`read_*`, `fs/*`).
+    /// `["*"]` allows every tool. Defaults to all tools.
+    #[serde(default = "default_allow_all")]
+    pub allowed_tools: Vec<String>,
+
+    /// Tools the agent may never call, checked before `allowed_tools`.
+    /// Glob patterns are supported (`delete_*`, `execute_*`).
+    #[serde(default)]
+    pub denied_tools: Vec<String>,
+
+    /// Pin upstream tool definitions (name, description, input schema).
+    ///
+    /// On first use the definitions are written to the lockfile. Afterwards,
+    /// any tool whose definition changed, or that was not present when pinned,
+    /// is handled according to `on_pin_mismatch`. This defeats tool poisoning
+    /// and rug-pull attacks where a server silently rewrites its tools.
+    #[serde(default = "default_true")]
+    pub pin_tools: bool,
+
+    /// Path of the tool lockfile. Defaults to `<config>.tools.lock.json`
+    /// next to the configuration file.
+    #[serde(default)]
+    pub tools_lock: Option<PathBuf>,
+
+    /// Action for tools that are new or changed since pinning.
+    #[serde(default = "default_pin_mismatch_action")]
+    pub on_pin_mismatch: PinMismatchAction,
+}
+
+fn default_allow_all() -> Vec<String> {
+    vec!["*".to_string()]
+}
+
+fn default_pin_mismatch_action() -> PinMismatchAction {
+    PinMismatchAction::Deny
+}
+
+impl Default for PolicyConfig {
+    fn default() -> Self {
+        Self {
+            allowed_tools: default_allow_all(),
+            denied_tools: Vec::new(),
+            pin_tools: true,
+            tools_lock: None,
+            on_pin_mismatch: default_pin_mismatch_action(),
+        }
+    }
+}
+
+impl PolicyConfig {
+    /// Resolve the lockfile path for a given config file path.
+    pub fn lock_path_for(&self, config_path: &std::path::Path) -> PathBuf {
+        if let Some(explicit) = &self.tools_lock {
+            if explicit.is_absolute() {
+                return explicit.clone();
+            }
+            if let Some(dir) = config_path.parent() {
+                return dir.join(explicit);
+            }
+            return explicit.clone();
+        }
+        let stem = config_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("mcp-guard");
+        let file = format!("{}.tools.lock.json", stem);
+        match config_path.parent() {
+            Some(dir) => dir.join(file),
+            None => PathBuf::from(file),
+        }
+    }
+
+    /// Whether a tool is denied by `denied_tools`.
+    pub fn is_denied(&self, tool_name: &str) -> bool {
+        self.denied_tools.iter().any(|p| glob_match(p, tool_name))
+    }
+
+    /// Whether a tool passes `denied_tools` and `allowed_tools`.
+    pub fn allows(&self, tool_name: &str) -> bool {
+        if self.is_denied(tool_name) {
+            return false;
+        }
+        self.allowed_tools.iter().any(|p| glob_match(p, tool_name))
+    }
+}
+
+/// Glob match with the same semantics as `authz::authorize_tool_call`.
+pub fn glob_match(pattern: &str, name: &str) -> bool {
+    if pattern == name || pattern == "*" {
+        return true;
+    }
+    if pattern.contains('*') || pattern.contains('?') || pattern.contains('[') {
+        if let Ok(p) = glob::Pattern::new(pattern) {
+            return p.matches(name);
+        }
+    }
+    false
+}
+
+// ============================================================================
 // Upstream Configuration
 // ============================================================================
 
@@ -1129,6 +1254,7 @@ mod tests {
                 url: None,
                 servers: vec![],
             },
+            policy: Default::default(),
             database_url: None,
             stripe_secret_key: None,
         }
@@ -1150,6 +1276,7 @@ mod tests {
                 url: Some("http://localhost:8080".to_string()),
                 servers: vec![],
             },
+            policy: Default::default(),
             database_url: None,
             stripe_secret_key: None,
         }

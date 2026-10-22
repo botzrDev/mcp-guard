@@ -267,6 +267,7 @@ mod tests {
                 url: None,
                 servers: vec![],
             },
+            policy: Default::default(),
             database_url: None,
             stripe_secret_key: None,
         }
