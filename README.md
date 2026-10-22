@@ -327,7 +327,7 @@ The direction: stop competing on authentication, which the MCP spec and every AP
 4. **Prebuilt binaries and a Homebrew tap.**
 5. **Re-tiering.** Make the open core complete (all auth, all transports) and charge for policy packs, the recorder, fleet management and support.
 
-Issues and pull requests on any of these are welcome.
+The full list, including release tasks, known gaps and decisions still open, is in [FUTURE.md](FUTURE.md). Issues and pull requests on any of these are welcome.
 
 <br>
 
