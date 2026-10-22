@@ -35,19 +35,19 @@ wrangler dev
 
 ```bash
 wrangler deploy --env production
-# Deploys to https://sign.mcp-guard.io
+# Deploys to https://sign.mcpg.botzr.com
 ```
 
 ## Test
 
 ```bash
 # Health check
-curl https://sign.mcp-guard.io/health
+curl https://sign.mcpg.botzr.com/health
 
 # Generate license (requires API secret from password manager)
 export API_SECRET="<your-api-secret>"
 
-curl -X POST https://sign.mcp-guard.io/sign \
+curl -X POST https://sign.mcpg.botzr.com/sign \
   -H "Content-Type: application/json" \
   -H "X-API-Secret: $API_SECRET" \
   -d '{
@@ -56,7 +56,7 @@ curl -X POST https://sign.mcp-guard.io/sign \
   }' | jq .
 
 # Extract and test license
-LICENSE_KEY=$(curl -X POST https://sign.mcp-guard.io/sign \
+LICENSE_KEY=$(curl -X POST https://sign.mcpg.botzr.com/sign \
   -H "Content-Type: application/json" \
   -H "X-API-Secret: $API_SECRET" \
   -d '{"licensee": "test@example.com"}' | jq -r .license_key)
@@ -118,7 +118,7 @@ Edit `wrangler.toml`:
 ```toml
 [env.production]
 routes = [
-  { pattern = "sign.mcp-guard.io/*", custom_domain = true }
+  { pattern = "sign.mcpg.botzr.com/*", custom_domain = true }
 ]
 ```
 

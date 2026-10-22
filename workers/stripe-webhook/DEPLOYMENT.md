@@ -24,7 +24,7 @@ wrangler secret put STRIPE_WEBHOOK_SECRET
 
 # License signing Worker URL
 wrangler secret put LICENSE_SIGNER_URL
-# Enter: https://sign.mcp-guard.io
+# Enter: https://sign.mcpg.botzr.com
 
 # License signing Worker API secret (from password manager)
 wrangler secret put LICENSE_SIGNER_API_SECRET
@@ -43,7 +43,7 @@ npm install
 
 1. Go to Stripe Dashboard → Developers → Webhooks
 2. Click "Add endpoint"
-3. URL: `https://webhook.mcp-guard.io/webhook` (or your custom domain)
+3. URL: `https://webhook.mcpg.botzr.com/webhook` (or your custom domain)
 4. Events to send:
    - `checkout.session.completed`
    - `customer.subscription.deleted`
@@ -59,7 +59,7 @@ npm install
 2. Create API key with "Sending access"
 3. Copy API key (re_...)
 4. Set secret: `wrangler secret put RESEND_API_KEY`
-5. Add domain: licenses@mcp-guard.io
+5. Add domain: licenses@mcpg.botzr.com
 6. Verify domain (add DNS records)
 
 ## Deploy
@@ -76,7 +76,7 @@ wrangler dev
 
 ```bash
 wrangler deploy --env production
-# Deploys to https://webhook.mcp-guard.io
+# Deploys to https://webhook.mcpg.botzr.com
 ```
 
 ## Test
@@ -126,7 +126,7 @@ wrangler kv:key get "customer:cus_xxx" --namespace-id=<your-namespace-id>
 - Re-set: `wrangler secret put STRIPE_WEBHOOK_SECRET`
 
 **"License generation failed"**
-- Verify license signing Worker is deployed: `curl https://sign.mcp-guard.io/health`
+- Verify license signing Worker is deployed: `curl https://sign.mcpg.botzr.com/health`
 - Verify API secret matches: `wrangler secret list`
 
 **"Email sending failed"**
@@ -136,12 +136,12 @@ wrangler kv:key get "customer:cus_xxx" --namespace-id=<your-namespace-id>
   curl https://api.resend.com/emails \
     -H "Authorization: Bearer $RESEND_API_KEY" \
     -H "Content-Type: application/json" \
-    -d '{"from":"licenses@mcp-guard.io","to":"test@example.com","subject":"Test","html":"<p>Test</p>"}'
+    -d '{"from":"licenses@mcpg.botzr.com","to":"test@example.com","subject":"Test","html":"<p>Test</p>"}'
   ```
 
 **Webhooks not received**
 - Verify Stripe webhook URL is correct
-- Test Worker health: `curl https://webhook.mcp-guard.io/health`
+- Test Worker health: `curl https://webhook.mcpg.botzr.com/health`
 - Check Stripe Dashboard → Webhooks for delivery errors
 
 ## Custom Domain Setup
@@ -150,7 +150,7 @@ Edit `wrangler.toml`:
 ```toml
 [env.production]
 routes = [
-  { pattern = "webhook.mcp-guard.io/*", custom_domain = true }
+  { pattern = "webhook.mcpg.botzr.com/*", custom_domain = true }
 ]
 ```
 

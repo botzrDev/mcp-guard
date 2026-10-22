@@ -116,18 +116,18 @@ aws s3 cp target/release/mcp-guard \
 wrangler deploy --env production
 
 # Output will show your Worker URL:
-# https://download.mcp-guard.io
+# https://download.mcpg.botzr.com
 ```
 
 ### Custom Domain
 
-To use a custom domain like `download.mcp-guard.io`:
+To use a custom domain like `download.mcpg.botzr.com`:
 
 1. Add route in `wrangler.toml`:
    ```toml
    [env.production]
    routes = [
-     { pattern = "download.mcp-guard.io/*", custom_domain = true }
+     { pattern = "download.mcpg.botzr.com/*", custom_domain = true }
    ]
    ```
 
@@ -169,11 +169,11 @@ Download binary with license validation.
 **Example:**
 ```bash
 # Explicit platform
-curl "https://download.mcp-guard.io/download?tier=pro&platform=x86_64-linux&license=pro_xxx..." \
+curl "https://download.mcpg.botzr.com/download?tier=pro&platform=x86_64-linux&license=pro_xxx..." \
   -o mcp-guard
 
 # Auto-detect platform
-curl "https://download.mcp-guard.io/download?tier=pro&license=pro_xxx..." \
+curl "https://download.mcpg.botzr.com/download?tier=pro&license=pro_xxx..." \
   -o mcp-guard
 ```
 
@@ -191,7 +191,7 @@ curl "https://download.mcp-guard.io/download?tier=pro&license=pro_xxx..." \
 {
   "error": "Missing license parameter",
   "message": "Please provide your license key using ?license=YOUR_KEY",
-  "documentation": "https://mcp-guard.io/docs/installation"
+  "documentation": "https://mcpg.botzr.com/docs/installation"
 }
 
 // 403 Forbidden - Invalid license
@@ -199,7 +199,7 @@ curl "https://download.mcp-guard.io/download?tier=pro&license=pro_xxx..." \
   "error": "License validation failed",
   "message": "License expired on 2024-12-01",
   "tier": "pro",
-  "action": "Purchase a Pro license at https://mcp-guard.io/pricing"
+  "action": "Purchase a Pro license at https://mcpg.botzr.com/pricing"
 }
 
 // 404 Not Found - Binary not available
@@ -208,14 +208,14 @@ curl "https://download.mcp-guard.io/download?tier=pro&license=pro_xxx..." \
   "message": "Binary for platform 'x86_64-linux' is not available yet",
   "tier": "pro",
   "platform": "x86_64-linux",
-  "contact": "Please contact support@mcp-guard.io if this persists"
+  "contact": "Please contact support@mcpg.botzr.com if this persists"
 }
 
 // 500 Internal Server Error
 {
   "error": "Internal server error",
   "message": "Error details...",
-  "contact": "Please contact support@mcp-guard.io"
+  "contact": "Please contact support@mcpg.botzr.com"
 }
 ```
 
@@ -234,7 +234,7 @@ cargo run --bin sign-license -- \
 # Copy the generated license key: pro_xxx...
 
 # Test download
-curl "https://download.mcp-guard.io/download?tier=pro&platform=x86_64-linux&license=pro_xxx..." \
+curl "https://download.mcpg.botzr.com/download?tier=pro&platform=x86_64-linux&license=pro_xxx..." \
   -o mcp-guard-test
 
 # Verify binary
@@ -253,7 +253,7 @@ keygen licenses create \
   --metadata '{"email":"test@example.com"}'
 
 # Test download
-curl "https://download.mcp-guard.io/download?tier=enterprise&platform=x86_64-darwin&license=ent_xxx..." \
+curl "https://download.mcpg.botzr.com/download?tier=enterprise&platform=x86_64-darwin&license=ent_xxx..." \
   -o mcp-guard-test
 ```
 
@@ -262,22 +262,22 @@ curl "https://download.mcp-guard.io/download?tier=enterprise&platform=x86_64-dar
 ```bash
 # macOS (Intel)
 curl -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" \
-  "https://download.mcp-guard.io/download?tier=pro&license=pro_xxx..." \
+  "https://download.mcpg.botzr.com/download?tier=pro&license=pro_xxx..." \
   -o mcp-guard
 
 # macOS (Apple Silicon)
 curl -A "Mozilla/5.0 (Macintosh; ARM64 Mac OS X 14_0)" \
-  "https://download.mcp-guard.io/download?tier=pro&license=pro_xxx..." \
+  "https://download.mcpg.botzr.com/download?tier=pro&license=pro_xxx..." \
   -o mcp-guard
 
 # Linux
 curl -A "Mozilla/5.0 (X11; Linux x86_64)" \
-  "https://download.mcp-guard.io/download?tier=pro&license=pro_xxx..." \
+  "https://download.mcpg.botzr.com/download?tier=pro&license=pro_xxx..." \
   -o mcp-guard
 
 # Windows
 curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
-  "https://download.mcp-guard.io/download?tier=pro&license=pro_xxx..." \
+  "https://download.mcpg.botzr.com/download?tier=pro&license=pro_xxx..." \
   -o mcp-guard.exe
 ```
 
@@ -384,7 +384,7 @@ case "$OS-$ARCH" in
   *) echo "Unsupported platform"; exit 1 ;;
 esac
 
-curl "https://download.mcp-guard.io/download?tier=pro&platform=$PLATFORM&license=$LICENSE" \
+curl "https://download.mcpg.botzr.com/download?tier=pro&platform=$PLATFORM&license=$LICENSE" \
   -o mcp-guard
 ```
 
@@ -429,8 +429,8 @@ Before deploying to production:
 
 For issues or questions:
 - **GitHub**: https://github.com/yourusername/mcp-guard/issues
-- **Email**: support@mcp-guard.io
-- **Documentation**: https://mcp-guard.io/docs
+- **Email**: support@mcpg.botzr.com
+- **Documentation**: https://mcpg.botzr.com/docs
 
 ## License
 

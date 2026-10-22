@@ -3,10 +3,10 @@
 # MCP-Guard Pro Installation Script
 #
 # Quick install:
-#   curl -fsSL https://mcp-guard.io/install-pro.sh | bash
+#   curl -fsSL https://mcpg.botzr.com/install-pro.sh | bash
 #
 # With license key:
-#   curl -fsSL https://mcp-guard.io/install-pro.sh | MCP_GUARD_LICENSE_KEY=pro_xxx bash
+#   curl -fsSL https://mcpg.botzr.com/install-pro.sh | MCP_GUARD_LICENSE_KEY=pro_xxx bash
 #
 
 set -e
@@ -19,7 +19,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-DOWNLOAD_URL="https://download.mcp-guard.io/download"
+DOWNLOAD_URL="https://download.mcpg.botzr.com/download"
 TIER="pro"
 INSTALL_DIR="/usr/local/bin"
 BINARY_NAME="mcp-guard"
@@ -92,7 +92,7 @@ detect_platform() {
             ;;
         MINGW*|MSYS*|CYGWIN*)
             print_error "Windows installation not supported via this script"
-            print_info "Please download manually from: https://mcp-guard.io/downloads"
+            print_info "Please download manually from: https://mcpg.botzr.com/downloads"
             exit 1
             ;;
         *)
@@ -116,7 +116,7 @@ get_license_key() {
         # Prompt user
         echo ""
         print_info "Pro license required for installation"
-        print_info "Don't have a license? Get one at: ${BLUE}https://mcp-guard.io/pricing${NC}"
+        print_info "Don't have a license? Get one at: ${BLUE}https://mcpg.botzr.com/pricing${NC}"
         echo ""
         read -r -p "Enter your Pro license key (pro_xxx...): " license_key
         echo ""
@@ -268,10 +268,10 @@ print_next_steps() {
     echo -e "     ${GREEN}mcp-guard run${NC}"
     echo ""
     echo -e "${BLUE}Documentation:${NC}"
-    echo "  https://mcp-guard.io/docs/pro"
+    echo "  https://mcpg.botzr.com/docs/pro"
     echo ""
     echo -e "${BLUE}Support:${NC}"
-    echo "  support@mcp-guard.io"
+    echo "  support@mcpg.botzr.com"
     echo ""
 }
 

@@ -23,10 +23,10 @@ Both scripts:
 
 ```bash
 # Interactive (prompts for license)
-curl -fsSL https://mcp-guard.io/install-pro.sh | bash
+curl -fsSL https://mcpg.botzr.com/install-pro.sh | bash
 
 # Non-interactive (license from environment)
-curl -fsSL https://mcp-guard.io/install-pro.sh | \
+curl -fsSL https://mcpg.botzr.com/install-pro.sh | \
   MCP_GUARD_LICENSE_KEY=pro_xxx bash
 
 # Local testing
@@ -37,10 +37,10 @@ curl -fsSL https://mcp-guard.io/install-pro.sh | \
 
 ```bash
 # Interactive (prompts for license)
-curl -fsSL https://mcp-guard.io/install-enterprise.sh | bash
+curl -fsSL https://mcpg.botzr.com/install-enterprise.sh | bash
 
 # Non-interactive (license from environment)
-curl -fsSL https://mcp-guard.io/install-enterprise.sh | \
+curl -fsSL https://mcpg.botzr.com/install-enterprise.sh | \
   MCP_GUARD_LICENSE_KEY=ent_xxx bash
 
 # Local testing
@@ -50,8 +50,8 @@ curl -fsSL https://mcp-guard.io/install-enterprise.sh | \
 ## Hosting
 
 These scripts should be hosted at:
-- `https://mcp-guard.io/install-pro.sh`
-- `https://mcp-guard.io/install-enterprise.sh`
+- `https://mcpg.botzr.com/install-pro.sh`
+- `https://mcpg.botzr.com/install-enterprise.sh`
 
 ### Option 1: Cloudflare Pages
 
@@ -97,7 +97,7 @@ aws s3 cp scripts/install-pro.sh s3://mcp-guard-assets/install-pro.sh \
   --acl public-read
 
 # Access via CloudFront:
-# https://assets.mcp-guard.io/install-pro.sh
+# https://assets.mcpg.botzr.com/install-pro.sh
 ```
 
 ## Platform Detection
@@ -210,10 +210,10 @@ Edit `DOWNLOAD_URL` variable:
 
 ```bash
 # Production (default)
-DOWNLOAD_URL="https://download.mcp-guard.io/download"
+DOWNLOAD_URL="https://download.mcpg.botzr.com/download"
 
 # Staging
-DOWNLOAD_URL="https://download-staging.mcp-guard.io/download"
+DOWNLOAD_URL="https://download-staging.mcpg.botzr.com/download"
 
 # Local testing
 DOWNLOAD_URL="http://localhost:8787/download"
@@ -228,7 +228,7 @@ FROM ubuntu:22.04
 
 # Install MCP-Guard Pro
 ARG MCP_GUARD_LICENSE_KEY
-RUN curl -fsSL https://mcp-guard.io/install-pro.sh | \
+RUN curl -fsSL https://mcpg.botzr.com/install-pro.sh | \
     MCP_GUARD_LICENSE_KEY=${MCP_GUARD_LICENSE_KEY} bash
 
 # Copy config
@@ -259,7 +259,7 @@ spec:
     - /bin/bash
     - -c
     - |
-      curl -fsSL https://mcp-guard.io/install-pro.sh | bash
+      curl -fsSL https://mcpg.botzr.com/install-pro.sh | bash
       cp /usr/local/bin/mcp-guard /shared/mcp-guard
     volumeMounts:
     - name: shared
@@ -284,7 +284,7 @@ spec:
   tasks:
     - name: Download installer
       get_url:
-        url: https://mcp-guard.io/install-pro.sh
+        url: https://mcpg.botzr.com/install-pro.sh
         dest: /tmp/install-pro.sh
         mode: '0755'
 
@@ -300,7 +300,7 @@ spec:
 resource "null_resource" "install_mcp_guard" {
   provisioner "remote-exec" {
     inline = [
-      "curl -fsSL https://mcp-guard.io/install-pro.sh | MCP_GUARD_LICENSE_KEY=${var.mcp_guard_license} bash"
+      "curl -fsSL https://mcpg.botzr.com/install-pro.sh | MCP_GUARD_LICENSE_KEY=${var.mcp_guard_license} bash"
     ]
   }
 }
@@ -309,8 +309,8 @@ resource "null_resource" "install_mcp_guard" {
 ## Security Considerations
 
 1. **HTTPS Only**: Always use HTTPS URLs for script downloads
-   - ✅ `curl -fsSL https://mcp-guard.io/install-pro.sh`
-   - ❌ `curl -fsSL http://mcp-guard.io/install-pro.sh`
+   - ✅ `curl -fsSL https://mcpg.botzr.com/install-pro.sh`
+   - ❌ `curl -fsSL http://mcpg.botzr.com/install-pro.sh`
 
 2. **License Protection**: License keys are secrets
    - Save to `~/.env` with `chmod 600`
@@ -320,10 +320,10 @@ resource "null_resource" "install_mcp_guard" {
 3. **Script Integrity**: Consider checksums for extra security
    ```bash
    # Download script
-   curl -fsSL https://mcp-guard.io/install-pro.sh -o install.sh
+   curl -fsSL https://mcpg.botzr.com/install-pro.sh -o install.sh
 
    # Download checksum
-   curl -fsSL https://mcp-guard.io/install-pro.sh.sha256 -o install.sh.sha256
+   curl -fsSL https://mcpg.botzr.com/install-pro.sh.sha256 -o install.sh.sha256
 
    # Verify
    sha256sum -c install.sh.sha256
@@ -357,7 +357,7 @@ brew install curl
 Run with sudo or choose user-local install directory:
 ```bash
 # Option 1: Run entire script with sudo
-curl -fsSL https://mcp-guard.io/install-pro.sh | sudo bash
+curl -fsSL https://mcpg.botzr.com/install-pro.sh | sudo bash
 
 # Option 2: Edit script to use ~/.local/bin
 INSTALL_DIR="$HOME/.local/bin"
@@ -372,7 +372,7 @@ echo $MCP_GUARD_LICENSE_KEY
 # Should start with "pro_" or "ent_"
 
 # Test manually
-curl "https://download.mcp-guard.io/download?tier=pro&platform=x86_64-linux&license=$MCP_GUARD_LICENSE_KEY"
+curl "https://download.mcpg.botzr.com/download?tier=pro&platform=x86_64-linux&license=$MCP_GUARD_LICENSE_KEY"
 ```
 
 ### Platform detection fails
@@ -399,9 +399,9 @@ When updating installation scripts:
 ### Versioning
 
 Consider versioned URLs for backwards compatibility:
-- `https://mcp-guard.io/install-pro.sh` (latest)
-- `https://mcp-guard.io/v1/install-pro.sh` (v1.x)
-- `https://mcp-guard.io/v2/install-pro.sh` (v2.x)
+- `https://mcpg.botzr.com/install-pro.sh` (latest)
+- `https://mcpg.botzr.com/v1/install-pro.sh` (v1.x)
+- `https://mcpg.botzr.com/v2/install-pro.sh` (v2.x)
 
 This allows users to pin to specific installer versions.
 
@@ -409,5 +409,5 @@ This allows users to pin to specific installer versions.
 
 For issues with installation scripts:
 - **GitHub**: https://github.com/yourusername/mcp-guard/issues
-- **Email**: support@mcp-guard.io
-- **Docs**: https://mcp-guard.io/docs/installation
+- **Email**: support@mcpg.botzr.com
+- **Docs**: https://mcpg.botzr.com/docs/installation

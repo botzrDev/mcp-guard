@@ -41,7 +41,7 @@ wrangler dev
 
 ```bash
 wrangler deploy --env production
-# Deploys to https://download.mcp-guard.io (if custom domain configured)
+# Deploys to https://download.mcpg.botzr.com (if custom domain configured)
 ```
 
 ## Upload Binaries
@@ -76,10 +76,10 @@ aws s3 cp target/release/mcp-guard \
 
 ```bash
 # Health check
-curl https://download.mcp-guard.io/health
+curl https://download.mcpg.botzr.com/health
 
 # Download with license
-curl "https://download.mcp-guard.io/download?tier=pro&platform=x86_64-linux&license=pro_xxx..." \
+curl "https://download.mcpg.botzr.com/download?tier=pro&platform=x86_64-linux&license=pro_xxx..." \
   -o mcp-guard
 
 chmod +x mcp-guard
@@ -123,7 +123,7 @@ Edit `wrangler.toml`:
 ```toml
 [env.production]
 routes = [
-  { pattern = "download.mcp-guard.io/*", custom_domain = true }
+  { pattern = "download.mcpg.botzr.com/*", custom_domain = true }
 ]
 ```
 

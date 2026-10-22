@@ -72,7 +72,7 @@ wrangler secret put STRIPE_WEBHOOK_SECRET
 
 # License signing Worker URL
 wrangler secret put LICENSE_SIGNER_URL
-# Enter: https://sign.mcp-guard.io
+# Enter: https://sign.mcpg.botzr.com
 
 # License signing Worker API secret (from password manager)
 wrangler secret put LICENSE_SIGNER_API_SECRET
@@ -87,7 +87,7 @@ wrangler secret put RESEND_API_KEY
 
 1. Go to Stripe Dashboard → Developers → Webhooks
 2. Click "Add endpoint"
-3. URL: `https://webhook.mcp-guard.io/webhook`
+3. URL: `https://webhook.mcpg.botzr.com/webhook`
 4. Events to send:
    - `checkout.session.completed`
    - `customer.subscription.deleted`
@@ -101,7 +101,7 @@ wrangler secret put RESEND_API_KEY
 1. Go to https://resend.com → API Keys
 2. Create new API key with "Sending access"
 3. Copy API key (re_...) and set via `wrangler secret put RESEND_API_KEY`
-4. Add and verify your sending domain (licenses@mcp-guard.io)
+4. Add and verify your sending domain (licenses@mcpg.botzr.com)
 
 ## Development
 
@@ -137,7 +137,7 @@ stripe trigger checkout.session.completed
 
 ```bash
 wrangler deploy --env production
-# Deploys to https://webhook.mcp-guard.io
+# Deploys to https://webhook.mcpg.botzr.com
 ```
 
 ### Custom Domain
@@ -146,7 +146,7 @@ Edit `wrangler.toml`:
 ```toml
 [env.production]
 routes = [
-  { pattern = "webhook.mcp-guard.io/*", custom_domain = true }
+  { pattern = "webhook.mcpg.botzr.com/*", custom_domain = true }
 ]
 ```
 
@@ -285,7 +285,7 @@ wrangler kv:key list --namespace-id=<your-namespace-id>
 # Get license data
 wrangler kv:key get "customer:cus_xxx" --namespace-id=<your-namespace-id>
 
-# Check email was sent (check inbox for licenses@mcp-guard.io)
+# Check email was sent (check inbox for licenses@mcpg.botzr.com)
 ```
 
 ### Test License Validation
@@ -374,7 +374,7 @@ wrangler kv:key get "customer:cus_xxx" --namespace-id=<your-namespace-id>
    ```bash
    wrangler secret put STRIPE_WEBHOOK_SECRET
    ```
-3. Ensure Stripe webhook URL is correct: `https://webhook.mcp-guard.io/webhook`
+3. Ensure Stripe webhook URL is correct: `https://webhook.mcpg.botzr.com/webhook`
 
 ### License generation fails
 
@@ -387,7 +387,7 @@ wrangler kv:key get "customer:cus_xxx" --namespace-id=<your-namespace-id>
    ```
 2. Test license signing Worker directly:
    ```bash
-   curl https://sign.mcp-guard.io/health
+   curl https://sign.mcpg.botzr.com/health
    ```
 3. Verify `LICENSE_SIGNER_API_SECRET` matches
 
@@ -401,7 +401,7 @@ wrangler kv:key get "customer:cus_xxx" --namespace-id=<your-namespace-id>
    curl https://api.resend.com/emails \
      -H "Authorization: Bearer $RESEND_API_KEY" \
      -H "Content-Type: application/json" \
-     -d '{"from":"licenses@mcp-guard.io","to":"test@example.com","subject":"Test","html":"<p>Test</p>"}'
+     -d '{"from":"licenses@mcpg.botzr.com","to":"test@example.com","subject":"Test","html":"<p>Test</p>"}'
    ```
 2. Check domain verification in Resend dashboard
 3. Verify `FROM_EMAIL` in `wrangler.toml` matches verified domain
@@ -414,7 +414,7 @@ wrangler kv:key get "customer:cus_xxx" --namespace-id=<your-namespace-id>
 1. Verify webhook endpoint in Stripe Dashboard
 2. Check Worker is deployed:
    ```bash
-   curl https://webhook.mcp-guard.io/health
+   curl https://webhook.mcpg.botzr.com/health
    ```
 3. Test with Stripe CLI:
    ```bash
@@ -454,7 +454,7 @@ wrangler kv:key get "customer:cus_xxx" --namespace-id=<your-namespace-id>
 
 ### Email Security
 
-1. **SPF/DKIM**: Configure for licenses@mcp-guard.io
+1. **SPF/DKIM**: Configure for licenses@mcpg.botzr.com
 2. **Rate limiting**: Monitor for email abuse
 3. **Unsubscribe**: Include in transactional emails (optional)
 
@@ -476,7 +476,7 @@ Before deploying to production:
   - [ ] `RESEND_API_KEY`
 - [ ] Stripe webhook endpoint configured with correct URL
 - [ ] Stripe webhook events selected (checkout, subscription, invoice)
-- [ ] Resend domain verified (licenses@mcp-guard.io)
+- [ ] Resend domain verified (licenses@mcpg.botzr.com)
 - [ ] License signing Worker deployed and accessible
 - [ ] Custom domain configured (optional)
 - [ ] Test end-to-end flow with Stripe test mode
@@ -500,7 +500,7 @@ For testing in Stripe test mode:
 
 For issues or questions:
 - **GitHub**: https://github.com/yourusername/mcp-guard/issues
-- **Email**: support@mcp-guard.io
+- **Email**: support@mcpg.botzr.com
 - **Stripe**: https://stripe.com/docs/webhooks
 
 ## License

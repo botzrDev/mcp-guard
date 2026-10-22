@@ -41,7 +41,7 @@ async function handleDownload(request: Request, env: Env, url: URL): Promise<Res
         JSON.stringify({
           error: 'Missing license parameter',
           message: 'Please provide your license key using ?license=YOUR_KEY',
-          documentation: 'https://mcp-guard.io/docs/installation'
+          documentation: 'https://mcpg.botzr.com/docs/installation'
         }),
         {
           status: 400,
@@ -135,8 +135,8 @@ async function handleDownload(request: Request, env: Env, url: URL): Promise<Res
           message: validation.error,
           tier,
           action: tier === 'pro'
-            ? 'Purchase a Pro license at https://mcp-guard.io/pricing'
-            : 'Contact sales at sales@mcp-guard.io for Enterprise licenses'
+            ? 'Purchase a Pro license at https://mcpg.botzr.com/pricing'
+            : 'Contact sales at sales@mcpg.botzr.com for Enterprise licenses'
         }),
         {
           status: 403,
@@ -163,7 +163,7 @@ async function handleDownload(request: Request, env: Env, url: URL): Promise<Res
           message: `Binary for platform '${platform}' is not available yet`,
           tier,
           platform,
-          contact: 'Please contact support@mcp-guard.io if this persists'
+          contact: 'Please contact support@mcpg.botzr.com if this persists'
         }),
         {
           status: 404,
@@ -199,7 +199,7 @@ async function handleDownload(request: Request, env: Env, url: URL): Promise<Res
       JSON.stringify({
         error: 'Internal server error',
         message: error instanceof Error ? error.message : 'Unknown error occurred',
-        contact: 'Please contact support@mcp-guard.io'
+        contact: 'Please contact support@mcpg.botzr.com'
       }),
       {
         status: 500,

@@ -44,7 +44,7 @@ read -r -d '' PRO_HEADER << 'EOF' || true
 // MCP-Guard Pro requires a valid commercial license for use.
 // Unauthorized use, modification, or distribution is prohibited.
 //
-// For licensing information, visit: https://mcp-guard.io/pricing
+// For licensing information, visit: https://mcpg.botzr.com/pricing
 // For support, contact: austin@botzr.com
 
 EOF
@@ -58,7 +58,7 @@ read -r -d '' ENTERPRISE_HEADER << 'EOF' || true
 // MCP-Guard Enterprise requires a valid commercial license for use.
 // Unauthorized use, modification, or distribution is prohibited.
 //
-// For licensing information, visit: https://mcp-guard.io/pricing
+// For licensing information, visit: https://mcpg.botzr.com/pricing
 // For support, contact: austin@botzr.com
 
 EOF
