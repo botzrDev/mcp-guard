@@ -8,6 +8,8 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use mcp_guard_core::auth::JwtProvider;
+use mcp_guard_core::config::{JwtConfig, JwtMode};
 use mcp_guard_core::{
     audit::AuditLogger,
     auth::{ApiKeyProvider, OAuthAuthProvider},
@@ -70,6 +72,45 @@ fn create_oauth_config(mock_server_uri: &str) -> OAuthConfig {
     }
 }
 
+/// Session JWT signer: the callback mints a session token after verifying identity.
+fn test_jwt_provider() -> JwtProvider {
+    JwtProvider::new(JwtConfig {
+        mode: JwtMode::Simple {
+            secret: "test-secret-key-at-least-32-characters-long".to_string(),
+        },
+        issuer: "mcp-guard-test".to_string(),
+        audience: "mcp-guard".to_string(),
+        user_id_claim: "sub".to_string(),
+        scopes_claim: "scope".to_string(),
+        scope_tool_mapping: HashMap::new(),
+        leeway_secs: 0,
+    })
+    .unwrap()
+}
+
+/// The callback resolves the user's identity with the provider after the code
+/// exchange, so successful-path tests need introspection and userinfo mocks.
+async fn mount_identity_mocks(mock_server: &MockServer) {
+    Mock::given(method("POST"))
+        .and(path("/introspect"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "active": true,
+            "sub": "user123",
+            "username": "testuser",
+            "scope": "openid profile"
+        })))
+        .mount(mock_server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/userinfo"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "sub": "user123",
+            "name": "Test User"
+        })))
+        .mount(mock_server)
+        .await;
+}
+
 // =============================================================================
 // OAuth State Management Tests
 // =============================================================================
@@ -98,7 +139,7 @@ async fn test_oauth_authorize_stores_pkce_state() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
-        jwt_provider: None,
+        jwt_provider: Some(Arc::new(test_jwt_provider())),
     });
 
     let app = build_router(state);
@@ -146,6 +187,7 @@ async fn test_oauth_authorize_stores_pkce_state() {
 #[tokio::test]
 async fn test_oauth_callback_successful_token_exchange() {
     let mock_server = MockServer::start().await;
+    mount_identity_mocks(&mock_server).await;
 
     // Mock the token endpoint
     Mock::given(method("POST"))
@@ -199,7 +241,7 @@ async fn test_oauth_callback_successful_token_exchange() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
-        jwt_provider: None,
+        jwt_provider: Some(Arc::new(test_jwt_provider())),
     });
 
     let app = build_router(state);
@@ -274,7 +316,7 @@ async fn test_oauth_callback_rejects_ip_mismatch() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
-        jwt_provider: None,
+        jwt_provider: Some(Arc::new(test_jwt_provider())),
     });
 
     let app = build_router(state);
@@ -330,7 +372,7 @@ async fn test_oauth_callback_rejects_missing_code() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
-        jwt_provider: None,
+        jwt_provider: Some(Arc::new(test_jwt_provider())),
     });
 
     let app = build_router(state);
@@ -401,7 +443,7 @@ async fn test_oauth_callback_token_exchange_failure() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
-        jwt_provider: None,
+        jwt_provider: Some(Arc::new(test_jwt_provider())),
     });
 
     let app = build_router(state);
@@ -426,6 +468,7 @@ async fn test_oauth_callback_token_exchange_failure() {
 #[tokio::test]
 async fn test_oauth_callback_minimal_token_response() {
     let mock_server = MockServer::start().await;
+    mount_identity_mocks(&mock_server).await;
 
     // Mock token endpoint with minimal response
     Mock::given(method("POST"))
@@ -471,7 +514,7 @@ async fn test_oauth_callback_minimal_token_response() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
-        jwt_provider: None,
+        jwt_provider: Some(Arc::new(test_jwt_provider())),
     });
 
     let app = build_router(state);
@@ -550,7 +593,7 @@ async fn test_oauth_callback_missing_access_token() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
-        jwt_provider: None,
+        jwt_provider: Some(Arc::new(test_jwt_provider())),
     });
 
     let app = build_router(state);
@@ -575,6 +618,7 @@ async fn test_oauth_callback_missing_access_token() {
 #[tokio::test]
 async fn test_oauth_callback_confidential_client() {
     let mock_server = MockServer::start().await;
+    mount_identity_mocks(&mock_server).await;
 
     // Mock token endpoint expecting client_secret
     Mock::given(method("POST"))
@@ -621,7 +665,7 @@ async fn test_oauth_callback_confidential_client() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
-        jwt_provider: None,
+        jwt_provider: Some(Arc::new(test_jwt_provider())),
     });
 
     let app = build_router(state);
@@ -652,6 +696,7 @@ async fn test_oauth_callback_confidential_client() {
 #[tokio::test]
 async fn test_oauth_callback_public_client() {
     let mock_server = MockServer::start().await;
+    mount_identity_mocks(&mock_server).await;
 
     // Mock token endpoint NOT expecting client_secret
     Mock::given(method("POST"))
@@ -697,7 +742,7 @@ async fn test_oauth_callback_public_client() {
         ready: Arc::new(RwLock::new(true)),
         mtls_provider: None,
         db: None,
-        jwt_provider: None,
+        jwt_provider: Some(Arc::new(test_jwt_provider())),
     });
 
     let app = build_router(state);

@@ -809,7 +809,9 @@ pub fn glob_match(pattern: &str, name: &str) -> bool {
 /// Upstream MCP server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpstreamConfig {
-    /// Transport type (used for single-server mode)
+    /// Transport type (used for single-server mode). Defaults to stdio, so
+    /// multi-server configs that only list `[[upstream.servers]]` are valid.
+    #[serde(default)]
     pub transport: TransportType,
 
     /// Command to run (for stdio transport)
@@ -858,9 +860,10 @@ pub struct ServerRouteConfig {
 }
 
 /// Transport type for upstream connection
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TransportType {
+    #[default]
     Stdio,
     Http,
     Sse,
