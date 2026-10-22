@@ -1,7 +1,7 @@
 # CLAUDE.md - MCP Guard Project Context
 
 > **Last Updated:** 2026-10-22
-> **Project Status:** v1.0.0 shipped (gateway). Local mode, argument-level policy with shadow mode, the flight recorder, and human-in-the-loop holds landed; roadmap below is the plan from here.
+> **Project Status:** v1.1.0 tagged 2026-10-22: gateway (v1.0.0) plus local mode, argument-level policy with shadow mode, the flight recorder, and human-in-the-loop holds. Roadmap below is the plan from here.
 
 ---
 
@@ -25,7 +25,7 @@ Authentication of MCP servers is table stakes (the spec mandates OAuth, every AP
 ## Repository Layout (actual)
 
 ```
-mcp-guard/                       Cargo workspace, version 1.0.0, AGPL-3.0
+mcp-guard/                       Cargo workspace, version 1.1.0, AGPL-3.0
 ├── crates/
 │   ├── mcp-guard-core/          Library (everything below is in here)
 │   │   ├── src/config/          Config types incl. PolicyConfig, UpstreamConfig, tiers
@@ -148,7 +148,8 @@ Done: local mode (wrap/doctor/pin/serve), argument-level policy rules, shadow mo
 - 2026-10-22: Argument-level `[[policy.rules]]`, `mode = "observe"`, `policy test`, `policy suggest --apply`. Fixed pre-existing OAuth callback and routing test failures. (PR #6)
 - 2026-10-22: Flight recorder: `[recorder]`, hash-chained session files, redaction, `replay`, `verify`, HMAC signing. (PR #7)
 - 2026-10-22: Holds (`action = "hold"`, `holds`/`approve`/`deny`, notifications, `wrap --hold`), `replay --html`, recorder retention. (PR #8)
-- 2026-10-22: `FUTURE.md` added with the remaining work and open decisions.
+- 2026-10-22: `FUTURE.md` added with the remaining work and open decisions. (PR #9)
+- 2026-10-22: v1.1.0 tagged; first run of `release-tiers.yml` against a tag.
 
 ---
 
