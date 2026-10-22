@@ -1,6 +1,6 @@
 [package]
 name = "mcp-guard"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 rust-version = "1.75"
 authors = ["Austin Green <austin@botzr.com>"]
@@ -20,7 +20,7 @@ path = "src/main.rs"
 [dependencies]
 dotenvy = "0.15"
 # Core library (with feature passthrough)
-mcp-guard-core = { path = "../mcp-guard-core", version = "1.0.0" }
+mcp-guard-core = { path = "../mcp-guard-core", version = "1.1.0" }
 
 # Pro features (optional)
 mcp-guard-pro = { path = "../mcp-guard-pro", optional = true }

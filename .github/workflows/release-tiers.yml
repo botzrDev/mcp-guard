@@ -154,58 +154,53 @@ jobs:
             artifacts/**/*.zip
             checksums-free.txt
           body: |
-            # MCP-Guard Free Tier v${{ steps.version.outputs.version }}
+            # mcp-guard v${{ steps.version.outputs.version }}
 
-            **Free tier includes:**
-            - ✅ API Key authentication
-            - ✅ JWT HS256 (simple mode)
-            - ✅ Stdio transport
-            - ✅ Global rate limiting
-            - ✅ File/console audit logging
-            - ✅ Prometheus metrics
+            The policy and evidence layer between an AI agent and its tools. One binary, one config file, no infrastructure.
+
+            **Local mode** (new in 1.1): put the guard in front of the MCP servers your agent launches.
+            - `mcp-guard doctor` finds unguarded servers in Claude Desktop, Claude Code, Cursor, Windsurf and VS Code configs
+            - `mcp-guard wrap` puts `mcp-guard serve` in front of them, with a backup and the original command preserved
+            - `[policy]` allow/deny by tool name and by argument (`[[policy.rules]]`), with `mode = "observe"` and `mcp-guard policy suggest` to generate a least-privilege policy from real use
+            - Tool pinning: a lockfile for tool definitions; changed or new tools are hidden until you run `mcp-guard pin`
+            - Flight recorder: hash-chained, redacted session recordings; `mcp-guard replay` (timeline or HTML), `mcp-guard verify`
+            - Holds: `action = "hold"` pauses a risky call until `mcp-guard approve`
+
+            **Gateway mode** (`mcp-guard run`): API key and JWT HS256 authentication, stdio transport, per-tool authorization, rate limiting, Prometheus metrics, health endpoints, audit logging.
+
+            Full notes: [CHANGELOG.md](https://github.com/botzrDev/mcp-guard/blob/main/CHANGELOG.md). Guides: [local mode](https://github.com/botzrDev/mcp-guard/blob/main/docs/local-mode.md), [flight recorder](https://github.com/botzrDev/mcp-guard/blob/main/docs/flight-recorder.md).
 
             ## Installation
-
-            Download the appropriate binary for your platform:
 
             | Platform | Architecture | Download |
             |----------|--------------|----------|
             | Linux | x86_64 | `mcp-guard-free-x86_64-linux.tar.gz` |
-            | Linux (musl) | x86_64 | `mcp-guard-free-x86_64-linux-musl.tar.gz` |
-            | macOS | x86_64 | `mcp-guard-free-x86_64-darwin.tar.gz` |
-            | macOS | ARM64 | `mcp-guard-free-aarch64-darwin.tar.gz` |
+            | Linux (musl, static) | x86_64 | `mcp-guard-free-x86_64-linux-musl.tar.gz` |
+            | macOS | Intel | `mcp-guard-free-x86_64-darwin.tar.gz` |
+            | macOS | Apple Silicon | `mcp-guard-free-aarch64-darwin.tar.gz` |
             | Windows | x86_64 | `mcp-guard-free-x86_64-windows.exe.zip` |
 
-            ### Quick Start
-
             ```bash
-            # Download and extract (Linux/macOS example)
-            tar -xzf mcp-guard-free-x86_64-linux.tar.gz
-            chmod +x mcp-guard
+            # Linux/macOS: extract and put the binary on your PATH
+            tar -xzf mcp-guard-free-<platform>.tar.gz
+            chmod +x mcp-guard && sudo mv mcp-guard /usr/local/bin/
 
-            # Generate configuration
-            ./mcp-guard init
-
-            # Edit mcp-guard.toml with your settings
-
-            # Start the server
-            ./mcp-guard run
+            # See what your agents run unprotected, then guard them
+            mcp-guard doctor
+            mcp-guard wrap --client claude-desktop --deny "delete_*,execute_*"
             ```
 
-            ### Verify Download
+            Or from source: `cargo install mcp-guard`.
+
+            ### Verify download
 
             ```bash
             sha256sum -c checksums-free.txt --ignore-missing
             ```
 
-            ## Upgrade to Pro or Enterprise
+            ## Pro and Enterprise
 
-            Need OAuth, HTTP/SSE transports, or enterprise features?
-
-            - **Pro tier** ($12/month): OAuth 2.1, JWT JWKS, HTTP/SSE transports
-            - **Enterprise tier** ($29/user/month): mTLS, multi-server, SIEM, OpenTelemetry
-
-            Visit: https://mcpg.botzr.com/pricing
+            OAuth 2.1, JWT JWKS, HTTP/SSE transports, mTLS, multi-server routing, SIEM shipping and OpenTelemetry are in the Pro and Enterprise builds. They are not on general sale yet; see https://mcpg.botzr.com/pricing or write to support@botzr.com.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -224,6 +219,20 @@ jobs:
 
       - name: Publish mcp-guard-core to crates.io
         run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} -p mcp-guard-core
+        continue-on-error: true
+
+      - name: Publish mcp-guard (binary) to crates.io
+        # The binary crate depends on the core crate just published; the index
+        # can take a moment to see it, so retry a few times before giving up.
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} -p mcp-guard; then
+              exit 0
+            fi
+            echo "publish attempt $attempt failed; retrying in 60s"
+            sleep 60
+          done
+          exit 1
         continue-on-error: true
 
   # ============================================================================
