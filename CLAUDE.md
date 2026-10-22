@@ -117,6 +117,8 @@ CI runs clippy with `-D warnings` on current stable. New clippy lints on toolcha
 
 ## Roadmap (agreed direction, 2026-10-22)
 
+The detailed, prioritized list lives in `FUTURE.md` (release tasks, known gaps, remaining roadmap, debt, open decisions). Keep the two in sync: this section is the short form.
+
 1. Result inspection: rules on tool results (secret/PII redaction, size limits), extending the argument rules. Cedar was considered for the policy engine and deferred: the TOML rule format covers the known cases and stays readable in one config file.
 2. Recorder in gateway mode (per identity).
 3. Protocol shim: 2026-07-28 stateless revision, relay server-initiated requests (sampling/elicitation/roots), expose stdio servers as compliant remote servers.
@@ -145,7 +147,8 @@ Done: local mode (wrap/doctor/pin/serve), argument-level policy rules, shadow mo
 - 2026-10-22: Strategic review. Local mode shipped: `doctor`, `wrap`, `unwrap`, `pin`, `[policy]`, tool pinning, serve-mode handshake forwarding and audit. README rewritten to match the real workspace. (PR #5)
 - 2026-10-22: Argument-level `[[policy.rules]]`, `mode = "observe"`, `policy test`, `policy suggest --apply`. Fixed pre-existing OAuth callback and routing test failures. (PR #6)
 - 2026-10-22: Flight recorder: `[recorder]`, hash-chained session files, redaction, `replay`, `verify`, HMAC signing. (PR #7)
-- 2026-10-22: Holds (`action = "hold"`, `holds`/`approve`/`deny`, notifications, `wrap --hold`), `replay --html`, recorder retention.
+- 2026-10-22: Holds (`action = "hold"`, `holds`/`approve`/`deny`, notifications, `wrap --hold`), `replay --html`, recorder retention. (PR #8)
+- 2026-10-22: `FUTURE.md` added with the remaining work and open decisions.
 
 ---
 
