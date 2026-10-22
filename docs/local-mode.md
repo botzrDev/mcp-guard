@@ -50,6 +50,7 @@ Finding codes:
 | `PINNING_DISABLED` | WARN | A guarded server has `pin_tools = false` |
 | `NOT_YET_PINNED` | INFO | Pinning is on but the lockfile has not been written yet |
 | `AUDIT_DISABLED` | WARN | A guarded server has audit logging off |
+| `RECORDER_DISABLED` | INFO | A guarded server has the flight recorder off |
 | `CLIENT_CONFIG_UNREADABLE` | HIGH | The client file is not valid JSON |
 
 ## wrap
@@ -63,7 +64,7 @@ mcp-guard wrap --client ./some/mcp.json --allow "read_*,list_*" --dry-run
 
 For every stdio server it:
 
-1. Writes a guard config to `<config dir>/<client>/<server>.toml` with the original `command` and `args` as the upstream, an audit log path, and a `[policy]` section built from `--allow`, `--deny` and `--no-pin`.
+1. Writes a guard config to `<config dir>/<client>/<server>.toml` with the original `command` and `args` as the upstream, an audit log path, a `[policy]` section built from `--allow`, `--deny` and `--no-pin`, and a `[recorder]` section pointing at `<config dir>/recordings/<client>-<server>/`.
 2. Backs up the client file to `<file>.bak-<timestamp>`.
 3. Replaces the entry's `command` with the path of the running `mcp-guard` binary (override with `--guard-bin`) and its `args` with `--config <guard config> serve`.
 
@@ -223,6 +224,10 @@ Lockfile format:
   }
 }
 ```
+
+## Flight recorder
+
+Beyond the audit log, `wrap` turns on the flight recorder: a per-session, tamper-evident, redacted record of every request, response and guard decision. `mcp-guard replay --config <guard config>` renders a session as a timeline; `mcp-guard verify` checks it has not been edited. See [flight-recorder.md](flight-recorder.md).
 
 ## Audit log
 

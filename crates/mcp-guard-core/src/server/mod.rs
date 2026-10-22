@@ -2009,6 +2009,7 @@ mod tests {
                 servers: vec![],
             },
             policy: Default::default(),
+            recorder: Default::default(),
             database_url: None,
             stripe_secret_key: None,
         };
@@ -2131,6 +2132,7 @@ mod tests {
                 servers: vec![],
             },
             policy: Default::default(),
+            recorder: Default::default(),
             database_url: None,
             stripe_secret_key: None,
         };

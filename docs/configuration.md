@@ -636,6 +636,29 @@ reason = "writes outside the project are blocked"
 path = { not_starts_with = "/home/me/project/" }
 ```
 
+## [recorder] Section
+
+Flight recorder for `mcp-guard serve`: tamper-evident, redacted, per-session recording. Full guide: [flight-recorder.md](flight-recorder.md).
+
+```toml
+[recorder]
+enabled = true
+# dir = "recordings"
+# max_payload_bytes = 65536
+# include_results = true
+# redact = true
+# signing_key_env = "MCP_GUARD_RECORDER_KEY"
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Record sessions. `mcp-guard wrap` sets this to `true` |
+| `dir` | path | `<config stem>.recordings/` | Where session files go, relative to the config file unless absolute |
+| `max_payload_bytes` | integer | `65536` | Larger payloads are stored as a preview plus the hash of the full payload |
+| `include_results` | bool | `true` | Record responses. When `false`, only requests, decisions and errors are kept |
+| `redact` | bool | `true` | Apply built-in secret patterns and `[audit] redaction_rules` before writing |
+| `signing_key_env` | string | none | Environment variable holding an HMAC key; hashes become HMAC-SHA256 |
+
 ## Complete Examples
 
 ### Minimal Development Configuration

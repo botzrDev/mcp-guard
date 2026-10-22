@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Flight recorder
+- `[recorder]` config section and per-session JSONL recordings written by
+  `mcp-guard serve`: every client request, every response, every guard
+  decision, with a SHA-256 hash chain (`prev`/`hash`) and optional HMAC signing
+  via `signing_key_env`.
+- Payload redaction before hashing (built-in patterns for private keys, cloud
+  and SaaS API keys, JWTs, bearer tokens, credentials in URLs, plus the user's
+  `[audit] redaction_rules`), truncation of large payloads with the hash of the
+  original kept.
+- `mcp-guard replay`: timeline of a session (`--list`, `--denied`, `--tool`,
+  `--json`), with the chain status.
+- `mcp-guard verify`: recompute the chain, report the first bad record, exit 1
+  on tampering. Checks HMAC signatures when the key is present.
+- `mcp-guard wrap` enables the recorder for wrapped servers; `doctor` reports
+  `RECORDER_DISABLED`.
+
 #### Argument-level policy and shadow mode
 - `[[policy.rules]]`: rules on tool arguments (`when` conditions with
   `starts_with`, `not_in`, `glob`, `regex`, numeric and existence operators),

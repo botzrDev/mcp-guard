@@ -33,6 +33,7 @@ pub mod observability;
 pub mod pin;
 pub mod policy;
 pub mod rate_limit;
+pub mod recorder;
 pub mod router;
 pub mod server;
 pub mod tier;
