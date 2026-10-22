@@ -377,6 +377,7 @@ fn test_config_validation_http_requires_pro() {
         },
         policy: Default::default(),
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let result = config.validate();
@@ -402,6 +403,7 @@ fn test_config_validation_sse_requires_pro() {
         },
         policy: Default::default(),
         database_url: None,
+        stripe_secret_key: None,
     };
 
     let result = config.validate();
