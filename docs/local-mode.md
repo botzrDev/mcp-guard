@@ -156,6 +156,53 @@ mcp-guard policy test --config ~/.config/mcp-guard/claude-desktop/filesystem.tom
 
 It prints the decision and the rule that made it, and exits 1 on a deny.
 
+### Holds: approval before a call proceeds
+
+Some tools should never run on an agent's say-so alone. A rule with `action = "hold"` pauses the call until you approve it:
+
+```toml
+[[policy.rules]]
+name = "confirm destructive operations"
+tools = ["delete_*", "execute_*", "run_shell", "git_push"]
+action = "hold"
+reason = "destructive operation needs your approval"
+
+[policy.holds]
+# dir = "holds"              # default: <config stem>.holds/ next to the config
+timeout_secs = 120           # no decision in time means deny
+notify = true                # desktop notification (macOS, Linux, Windows), best effort
+# notify_command = ["curl", "-s", "-X", "POST", "https://hooks.slack.com/...", "-d", "{\"text\": \"{tool}: {approve}\"}"]
+```
+
+When a held call arrives, mcp-guard writes a request into the holds directory, shows a notification with the approve command, and waits. From another terminal:
+
+```bash
+mcp-guard holds --config ~/.config/mcp-guard/claude-desktop/filesystem.toml
+```
+
+```
+Calls waiting for approval (/Users/me/.config/mcp-guard/holds/claude-desktop-filesystem):
+
+  3f9a1c2e  delete_file  {"path":"/Users/me/project/old-notes.md"}
+          destructive operation needs your approval  [rule: confirm destructive operations]  requested 2026-10-22T18:40:11Z  expires 2026-10-22T18:42:11Z
+          approve: mcp-guard approve 3f9a1c2e --config /Users/me/.config/mcp-guard/claude-desktop/filesystem.toml
+```
+
+```bash
+mcp-guard approve 3f9a --config ...                     # id prefix is enough; "latest" and "all" also work
+mcp-guard deny latest --note "not that file" --config ...   # the note is returned to the agent
+```
+
+Approved calls proceed to the upstream as if nothing happened. Denied or timed-out calls fail with JSON-RPC error `-32012` and a message that includes your note, so the agent can tell the user why. Every step (`hold_requested`, `hold_approved`, `hold_denied`, `hold_timed_out`) is in the flight recorder.
+
+`mcp-guard wrap --hold "delete_*,execute_*"` generates this rule for you. `notify_command` placeholders: `{id}`, `{tool}`, `{reason}`, `{arguments}`, `{approve}`.
+
+Things to know:
+
+- The proxy handles one message at a time, so other requests from the same client queue behind a held call. Keep `timeout_secs` within what your client tolerates for a tool call.
+- In observe mode, holds are recorded as `hold_would_request` and the call proceeds.
+- Anyone who can write to the holds directory can approve. It is created under your config directory with your user's permissions; keep it that way.
+
 ### Shadow mode and generated policy
 
 Writing a policy before you know what the agent needs leads to either a policy that blocks real work or one that allows everything. Shadow mode resolves that:

@@ -624,6 +624,17 @@ Denied tools are removed from `tools/list` so the model never sees them; calls r
 | `reason` | string | none | Explanation returned to the agent on deny |
 | `when` | table | `{}` | Argument path to condition. All conditions must hold. Empty matches every call |
 
+`action` may also be `"hold"`: the call pauses until `mcp-guard approve`, or is denied after `policy.holds.timeout_secs`. See [local-mode.md](local-mode.md#holds-approval-before-a-call-proceeds).
+
+#### `[policy.holds]`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `dir` | path | `<config stem>.holds/` | Where pending holds and decisions live |
+| `timeout_secs` | integer | `120` | How long a held call waits before it is denied |
+| `notify` | bool | `true` | Desktop notification on hold (best effort) |
+| `notify_command` | array | none | Command to run instead; placeholders `{id}` `{tool}` `{reason}` `{arguments}` `{approve}` |
+
 Condition operators: `exists`, `equals`, `not_equals`, `in`, `not_in`, `starts_with`, `not_starts_with`, `ends_with`, `not_ends_with`, `contains`, `not_contains`, `glob`, `not_glob`, `regex`, `not_regex`, `max_length`, `gt`, `gte`, `lt`, `lte`. String operators take one string or a list (any matches). Full semantics in [local-mode.md](local-mode.md#argument-level-rules).
 
 ```toml
@@ -658,6 +669,8 @@ enabled = true
 | `include_results` | bool | `true` | Record responses. When `false`, only requests, decisions and errors are kept |
 | `redact` | bool | `true` | Apply built-in secret patterns and `[audit] redaction_rules` before writing |
 | `signing_key_env` | string | none | Environment variable holding an HMAC key; hashes become HMAC-SHA256 |
+| `retention_days` | integer | none | Delete session files older than this when a new session starts |
+| `max_sessions` | integer | none | Keep at most this many session files, oldest deleted first |
 
 ## Complete Examples
 

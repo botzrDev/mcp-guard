@@ -1022,3 +1022,241 @@ fn replay_without_recordings_is_clear() {
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("no session matching"));
 }
+
+// ----------------------------------------------------------------------------
+// holds: approve / deny
+// ----------------------------------------------------------------------------
+
+fn hold_policy_toml(dir: &Path, timeout_secs: u64) -> String {
+    format!(
+        r#"pin_tools = false
+[policy.holds]
+dir = "{}"
+timeout_secs = {}
+notify = false
+[[policy.rules]]
+name = "confirm destructive"
+tools = ["delete_*"]
+action = "hold"
+reason = "destructive operation needs approval""#,
+        dir.join("holds").to_string_lossy().replace('\\', "\\\\"),
+        timeout_secs
+    )
+}
+
+/// Send a request without waiting for its response (the call will block on a hold).
+fn send_only(s: &mut ServeSession, id: i64, method: &str, params: Value) {
+    s.send(json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params}));
+}
+
+fn wait_for_pending_hold(config: &Path) -> Value {
+    for _ in 0..100 {
+        let out = common::cargo_bin("mcp-guard")
+            .args(["holds", "--config", config.to_str().unwrap(), "--json"])
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let pending: Value = serde_json::from_slice(&out.stdout).unwrap();
+        if let Some(first) = pending.as_array().and_then(|a| a.first()) {
+            return first.clone();
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    panic!("no hold appeared");
+}
+
+#[test]
+fn held_call_waits_for_approve_and_deny_commands() {
+    let temp = tempfile::tempdir().unwrap();
+    let config = write_guard_config(temp.path(), &hold_policy_toml(temp.path(), 30));
+    let mut s = ServeSession::start(&config, &[]);
+    s.handshake();
+
+    // Nothing pending yet.
+    let out = common::cargo_bin("mcp-guard")
+        .args(["holds", "--config", config.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&out.stdout).contains("No calls waiting"));
+
+    // The call blocks; a hold appears; approve it; the call completes.
+    send_only(
+        &mut s,
+        2,
+        "tools/call",
+        json!({"name": "delete_file", "arguments": {"path": "/tmp/a"}}),
+    );
+    let hold = wait_for_pending_hold(&config);
+    assert_eq!(hold["tool"], "delete_file");
+    assert_eq!(hold["rule"], "confirm destructive");
+    assert_eq!(hold["arguments"]["path"], "/tmp/a");
+    let id = hold["id"].as_str().unwrap().to_string();
+
+    let out = common::cargo_bin("mcp-guard")
+        .args(["holds", "--config", config.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        text.contains(&id) && text.contains("mcp-guard approve"),
+        "{}",
+        text
+    );
+
+    let out = common::cargo_bin("mcp-guard")
+        .args([
+            "approve",
+            &id[..4],
+            "--config",
+            config.to_str().unwrap(),
+            "--note",
+            "fine",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(String::from_utf8_lossy(&out.stdout).contains("Approved"));
+    let r = s.response(2);
+    assert_eq!(
+        r["result"]["content"][0]["text"], "called delete_file",
+        "{}",
+        r
+    );
+
+    // Second call: deny it with a reason the agent sees.
+    send_only(
+        &mut s,
+        3,
+        "tools/call",
+        json!({"name": "delete_file", "arguments": {"path": "/tmp/b"}}),
+    );
+    let hold = wait_for_pending_hold(&config);
+    let out = common::cargo_bin("mcp-guard")
+        .args([
+            "deny",
+            "latest",
+            "--config",
+            config.to_str().unwrap(),
+            "--note",
+            "not that one",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let r = s.response(3);
+    assert_eq!(r["error"]["code"], -32012, "{}", r);
+    assert!(r["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("not that one"));
+    let _ = hold;
+
+    // Approving an unknown id fails clearly; the holds dir is clean afterwards.
+    let out = common::cargo_bin("mcp-guard")
+        .args(["approve", "zzzzzzzz", "--config", config.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("no pending hold"));
+
+    // Non-held tools are unaffected.
+    let r = s.request(
+        4,
+        "tools/call",
+        json!({"name": "read_file", "arguments": {}}),
+    );
+    assert!(r["result"].is_object(), "{}", r);
+    s.close();
+
+    // The recording shows the hold lifecycle.
+    let out = common::cargo_bin("mcp-guard")
+        .args([
+            "policy",
+            "test",
+            "--config",
+            config.to_str().unwrap(),
+            "--tool",
+            "delete_file",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert!(String::from_utf8_lossy(&out.stdout).contains("HOLD"));
+}
+
+#[test]
+fn held_call_times_out_into_denial() {
+    let temp = tempfile::tempdir().unwrap();
+    let config = write_guard_config(temp.path(), &hold_policy_toml(temp.path(), 1));
+    let mut s = ServeSession::start(&config, &[]);
+    s.handshake();
+    let r = s.request(
+        2,
+        "tools/call",
+        json!({"name": "delete_file", "arguments": {}}),
+    );
+    assert_eq!(r["error"]["code"], -32012, "{}", r);
+    assert!(r["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("nobody approved"));
+    s.close();
+}
+
+#[test]
+fn replay_html_report() {
+    let temp = tempfile::tempdir().unwrap();
+    let config = write_guard_config_with(
+        temp.path(),
+        "pin_tools = false\ndenied_tools = [\"delete_*\"]",
+        &recorder_section(temp.path()),
+    );
+    {
+        let mut s = ServeSession::start(&config, &[]);
+        s.handshake();
+        s.request(
+            2,
+            "tools/call",
+            json!({"name": "read_file", "arguments": {"path": "/a"}}),
+        );
+        s.request(
+            3,
+            "tools/call",
+            json!({"name": "delete_file", "arguments": {}}),
+        );
+        s.close();
+    }
+    let out_path = temp.path().join("session.html");
+    let out = common::cargo_bin("mcp-guard")
+        .args([
+            "replay",
+            "--config",
+            config.to_str().unwrap(),
+            "--html",
+            out_path.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let html = std::fs::read_to_string(&out_path).unwrap();
+    assert!(html.starts_with("<!doctype html>"));
+    assert!(html.contains("tools/call read_file"));
+    assert!(html.contains("class=\"denied\""));
+    assert!(html.contains("Chain OK"));
+}

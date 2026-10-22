@@ -295,6 +295,9 @@ impl Recorder {
         user_redaction_rules: &[RedactionRule],
     ) -> std::io::Result<Self> {
         std::fs::create_dir_all(dir)?;
+        if let Err(e) = prune_sessions(dir, config.retention_days, config.max_sessions) {
+            tracing::warn!(error = %e, dir = %dir.display(), "Could not prune old recordings");
+        }
         let started = chrono::Utc::now();
         let session_id = uuid::Uuid::new_v4().simple().to_string()[..12].to_string();
         let path = dir.join(session_file_name(&started, &session_id));
@@ -664,6 +667,53 @@ pub fn list_sessions(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
     Ok(files)
 }
 
+/// Delete session files beyond the retention settings. Returns how many were removed.
+///
+/// Files are judged by the timestamp in their name (`YYYYMMDD-HHMMSS-...`), so
+/// a copied file keeps its original age. Files that do not follow the naming
+/// scheme are left alone.
+pub fn prune_sessions(
+    dir: &Path,
+    retention_days: Option<u32>,
+    max_sessions: Option<usize>,
+) -> std::io::Result<usize> {
+    if retention_days.is_none() && max_sessions.is_none() {
+        return Ok(0);
+    }
+    let mut sessions = list_sessions(dir)?; // newest first
+    sessions.retain(|p| session_started_at(p).is_some());
+    let mut removed = 0;
+    if let Some(days) = retention_days {
+        let cutoff = chrono::Utc::now() - chrono::Duration::days(days as i64);
+        let (keep, old): (Vec<PathBuf>, Vec<PathBuf>) = sessions
+            .into_iter()
+            .partition(|p| session_started_at(p).map(|t| t >= cutoff).unwrap_or(true));
+        for p in old {
+            std::fs::remove_file(&p)?;
+            removed += 1;
+        }
+        sessions = keep;
+    }
+    if let Some(max) = max_sessions {
+        // The session about to be created counts toward the limit.
+        let allowed = max.saturating_sub(1);
+        for p in sessions.iter().skip(allowed) {
+            std::fs::remove_file(p)?;
+            removed += 1;
+        }
+    }
+    Ok(removed)
+}
+
+/// Start time encoded in a session file name.
+pub fn session_started_at(path: &Path) -> Option<chrono::DateTime<chrono::Utc>> {
+    let name = path.file_name()?.to_str()?;
+    let stamp = name.get(0..15)?;
+    chrono::NaiveDateTime::parse_from_str(stamp, "%Y%m%d-%H%M%S")
+        .ok()
+        .map(|naive| naive.and_utc())
+}
+
 /// Resolve `--session`: `latest`, a full path, a file name, or a session id prefix.
 pub fn find_session(dir: &Path, selector: &str) -> std::io::Result<Option<PathBuf>> {
     let as_path = Path::new(selector);
@@ -890,6 +940,139 @@ pub fn render_timeline(entries: &[TimelineEntry]) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+// ----------------------------------------------------------------------------
+// HTML report
+// ----------------------------------------------------------------------------
+
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+/// Render a session as a self-contained HTML page: metadata, chain status,
+/// timeline with denials highlighted, and the raw records in a details block.
+pub fn render_html(session: &Session, verification: VerifyResult) -> String {
+    let info = session.info().unwrap_or_default();
+    let entries = timeline(session);
+    let denials = entries.iter().filter(|e| e.denied).count();
+    let chain = if verification.ok {
+        if verification.key_checked {
+            ("ok", "Chain OK".to_string())
+        } else {
+            (
+                "ok",
+                "Chain continuity OK (signed; signatures not checked)".to_string(),
+            )
+        }
+    } else {
+        (
+            "bad",
+            format!(
+                "Chain broken at record {}",
+                verification
+                    .first_bad_seq
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "?".into())
+            ),
+        )
+    };
+
+    let mut rows = String::new();
+    for e in &entries {
+        rows.push_str(&format!(
+            "<tr class=\"{}\"><td class=\"ts\">{}</td><td class=\"seq\">{}</td><td class=\"label\">{}</td><td class=\"detail\">{}</td></tr>\n",
+            if e.denied { "denied" } else { "" },
+            html_escape(&e.ts),
+            e.seq,
+            html_escape(&e.label),
+            html_escape(&e.detail)
+        ));
+    }
+
+    let mut raw = String::new();
+    for r in &session.records {
+        raw.push_str(&html_escape(&serde_json::to_string(r).unwrap_or_default()));
+        raw.push('\n');
+    }
+
+    format!(
+        r##"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp-guard session {sid}</title>
+<style>
+:root {{ --bg:#fff; --fg:#1b1b1b; --muted:#666; --line:#e4e4e4; --deny:#fff1f0; --deny-fg:#a40000; --ok:#1a7f37; --bad:#a40000; font-family: ui-sans-serif, system-ui, sans-serif; }}
+@media (prefers-color-scheme: dark) {{ :root {{ --bg:#111; --fg:#eee; --muted:#9a9a9a; --line:#2a2a2a; --deny:#3a1414; --deny-fg:#ff8a80; --ok:#56d364; --bad:#ff8a80; }} }}
+body {{ margin:0; padding:24px 16px; background:var(--bg); color:var(--fg); line-height:1.45; }}
+main {{ max-width: 1100px; margin: 0 auto; }}
+h1 {{ font-size: 1.4rem; margin: 0 0 4px; }}
+.meta {{ color: var(--muted); font-size: .9rem; margin-bottom: 16px; }}
+.meta code {{ font-size: .85rem; }}
+.badge {{ display:inline-block; padding:2px 8px; border-radius:999px; font-weight:600; font-size:.85rem; }}
+.badge.ok {{ background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }}
+.badge.bad {{ background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad); }}
+table {{ width:100%; border-collapse: collapse; font-size: .9rem; }}
+th, td {{ text-align:left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }}
+th {{ color: var(--muted); font-weight: 600; font-size:.8rem; text-transform: uppercase; letter-spacing:.03em; }}
+td.ts, td.seq {{ white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }}
+td.label {{ white-space: nowrap; font-family: ui-monospace, monospace; }}
+td.detail {{ font-family: ui-monospace, monospace; word-break: break-word; }}
+tr.denied td {{ background: var(--deny); color: var(--deny-fg); }}
+details {{ margin-top: 24px; }}
+summary {{ cursor: pointer; color: var(--muted); }}
+pre {{ font-size: .75rem; overflow-x: auto; padding: 12px; border: 1px solid var(--line); border-radius: 6px; }}
+</style>
+</head>
+<body>
+<main>
+<h1>mcp-guard session {sid}</h1>
+<div class="meta">
+  <div>Upstream: <code>{upstream}</code></div>
+  <div>Started: {started} &nbsp;·&nbsp; Policy mode: {mode} &nbsp;·&nbsp; {records} records &nbsp;·&nbsp; {denials} denials or decisions &nbsp;·&nbsp; {ended}</div>
+  <div>Integrity: <span class="badge {chain_class}">{chain_text}</span>{signed}</div>
+  <div>File: <code>{file}</code></div>
+</div>
+<table>
+<thead><tr><th>Time (UTC)</th><th>#</th><th>Event</th><th>Detail</th></tr></thead>
+<tbody>
+{rows}</tbody>
+</table>
+<details>
+<summary>Raw records ({records} lines, JSON)</summary>
+<pre>{raw}</pre>
+</details>
+</main>
+</body>
+</html>
+"##,
+        sid = html_escape(&info.session_id),
+        upstream = html_escape(info.upstream.as_deref().unwrap_or("(none)")),
+        started = html_escape(&info.started_at),
+        mode = html_escape(info.policy_mode.as_deref().unwrap_or("?")),
+        records = session.records.len(),
+        denials = denials,
+        ended = if session.ended() {
+            "session ended cleanly"
+        } else {
+            "no session_end record"
+        },
+        chain_class = chain.0,
+        chain_text = html_escape(&chain.1),
+        signed = if info.signed {
+            " &nbsp;(HMAC-signed)"
+        } else {
+            ""
+        },
+        file = html_escape(&session.path.display().to_string()),
+        rows = rows,
+        raw = raw,
+    )
 }
 
 #[cfg(test)]
@@ -1132,6 +1315,58 @@ mod tests {
             .unwrap()
             .get("error")
             .is_some());
+    }
+
+    #[test]
+    fn html_report_contains_timeline_and_escapes() {
+        let dir = tempfile::tempdir().unwrap();
+        let rec = Recorder::start(&config(), dir.path(), SessionInfo::default(), &[]).unwrap();
+        rec.record_client_message(&call(
+            1,
+            "read_file",
+            json!({"path": "<script>alert(1)</script>"}),
+        ))
+        .unwrap();
+        rec.record_outgoing_message(
+            &Message::error_response(Some(json!(1)), -32010, "denied"),
+            Some("tools/call"),
+            Some("read_file"),
+        )
+        .unwrap();
+        rec.finish("done").unwrap();
+        let session = Session::load(rec.path()).unwrap();
+        let page = render_html(&session, verify(&session, None));
+        assert!(page.starts_with("<!doctype html>"));
+        assert!(page.contains("tools/call read_file"));
+        assert!(page.contains("class=\"denied\""));
+        assert!(page.contains("Chain OK"));
+        assert!(!page.contains("<script>alert(1)</script>"), "escaped");
+        assert!(page.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn prune_by_age_and_count() {
+        let dir = tempfile::tempdir().unwrap();
+        let old = dir.path().join("20200101-000000-aaaaaaaaaaaa.jsonl");
+        let mid = dir.path().join("20250601-120000-bbbbbbbbbbbb.jsonl");
+        let new = dir
+            .path()
+            .join(session_file_name(&chrono::Utc::now(), "cccccccccccc"));
+        let foreign = dir.path().join("notes.jsonl");
+        for p in [&old, &mid, &new, &foreign] {
+            std::fs::write(p, "{}\n").unwrap();
+        }
+        assert_eq!(prune_sessions(dir.path(), None, None).unwrap(), 0);
+        assert_eq!(prune_sessions(dir.path(), Some(30), None).unwrap(), 2);
+        assert!(!old.exists() && !mid.exists() && new.exists() && foreign.exists());
+
+        std::fs::write(&old, "{}\n").unwrap();
+        std::fs::write(&mid, "{}\n").unwrap();
+        // max_sessions = 2 leaves room for the session about to start: keep 1.
+        assert_eq!(prune_sessions(dir.path(), None, Some(2)).unwrap(), 2);
+        assert!(new.exists() && !old.exists() && !mid.exists());
+        assert!(session_started_at(&new).is_some());
+        assert!(session_started_at(&foreign).is_none());
     }
 
     #[test]

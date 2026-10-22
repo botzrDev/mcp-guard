@@ -460,6 +460,20 @@ mode = "enforce"
 # action = "deny"
 # [policy.rules.when]
 # path = { contains = [".ssh", ".aws", ".env"] }
+#
+# action = "hold" pauses the call until you run `mcp-guard approve <id>`
+# (or denies it after policy.holds.timeout_secs). `mcp-guard holds` lists what waits.
+# [[policy.rules]]
+# name = "confirm destructive operations"
+# tools = ["delete_*", "execute_*", "run_shell"]
+# action = "hold"
+# reason = "destructive operation needs your approval"
+#
+# [policy.holds]
+# dir = "holds"                 # default: <config stem>.holds/ next to this file
+# timeout_secs = 120
+# notify = true                 # desktop notification; or set notify_command
+# notify_command = ["notify-send", "mcp-guard", "{tool}: {approve}"]
 
 # =============================================================================
 # Flight Recorder (used by `mcp-guard serve`, the stdio proxy mode)
@@ -476,3 +490,5 @@ enabled = false
 # include_results = true               # false: requests, decisions and errors only
 # redact = true                        # built-in secret patterns + [audit] redaction_rules
 # signing_key_env = "MCP_GUARD_RECORDER_KEY"   # HMAC-SHA256 chain; keep the key off this machine
+# retention_days = 30                  # delete sessions older than this on startup
+# max_sessions = 500                   # keep at most this many session files
