@@ -121,6 +121,8 @@ curl -H "Authorization: Bearer mcp_YOUR_KEY" http://localhost:3000/health
 ### Local mode (free, all tiers)
 
 - Tool policy with allow and deny globs
+- Argument-level rules (`write_file` only under the workspace, `http_request` only `GET`), tested with `mcp-guard policy test`
+- Shadow mode: observe first, then `mcp-guard policy suggest --apply` writes a least-privilege policy from what the agent actually used
 - Tool pinning with a reviewable JSON lockfile (`mcp-guard pin`)
 - Per-server audit log
 - `doctor`, `wrap`, `unwrap` for Claude Desktop, Claude Code, Cursor, Windsurf, VS Code
@@ -186,10 +188,18 @@ allowed_tools = ["read_file", "list_directory"]
 
 # Used by `mcp-guard serve` (local mode)
 [policy]
+mode = "enforce"           # or "observe" to record without blocking
 allowed_tools = ["*"]
 denied_tools = ["delete_*", "execute_*"]
 pin_tools = true
 on_pin_mismatch = "deny"   # or "warn"
+
+[[policy.rules]]
+name = "writes stay in the workspace"
+tools = ["write_file", "edit_file"]
+action = "deny"
+[policy.rules.when]
+path = { not_starts_with = "/home/me/project/" }
 ```
 
 <details>
@@ -277,6 +287,8 @@ Local mode
   wrap             Put mcp-guard in front of a client's stdio servers
   unwrap           Restore servers wrapped with `wrap`
   pin              Pin, review or accept the upstream's tool definitions
+  policy test      Evaluate the policy against one tool call
+  policy suggest   Propose a least-privilege policy from the audit log
   serve            Run as a stdio proxy (what wrapped clients launch)
 
 Gateway mode
@@ -301,13 +313,12 @@ Options:
 
 The direction: stop competing on authentication, which the MCP spec and every API gateway now cover, and own the layer above it, **what an agent may do and proof of what it did**. In rough order:
 
-1. **Argument-level policy.** Conditions on tool arguments and results (for example, `write_file` only under the workspace), with today's `allowed_tools` kept as shorthand.
-2. **Shadow mode.** Run observe-only, then generate a least-privilege policy from what the agent actually used.
-3. **Flight recorder.** Tamper-evident, redacted recording of every exchange per session, with `mcp-guard replay`.
-4. **Protocol shim.** Full support for the 2026-07-28 stateless revision, relaying server-initiated requests, and exposing old stdio servers as compliant remote servers.
-5. **Human-in-the-loop holds** for high-risk tools.
-6. **Prebuilt binaries and a Homebrew tap.**
-7. **Re-tiering.** Make the open core complete (all auth, all transports) and charge for policy packs, the recorder, fleet management and support.
+1. **Result inspection.** Rules on what comes back from a server (secret and PII redaction, size limits), extending today's argument rules.
+2. **Flight recorder.** Tamper-evident, redacted recording of every exchange per session, with `mcp-guard replay`.
+3. **Protocol shim.** Full support for the 2026-07-28 stateless revision, relaying server-initiated requests, and exposing old stdio servers as compliant remote servers.
+4. **Human-in-the-loop holds** for high-risk tools.
+5. **Prebuilt binaries and a Homebrew tap.**
+6. **Re-tiering.** Make the open core complete (all auth, all transports) and charge for policy packs, the recorder, fleet management and support.
 
 Issues and pull requests on any of these are welcome.
 

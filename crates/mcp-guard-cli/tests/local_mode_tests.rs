@@ -626,3 +626,148 @@ fn serve_without_pinning_passes_tools_through() {
     assert!(names.contains(&"delete_file".to_string()));
     assert!(!temp.path().join("guard.tools.lock.json").exists());
 }
+
+// ----------------------------------------------------------------------------
+// policy test / policy suggest
+// ----------------------------------------------------------------------------
+
+#[test]
+fn policy_test_evaluates_rules_from_config() {
+    let temp = tempfile::tempdir().unwrap();
+    let config = write_guard_config(
+        temp.path(),
+        r#"pin_tools = false
+[[policy.rules]]
+name = "workspace only"
+tools = ["write_file"]
+action = "deny"
+reason = "writes must stay under /work"
+[policy.rules.when]
+path = { not_starts_with = "/work/" }"#,
+    );
+
+    let out = common::cargo_bin("mcp-guard")
+        .args([
+            "policy",
+            "test",
+            "--config",
+            config.to_str().unwrap(),
+            "--tool",
+            "write_file",
+            "--args",
+            r#"{"path": "/etc/passwd"}"#,
+        ])
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "denied call exits 1");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("DENY"), "{}", text);
+    assert!(text.contains("workspace only"), "{}", text);
+
+    let out = common::cargo_bin("mcp-guard")
+        .args([
+            "policy",
+            "test",
+            "--config",
+            config.to_str().unwrap(),
+            "--tool",
+            "write_file",
+            "--args",
+            r#"{"path": "/work/a.md"}"#,
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(String::from_utf8_lossy(&out.stdout).contains("ALLOW"));
+}
+
+#[test]
+fn observe_mode_then_policy_suggest_then_apply() {
+    let temp = tempfile::tempdir().unwrap();
+    let config = write_guard_config(
+        temp.path(),
+        "pin_tools = false\nmode = \"observe\"\ndenied_tools = [\"delete_*\"]",
+    );
+
+    // In observe mode the denied tool is still visible and callable, but recorded.
+    {
+        let mut s = ServeSession::start(&config, &[]);
+        s.handshake();
+        let names = s.tool_names(2);
+        assert!(names.contains(&"delete_file".to_string()), "{:?}", names);
+        let r = s.request(
+            3,
+            "tools/call",
+            json!({"name": "read_file", "arguments": {}}),
+        );
+        assert!(r["result"].is_object(), "{}", r);
+        let r = s.request(
+            4,
+            "tools/call",
+            json!({"name": "read_file", "arguments": {}}),
+        );
+        assert!(r["result"].is_object(), "{}", r);
+        let r = s.request(
+            5,
+            "tools/call",
+            json!({"name": "delete_file", "arguments": {}}),
+        );
+        assert!(r["result"].is_object(), "observe mode allows: {}", r);
+    }
+
+    let out = common::cargo_bin("mcp-guard")
+        .args(["policy", "suggest", "--config", config.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("read_file"), "{}", text);
+    assert!(text.contains("would have denied"), "{}", text);
+    assert!(text.contains("delete_file"), "{}", text);
+    assert!(text.contains("allowed_tools = ["), "{}", text);
+
+    let out = common::cargo_bin("mcp-guard")
+        .args([
+            "policy",
+            "suggest",
+            "--config",
+            config.to_str().unwrap(),
+            "--apply",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let toml_text = std::fs::read_to_string(&config).unwrap();
+    assert!(toml_text.contains("mode = \"enforce\""), "{}", toml_text);
+    assert!(toml_text.contains("\"read_file\""), "{}", toml_text);
+    assert!(
+        toml_text.contains("denied_tools"),
+        "existing keys kept: {}",
+        toml_text
+    );
+
+    // Now enforced: delete_file is gone and a never-observed tool is denied.
+    let mut s = ServeSession::start(&config, &[]);
+    s.handshake();
+    let names = s.tool_names(2);
+    assert!(names.contains(&"read_file".to_string()), "{:?}", names);
+    assert!(!names.contains(&"delete_file".to_string()), "{:?}", names);
+    let r = s.request(
+        3,
+        "tools/call",
+        json!({"name": "delete_file", "arguments": {}}),
+    );
+    assert_eq!(r["error"]["code"], -32010, "{}", r);
+}

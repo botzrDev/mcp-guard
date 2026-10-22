@@ -582,6 +582,32 @@ While the lockfile is out of date, `serve` hides the changed and new tools and r
 
 ---
 
+### policy test
+
+Evaluate the config's `[policy]` against one tool call and print the decision.
+
+```bash
+mcp-guard policy test --config <guard config> --tool <name> [--args '<json object>']
+```
+
+Prints `ALLOW`, `DENY` (exit 1) or, in observe mode, `WOULD DENY`, with the reason and the rule that decided. Use it while writing `[[policy.rules]]`; nothing needs restarting.
+
+---
+
+### policy suggest
+
+Read the audit log and propose a least-privilege policy from what the agent actually did.
+
+```bash
+mcp-guard policy suggest --config <guard config> [--audit-log <path>] [--apply]
+```
+
+Lists every tool called with counts, every call the current policy denied, and every call it would have denied in observe mode. Prints a `[policy]` block with `mode = "enforce"` and `allowed_tools` set to the observed tools. `--apply` writes that into the config, keeping comments, `denied_tools` and `rules`.
+
+Typical loop: set `mode = "observe"` in the guard config, use the agent for a while, run `policy suggest`, review, run again with `--apply`, restart the client.
+
+---
+
 ### serve
 
 Run as a stdio proxy in front of the configured upstream. This is what wrapped client entries launch; you rarely run it by hand.

@@ -39,5 +39,8 @@ pub async fn wait_for_server(port: u16) -> bool {
 pub fn cargo_bin(_name: &str) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_mcp-guard"));
     cmd.env("RUST_LOG", "debug");
+    // Feature-gated builds (pro/enterprise) refuse to start without a license
+    // key; tests exercise the features, not the licensing.
+    cmd.env("MCP_GUARD_SKIP_LICENSE_CHECK", "1");
     cmd
 }

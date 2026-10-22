@@ -1,7 +1,7 @@
 # CLAUDE.md - MCP Guard Project Context
 
 > **Last Updated:** 2026-10-22
-> **Project Status:** v1.0.0 shipped (gateway). Local mode (wrap/doctor/pin/serve) landed; roadmap below is the plan from here.
+> **Project Status:** v1.0.0 shipped (gateway). Local mode (wrap/doctor/pin/serve) and argument-level policy with shadow mode landed; roadmap below is the plan from here.
 
 ---
 
@@ -33,6 +33,7 @@ mcp-guard/                       Cargo workspace, version 1.0.0, AGPL-3.0
 │   │   ├── src/authz/           Tool-name authorization, tools/list filtering
 │   │   ├── src/clients.rs       MCP client config discovery, wrap/unwrap/doctor logic
 │   │   ├── src/pin.rs           Tool lockfile: canonical JSON hashing, diff, load/save
+│   │   ├── src/policy.rs        Policy evaluation: tool globs + argument rules -> Decision
 │   │   ├── src/mcp_server/      Stdio proxy (`serve`): handshake forwarding, policy, pinning, audit
 │   │   ├── src/guard_tools/     guard/health, guard/metrics, guard/version tools
 │   │   ├── src/server/          Axum HTTP gateway, middleware, OAuth endpoints, health, dashboard/billing routes
@@ -77,6 +78,8 @@ mcp-guard doctor [--client cursor] [--json] [--strict]
 mcp-guard wrap --client claude-desktop [--server NAME] [--deny "delete_*"] [--dry-run]
 mcp-guard unwrap --client claude-desktop
 mcp-guard pin --config ~/.config/mcp-guard/claude-desktop/NAME.toml [--accept] [--show]
+mcp-guard policy test --config X.toml --tool write_file --args '{"path": "/etc/passwd"}'
+mcp-guard policy suggest --config X.toml [--apply]      # from audit log, after mode = "observe"
 mcp-guard serve --config X.toml           # what wrapped clients launch
 
 # Gateway mode
@@ -95,20 +98,25 @@ CI runs clippy with `-D warnings` on current stable. New clippy lints on toolcha
 - **Wrap keeps secrets out of guard configs.** The client entry's `env` stays on the client entry; mcp-guard inherits it and the upstream inherits it from mcp-guard.
 - **stdout is the protocol in serve mode.** All logs go to stderr; `audit.stdout` is forced off.
 - **Shell-injection validation** in `transport` rejects commands/args with shell metacharacters. `wrap` skips such entries with a reason instead of generating a config that fails at launch.
+- **Policy evaluation order** (`policy::evaluate`): denied_tools, then allowed_tools, then `[[policy.rules]]` in order, first match wins, no match allows. Rules only run on `tools/call` (they need arguments); `tools/list` visibility uses the globs only. An absent argument fails every operator except `exists = false`.
+- **Observe mode** (`policy.mode = "observe"`): nothing blocked, `PolicyWouldDeny` audit events written, denied tools stay visible in `tools/list`. Pinning is independent of mode. `policy suggest` parses the audit JSONL (`event_type` = `tool_call` / `policy_would_deny`) and `--apply` edits the config with `toml_edit` so comments survive.
 - **Config struct literals in tests** must include `policy: Default::default()`.
+- **`upstream.transport` defaults to stdio**; multi-server configs may omit `[upstream]` entirely.
+- **E2E tests set `MCP_GUARD_SKIP_LICENSE_CHECK`** (in `tests/common/mod.rs`) so pro/enterprise builds start without a key.
 - Rate limits are not applied in serve mode (nothing to key them on).
 
 ---
 
 ## Roadmap (agreed direction, 2026-10-22)
 
-1. Argument-level policy (conditions on tool arguments and results; `allowed_tools` stays as sugar). Candidate engine: Cedar.
-2. Shadow mode: observe-only run that emits a least-privilege policy from observed traffic.
-3. Flight recorder: hash-chained, redacted per-session recording plus `mcp-guard replay`.
-4. Protocol shim: 2026-07-28 stateless revision, relay server-initiated requests (sampling/elicitation/roots), expose stdio servers as compliant remote servers.
-5. Human-in-the-loop holds for high-risk tools.
-6. Prebuilt binaries + Homebrew tap (release-tiers.yml exists; no published artifacts yet).
-7. Re-tier: open core complete (all auth, all transports); charge for policy packs, recorder, fleet control plane, support. `tier.rs` gating of HTTP/SSE/JWKS is the thing to remove when this happens.
+1. Result inspection: rules on tool results (secret/PII redaction, size limits), extending the argument rules. Cedar was considered for the policy engine and deferred: the TOML rule format covers the known cases and stays readable in one config file.
+2. Flight recorder: hash-chained, redacted per-session recording plus `mcp-guard replay`.
+3. Protocol shim: 2026-07-28 stateless revision, relay server-initiated requests (sampling/elicitation/roots), expose stdio servers as compliant remote servers.
+4. Human-in-the-loop holds for high-risk tools (approve in terminal/Slack before a `delete_*` call proceeds).
+5. Prebuilt binaries + Homebrew tap (release-tiers.yml exists; no published artifacts yet).
+6. Re-tier: open core complete (all auth, all transports); charge for policy packs, recorder, fleet control plane, support. `tier.rs` gating of HTTP/SSE/JWKS is the thing to remove when this happens.
+
+Done: local mode (wrap/doctor/pin/serve), argument-level policy rules, shadow mode + `policy suggest`.
 
 ---
 
@@ -127,7 +135,8 @@ CI runs clippy with `-D warnings` on current stable. New clippy lints on toolcha
 - 2025-12: Sprints 1 to 6 built the gateway: auth providers, rate limiting, metrics, OAuth 2.1, OpenTelemetry, HTTP/SSE transports, mTLS, health endpoints, multi-server routing, audit shipping, benchmarks. v1.0.0 tagged 2025-12-26.
 - 2026-01: Stripe checkout, GitHub OAuth login, landing site, license-signing workers.
 - 2026 (to Oct): CI hardening (Windows build, cargo-deny, security audit), link cleanup, docs pointed at in-repo files.
-- 2026-10-22: Strategic review. Local mode shipped: `doctor`, `wrap`, `unwrap`, `pin`, `[policy]`, tool pinning, serve-mode handshake forwarding and audit. README rewritten to match the real workspace.
+- 2026-10-22: Strategic review. Local mode shipped: `doctor`, `wrap`, `unwrap`, `pin`, `[policy]`, tool pinning, serve-mode handshake forwarding and audit. README rewritten to match the real workspace. (PR #5)
+- 2026-10-22: Argument-level `[[policy.rules]]`, `mode = "observe"`, `policy test`, `policy suggest --apply`. Fixed pre-existing OAuth callback and routing test failures.
 
 ---
 

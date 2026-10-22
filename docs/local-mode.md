@@ -98,6 +98,98 @@ on_pin_mismatch = "deny"
 
 Denied tools are removed from `tools/list` so the model never sees them, and calls to them are rejected with JSON-RPC error `-32010`. The built-in `guard/*` tools obey the same policy.
 
+### Argument-level rules
+
+Tool names are often too coarse: `write_file` is fine inside the project and dangerous elsewhere. Rules look at the call's arguments.
+
+```toml
+[[policy.rules]]
+name = "writes stay in the workspace"
+tools = ["write_file", "edit_file", "create_directory"]
+action = "deny"
+reason = "writes outside /home/me/project are blocked"
+[policy.rules.when]
+path = { not_starts_with = "/home/me/project/" }
+
+[[policy.rules]]
+name = "read-only HTTP"
+tools = ["http_request", "fetch"]
+action = "deny"
+[policy.rules.when]
+method = { not_in = ["GET", "HEAD"] }
+
+[[policy.rules]]
+name = "never touch secrets"
+action = "deny"
+[policy.rules.when]
+path = { contains = [".ssh", ".aws", ".env", "id_rsa"] }
+```
+
+Evaluation on every `tools/call`:
+
+1. `denied_tools`: a match denies.
+2. `allowed_tools`: no match denies.
+3. `rules` in order. The first rule whose `tools` match (default: all tools) and whose `when` conditions all hold decides: `allow` or `deny`. No matching rule means allow.
+
+`when` is a map from a dotted argument path (`path`, `options.recursive`, `files.0.name`) to a condition. Every operator set in a condition must hold. An absent argument fails every operator except `exists = false`, so a rule written as "deny unless the path is under X" does not fire when there is no path at all. Write an explicit `exists = true` rule if you need that.
+
+| Operator | Applies to | Meaning |
+|---|---|---|
+| `exists` | any | `true`: argument present; `false`: absent |
+| `equals`, `not_equals` | any JSON value | exact comparison |
+| `in`, `not_in` | any JSON value | membership in a list |
+| `starts_with`, `not_starts_with` | string | prefix, one string or a list (any) |
+| `ends_with`, `not_ends_with` | string | suffix |
+| `contains`, `not_contains` | string | substring |
+| `glob`, `not_glob` | string | shell glob (`*`, `?`, `[..]`) |
+| `regex`, `not_regex` | string | Rust regex, unanchored |
+| `max_length` | string, array, object | maximum length |
+| `gt`, `gte`, `lt`, `lte` | number | numeric comparison |
+
+String operators never match a non-string value. Test a rule without restarting anything:
+
+```bash
+mcp-guard policy test --config ~/.config/mcp-guard/claude-desktop/filesystem.toml \
+  --tool write_file --args '{"path": "/etc/passwd"}'
+```
+
+It prints the decision and the rule that made it, and exits 1 on a deny.
+
+### Shadow mode and generated policy
+
+Writing a policy before you know what the agent needs leads to either a policy that blocks real work or one that allows everything. Shadow mode resolves that:
+
+```toml
+[policy]
+mode = "observe"
+```
+
+In observe mode nothing is blocked. Every call is recorded in the audit log as usual, and every call the policy *would* have denied is recorded as a `policy_would_deny` event with the reason. Denied tools stay visible in `tools/list`. Pinning is unaffected: a changed tool definition is still hidden.
+
+After the agent has done a representative week of work:
+
+```bash
+mcp-guard policy suggest --config ~/.config/mcp-guard/claude-desktop/filesystem.toml
+```
+
+```
+Tools the agent actually called:
+  list_directory                               412 call(s)
+  read_file                                   1839 call(s)
+  write_file                                   207 call(s)
+
+Calls the current policy would have denied (observe mode):
+  write_file                                     3   writes outside /home/me/project are blocked
+
+Suggested least-privilege policy (every other tool is hidden and denied):
+
+[policy]
+mode = "enforce"
+allowed_tools = ["list_directory", "read_file", "write_file"]
+```
+
+`--apply` writes `mode = "enforce"` and the `allowed_tools` list into the config, keeping comments, `denied_tools` and `rules` as they are. Restart the client afterwards.
+
 ## pin
 
 A tool definition is its name, description, input schema, and output schema or annotations when present. The model reads the description as instructions, so a server that rewrites a description after you approved it can redirect the agent. Pinning records a `sha256` of each definition and compares every later `tools/list` against the record.
@@ -148,7 +240,7 @@ Reads each wrapped entry's guard config, restores the original `command` and `ar
 ## Limits of local mode today
 
 - Server-initiated requests are not relayed. Servers that use sampling or elicitation will see a method-not-found error for those calls.
-- Policy is by tool name. Argument-level conditions are on the roadmap.
+- Rules see tool arguments, not tool results. Inspecting what comes back from a server is on the roadmap.
 - Rate limits are not applied in serve mode.
 - Paginated `tools/list` responses are supported: all pages are read for pinning, `nextCursor` is preserved, and `guard/*` tools are added to the first page only.
 - Remote servers in a client config are reported by `doctor` but not wrapped. Put `mcp-guard run` in front of them instead.

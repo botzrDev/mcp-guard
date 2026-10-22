@@ -730,6 +730,142 @@ pub struct PolicyConfig {
     /// Action for tools that are new or changed since pinning.
     #[serde(default = "default_pin_mismatch_action")]
     pub on_pin_mismatch: PinMismatchAction,
+
+    /// `enforce` (default) blocks what the policy denies. `observe` allows
+    /// everything but records what *would* have been denied, so a policy can
+    /// be tried, or generated with `mcp-guard policy suggest`, before it bites.
+    #[serde(default)]
+    pub mode: PolicyMode,
+
+    /// Argument-level rules, evaluated in order on `tools/call` after
+    /// `denied_tools` and `allowed_tools`. The first rule whose `tools` match
+    /// and whose `when` conditions all hold decides; no match means allow.
+    #[serde(default)]
+    pub rules: Vec<PolicyRule>,
+}
+
+/// Whether policy decisions are enforced or only recorded.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PolicyMode {
+    #[default]
+    Enforce,
+    Observe,
+}
+
+/// What a matching rule does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RuleAction {
+    Allow,
+    Deny,
+}
+
+/// One argument-level rule.
+///
+/// ```toml
+/// [[policy.rules]]
+/// name = "writes stay inside the workspace"
+/// tools = ["write_file", "edit_file"]
+/// action = "deny"
+/// [policy.rules.when]
+/// path = { not_starts_with = "/home/me/project/" }
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PolicyRule {
+    /// Optional label, shown in denials and audit entries.
+    #[serde(default)]
+    pub name: Option<String>,
+
+    /// Tool name globs this rule applies to. Default: every tool.
+    #[serde(default = "default_allow_all")]
+    pub tools: Vec<String>,
+
+    /// What to do when the rule matches.
+    pub action: RuleAction,
+
+    /// Optional explanation returned to the agent on denial.
+    #[serde(default)]
+    pub reason: Option<String>,
+
+    /// Conditions on tool arguments, keyed by dotted argument path
+    /// (`path`, `options.recursive`, `files.0.name`). All must hold.
+    /// An empty map matches every call.
+    #[serde(default)]
+    pub when: std::collections::BTreeMap<String, ArgCondition>,
+}
+
+/// One string or a list of strings.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum OneOrMany<T> {
+    One(T),
+    Many(Vec<T>),
+}
+
+impl<T> OneOrMany<T> {
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        match self {
+            OneOrMany::One(v) => std::slice::from_ref(v).iter(),
+            OneOrMany::Many(v) => v.iter(),
+        }
+    }
+}
+
+/// Conditions on one argument value. Every field that is set must hold.
+///
+/// String operators apply to string arguments only; a non-string value never
+/// matches them. Numeric operators apply to numbers. `exists = false` is the
+/// only operator that holds when the argument is absent.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArgCondition {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exists: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub equals: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub not_equals: Option<serde_json::Value>,
+    #[serde(default, rename = "in", skip_serializing_if = "Option::is_none")]
+    pub one_of: Option<Vec<serde_json::Value>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub not_in: Option<Vec<serde_json::Value>>,
+    /// Holds when the string starts with any of these.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub starts_with: Option<OneOrMany<String>>,
+    /// Holds when the string starts with none of these.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub not_starts_with: Option<OneOrMany<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ends_with: Option<OneOrMany<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub not_ends_with: Option<OneOrMany<String>>,
+    /// Substring match, any of.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contains: Option<OneOrMany<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub not_contains: Option<OneOrMany<String>>,
+    /// Glob match (`*`, `?`, `[..]`), any of.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub glob: Option<OneOrMany<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub not_glob: Option<OneOrMany<String>>,
+    /// Regular expression (Rust `regex` syntax), unanchored, any of.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub regex: Option<OneOrMany<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub not_regex: Option<OneOrMany<String>>,
+    /// Maximum string length in characters (or array length).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_length: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gt: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gte: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lt: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lte: Option<f64>,
 }
 
 fn default_allow_all() -> Vec<String> {
@@ -748,6 +884,8 @@ impl Default for PolicyConfig {
             pin_tools: true,
             tools_lock: None,
             on_pin_mismatch: default_pin_mismatch_action(),
+            mode: PolicyMode::Enforce,
+            rules: Vec::new(),
         }
     }
 }
@@ -809,7 +947,9 @@ pub fn glob_match(pattern: &str, name: &str) -> bool {
 /// Upstream MCP server configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpstreamConfig {
-    /// Transport type (used for single-server mode)
+    /// Transport type (used for single-server mode). Defaults to stdio, so
+    /// multi-server configs that only list `[[upstream.servers]]` are valid.
+    #[serde(default)]
     pub transport: TransportType,
 
     /// Command to run (for stdio transport)
@@ -858,9 +998,10 @@ pub struct ServerRouteConfig {
 }
 
 /// Transport type for upstream connection
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TransportType {
+    #[default]
     Stdio,
     Http,
     Sse,
@@ -934,8 +1075,54 @@ impl Config {
         self.validate_audit()?;
         self.validate_mtls()?;
         self.validate_tracing()?;
+        self.validate_policy()?;
         self.validate_upstream()
         // Database validation is handled at connection time
+    }
+
+    /// Validate the local policy: regexes and globs must compile.
+    fn validate_policy(&self) -> Result<(), ConfigError> {
+        for (i, rule) in self.policy.rules.iter().enumerate() {
+            let label = rule
+                .name
+                .clone()
+                .unwrap_or_else(|| format!("policy.rules[{}]", i));
+            for (arg, cond) in &rule.when {
+                for pattern in cond
+                    .regex
+                    .iter()
+                    .chain(cond.not_regex.iter())
+                    .flat_map(|p| p.iter())
+                {
+                    regex::Regex::new(pattern).map_err(|e| {
+                        ConfigError::Validation(format!(
+                            "{}: invalid regex for argument '{}': {}",
+                            label, arg, e
+                        ))
+                    })?;
+                }
+                for pattern in cond
+                    .glob
+                    .iter()
+                    .chain(cond.not_glob.iter())
+                    .flat_map(|p| p.iter())
+                {
+                    glob::Pattern::new(pattern).map_err(|e| {
+                        ConfigError::Validation(format!(
+                            "{}: invalid glob for argument '{}': {}",
+                            label, arg, e
+                        ))
+                    })?;
+                }
+                if *cond == ArgCondition::default() {
+                    return Err(ConfigError::Validation(format!(
+                        "{}: condition for argument '{}' has no operators",
+                        label, arg
+                    )));
+                }
+            }
+        }
+        Ok(())
     }
 
     // ========================================================================

@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Argument-level policy and shadow mode
+- `[[policy.rules]]`: rules on tool arguments (`when` conditions with
+  `starts_with`, `not_in`, `glob`, `regex`, numeric and existence operators),
+  evaluated in order after the tool globs. Denials carry the rule name and reason.
+- `[policy] mode = "observe"`: shadow mode. Nothing is blocked; calls the policy
+  would have denied are recorded as `policy_would_deny` audit events.
+- `mcp-guard policy test --tool X --args '{...}'`: evaluate the config's policy
+  against one call and print the decision and rule.
+- `mcp-guard policy suggest [--apply]`: read the audit log, list the tools the
+  agent actually used and what the policy would have denied, and propose (or
+  write) a least-privilege `allowed_tools` with `mode = "enforce"`.
+- `upstream.transport` now defaults to `stdio`, so multi-server configs that
+  only list `[[upstream.servers]]` are valid.
+
+### Fixed
+- OAuth callback tests mocked only the token endpoint and passed no JWT
+  provider; they now cover the identity verification and session minting the
+  handler performs.
+- Enterprise routing tests failed on config parsing and on the license check.
+
 #### Local mode (stdio proxy)
 - `mcp-guard doctor`: scans Claude Desktop, Claude Code, Cursor, Windsurf and VS Code
   configs (or any JSON file) and reports unguarded stdio servers, remote servers
